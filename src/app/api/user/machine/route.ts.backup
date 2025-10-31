@@ -1,0 +1,387 @@
+import { NextRequest } from 'next/server';
+import { verifyToken } from '@/lib/auth';
+import { connectDB } from '@/lib/database';
+import { getModels } from '@/models';
+import { createErrorResponse, createSuccessResponse, validateRequiredFields } from '@/middleware/auth';
+
+interface MachineQueryResult {
+  id: number;
+  machine_id: string;
+  machine_type: string;
+  society_id: number;
+  society_name: string;
+  location: string;
+  installation_date: string;
+  operator_name: string;
+  contact_phone: string;
+  status: string;
+  notes: string;
+  created_at: string;
+}
+
+// GET - Fetch all machines for the current admin
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return createErrorResponse('Authentication required', 401);
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.role !== 'admin') {
+      return createErrorResponse('Admin access required', 403);
+    }
+
+    await connectDB();
+    const { getModels } = await import('@/models');
+    const { sequelize, User } = getModels();
+
+    // Get admin's dbKey
+    const admin = await User.findByPk(payload.id);
+    if (!admin || !admin.dbKey) {
+      return createErrorResponse('Admin schema not found', 404);
+    }
+
+    // Generate schema name
+    const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+    // Query machines from admin's database schema
+    const query = `
+      SELECT 
+        m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
+        m.installation_date, m.operator_name, m.contact_phone, m.status, 
+        m.notes, m.created_at,
+        s.name as society_name
+      FROM \`${schemaName}\`.machines m
+      LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+      ORDER BY m.created_at DESC
+    `;
+
+    const [results] = await sequelize.query(query);
+
+    const machines = (results as MachineQueryResult[]).map((machine) => ({
+      id: machine.id,
+      machineId: machine.machine_id,
+      machineType: machine.machine_type,
+      societyId: machine.society_id,
+      societyName: machine.society_name,
+      location: machine.location,
+      installationDate: machine.installation_date,
+      operatorName: machine.operator_name,
+      contactPhone: machine.contact_phone,
+      status: machine.status || 'active',
+      notes: machine.notes,
+      createdAt: machine.created_at
+    }));
+
+    return createSuccessResponse({ machines }, 'Machines fetched successfully');
+
+  } catch (error) {
+    console.error('Error fetching machines:', error);
+    return createErrorResponse('Failed to fetch machines', 500);
+  }
+}
+
+// POST - Create new machine
+export async function POST(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return createErrorResponse('Authentication required', 401);
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.role !== 'admin') {
+      return createErrorResponse('Admin access required', 403);
+    }
+
+    const body = await request.json();
+    const validation = validateRequiredFields(body, ['machineId', 'machineType', 'societyId']);
+    if (!validation.success) {
+      return createErrorResponse(
+        `Missing required fields: ${validation.missing?.join(', ')}`,
+        400
+      );
+    }
+
+    await connectDB();
+    const { getModels } = await import('@/models');
+    const { sequelize, User } = getModels();
+
+    // Get admin's dbKey
+    const admin = await User.findByPk(payload.id);
+    if (!admin || !admin.dbKey) {
+      return createErrorResponse('Admin schema not found', 404);
+    }
+
+    // Generate schema name
+    const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+    const { 
+      machineId, 
+      machineType, 
+      societyId, 
+      location, 
+      installationDate, 
+      operatorName, 
+      contactPhone, 
+      status = 'active', 
+      notes 
+    } = body;
+
+    // Check if machine ID already exists
+    const existingQuery = `
+      SELECT id FROM \`${schemaName}\`.machines 
+      WHERE machine_id = ? LIMIT 1
+    `;
+    
+    const [existing] = await sequelize.query(existingQuery, {
+      replacements: [machineId]
+    });
+
+    if (existing.length > 0) {
+      return createErrorResponse('Machine ID already exists', 409);
+    }
+
+    // Verify society exists
+    const societyQuery = `
+      SELECT id FROM \`${schemaName}\`.societies 
+      WHERE id = ? LIMIT 1
+    `;
+    
+    const [societyExists] = await sequelize.query(societyQuery, {
+      replacements: [societyId]
+    });
+
+    if (societyExists.length === 0) {
+      return createErrorResponse('Selected society not found', 400);
+    }
+
+    // Insert new machine
+    const insertQuery = `
+      INSERT INTO \`${schemaName}\`.machines 
+      (machine_id, machine_type, society_id, location, installation_date, 
+       operator_name, contact_phone, status, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    `;
+
+    const [result] = await sequelize.query(insertQuery, {
+      replacements: [
+        machineId,
+        machineType,
+        societyId,
+        location || null,
+        installationDate || null,
+        operatorName || null,
+        contactPhone || null,
+        status,
+        notes || null
+      ]
+    });
+
+    return createSuccessResponse(
+      { id: (result as unknown as { insertId: number }).insertId },
+      'Machine created successfully'
+    );
+
+  } catch (error) {
+    console.error('Error creating machine:', error);
+    return createErrorResponse('Failed to create machine', 500);
+  }
+}
+
+// PUT - Update machine
+export async function PUT(request: NextRequest) {
+  try {
+    const authResult = authenticateToken(request);
+    if (!authResult.success || !authResult.user) {
+      return createErrorResponse(authResult.error || 'Authentication failed', 401);
+    }
+
+    const user = authResult.user;
+    if (user.role !== 'admin') {
+      return createErrorResponse('Access denied. Admin role required.', 403);
+    }
+
+    const body = await request.json();
+    const validation = validateRequiredFields(body, ['id']);
+    if (!validation.success) {
+      return createErrorResponse('Machine ID is required', 400);
+    }
+
+    await connectDB();
+    const { sequelize } = getModels();
+
+    const { 
+      id, 
+      machineId, 
+      machineType, 
+      societyId, 
+      location, 
+      installationDate, 
+      operatorName, 
+      contactPhone, 
+      status, 
+      notes 
+    } = body;
+
+    // Check if machine exists
+    const existingQuery = `
+      SELECT id FROM \`${user.dbKey}\`.machines 
+      WHERE id = ? LIMIT 1
+    `;
+    
+    const [existing] = await sequelize.query(existingQuery, {
+      replacements: [id]
+    });
+
+    if (existing.length === 0) {
+      return createErrorResponse('Machine not found', 404);
+    }
+
+    // Check for duplicate machine ID (excluding current machine)
+    if (machineId) {
+      const duplicateQuery = `
+        SELECT id FROM \`${user.dbKey}\`.machines 
+        WHERE machine_id = ? AND id != ? LIMIT 1
+      `;
+      
+      const [duplicate] = await sequelize.query(duplicateQuery, {
+        replacements: [machineId, id]
+      });
+
+      if (duplicate.length > 0) {
+        return createErrorResponse('Machine ID already exists', 409);
+      }
+    }
+
+    // Verify society exists if provided
+    if (societyId) {
+      const societyQuery = `
+        SELECT id FROM \`${user.dbKey}\`.societies 
+        WHERE id = ? LIMIT 1
+      `;
+      
+      const [societyExists] = await sequelize.query(societyQuery, {
+        replacements: [societyId]
+      });
+
+      if (societyExists.length === 0) {
+        return createErrorResponse('Selected society not found', 400);
+      }
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    
+    if (machineId !== undefined) {
+      updates.push('machine_id = ?');
+      values.push(machineId);
+    }
+    if (machineType !== undefined) {
+      updates.push('machine_type = ?');
+      values.push(machineType);
+    }
+    if (societyId !== undefined) {
+      updates.push('society_id = ?');
+      values.push(societyId);
+    }
+    if (location !== undefined) {
+      updates.push('location = ?');
+      values.push(location || null);
+    }
+    if (installationDate !== undefined) {
+      updates.push('installation_date = ?');
+      values.push(installationDate || null);
+    }
+    if (operatorName !== undefined) {
+      updates.push('operator_name = ?');
+      values.push(operatorName || null);
+    }
+    if (contactPhone !== undefined) {
+      updates.push('contact_phone = ?');
+      values.push(contactPhone || null);
+    }
+    if (status !== undefined) {
+      updates.push('status = ?');
+      values.push(status);
+    }
+    if (notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(notes || null);
+    }
+    
+    updates.push('updated_at = NOW()');
+    values.push(id);
+
+    const updateQuery = `
+      UPDATE \`${user.dbKey}\`.machines 
+      SET ${updates.join(', ')} 
+      WHERE id = ?
+    `;
+
+    await sequelize.query(updateQuery, { replacements: values });
+
+    return createSuccessResponse(null, 'Machine updated successfully');
+
+  } catch (error) {
+    console.error('Error updating machine:', error);
+    return createErrorResponse('Failed to update machine', 500);
+  }
+}
+
+// DELETE - Delete machine
+export async function DELETE(request: NextRequest) {
+  try {
+    const authResult = authenticateToken(request);
+    if (!authResult.success || !authResult.user) {
+      return createErrorResponse(authResult.error || 'Authentication failed', 401);
+    }
+
+    const user = authResult.user;
+    if (user.role !== 'admin') {
+      return createErrorResponse('Access denied. Admin role required.', 403);
+    }
+
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+
+    if (!id) {
+      return createErrorResponse('Machine ID is required', 400);
+    }
+
+    await connectDB();
+    const { sequelize } = getModels();
+
+    // Check if machine exists
+    const existingQuery = `
+      SELECT id FROM \`${user.dbKey}\`.machines 
+      WHERE id = ? LIMIT 1
+    `;
+    
+    const [existing] = await sequelize.query(existingQuery, {
+      replacements: [id]
+    });
+
+    if (existing.length === 0) {
+      return createErrorResponse('Machine not found', 404);
+    }
+
+    // Delete machine
+    const deleteQuery = `
+      DELETE FROM \`${user.dbKey}\`.machines 
+      WHERE id = ?
+    `;
+
+    await sequelize.query(deleteQuery, { replacements: [id] });
+
+    return createSuccessResponse(null, 'Machine deleted successfully');
+
+  } catch (error) {
+    console.error('Error deleting machine:', error);
+    return createErrorResponse('Failed to delete machine', 500);
+  }
+}

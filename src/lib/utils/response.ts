@@ -1,0 +1,48 @@
+import { NextResponse } from 'next/server';
+
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  message: string;
+  data?: T;
+  error?: string;
+}
+
+export function createSuccessResponse<T = unknown>(
+  message: string,
+  data?: T,
+  status: number = 200
+): NextResponse<ApiResponse<T>> {
+  return NextResponse.json(
+    {
+      success: true,
+      message,
+      data,
+    },
+    { status }
+  );
+}
+
+export function createErrorResponse(
+  error: string,
+  status: number = 400
+): NextResponse<ApiResponse> {
+  return NextResponse.json(
+    {
+      success: false,
+      message: 'Error occurred',
+      error,
+    },
+    { status }
+  );
+}
+
+export function validateRequiredFields(
+  body: Record<string, unknown>,
+  requiredFields: string[]
+): { success: boolean; missing?: string[] } {
+  const missing = requiredFields.filter(field => !body[field]);
+  return {
+    success: missing.length === 0,
+    missing: missing.length > 0 ? missing : undefined
+  };
+}

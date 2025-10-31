@@ -1,26 +1,1163 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* Poornasree Equipments Cloud - Global Styles */
+/* Based on BTCBot24 patterns with Material Design 3 */
+
+/* Global styles for smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar with Material Design 3 colors */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f3f4;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #059669, #10b981);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #047857, #059669);
+}
+
+/* Poornasree Equipments Global Color System - Based on Login Screen */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary Palette - Green/Emerald Theme */
+  --md-sys-color-primary: #059669;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #a7f3d0;
+  --md-sys-color-on-primary-container: #064e3b;
+  
+  /* Secondary Palette - Complementary Teal */
+  --md-sys-color-secondary: #0d9488;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #99f6e4;
+  --md-sys-color-on-secondary-container: #134e4a;
+  
+  /* Tertiary Palette - Accent Green */
+  --md-sys-color-tertiary: #16a34a;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #bbf7d0;
+  --md-sys-color-on-tertiary-container: #14532d;
+  
+  /* Error Palette */
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  
+  /* Surface Palette */
+  --md-sys-color-surface: #fef7ff;
+  --md-sys-color-on-surface: #1d1b20;
+  --md-sys-color-surface-variant: #e7e0ec;
+  --md-sys-color-on-surface-variant: #49454f;
+  --md-sys-color-surface-container: #f3edf7;
+  --md-sys-color-surface-container-high: #ece6f0;
+  --md-sys-color-surface-container-highest: #e6e0e9;
+  
+  /* Outline */
+  --md-sys-color-outline: #7a757f;
+  --md-sys-color-outline-variant: #cac4d0;
+  
+  /* Inverse */
+  --md-sys-color-inverse-surface: #322f35;
+  --md-sys-color-inverse-on-surface: #f5eff7;
+  --md-sys-color-inverse-primary: #d0bcff;
+  
+  /* Success Colors (Custom) */
+  --md-sys-color-success: #198f4e;
+  --md-sys-color-on-success: #ffffff;
+  --md-sys-color-success-container: #a6f4c1;
+  --md-sys-color-on-success-container: #00210f;
+  
+  /* Warning Colors (Custom) */
+  --md-sys-color-warning: #d97706;
+  --md-sys-color-on-warning: #ffffff;
+  --md-sys-color-warning-container: #fef3c7;
+  --md-sys-color-on-warning-container: #92400e;
+
+  /* Brand Gradient Colors - Login Screen Inspired */
+  --psr-gradient-primary: linear-gradient(135deg, #059669 0%, #10b981 50%, #0d9488 100%);
+  --psr-gradient-secondary: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #059669 100%);
+  --psr-gradient-accent: linear-gradient(135deg, #16a34a 0%, #22c55e 50%, #059669 100%);
+  
+  /* Interactive States */
+  --psr-hover-overlay: rgba(5, 150, 105, 0.1);
+  --psr-focus-ring: rgba(5, 150, 105, 0.2);
+  --psr-active-overlay: rgba(5, 150, 105, 0.15);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark theme colors */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Primary Palette - Dark Mode Green */
+    --md-sys-color-primary: #6ee7b7;
+    --md-sys-color-on-primary: #064e3b;
+    --md-sys-color-primary-container: #065f46;
+    --md-sys-color-on-primary-container: #a7f3d0;
+    
+    /* Secondary Palette - Dark Mode Teal */
+    --md-sys-color-secondary: #5eead4;
+    --md-sys-color-on-secondary: #134e4a;
+    --md-sys-color-secondary-container: #0f766e;
+    --md-sys-color-on-secondary-container: #99f6e4;
+    --md-sys-color-on-secondary-container: #e8def8;
+    
+    /* Tertiary Palette */
+    --md-sys-color-tertiary: #efb8c8;
+    --md-sys-color-on-tertiary: #4a2532;
+    --md-sys-color-tertiary-container: #633b48;
+    --md-sys-color-on-tertiary-container: #ffd8e4;
+    
+    /* Error Palette */
+    --md-sys-color-error: #ffb4ab;
+    --md-sys-color-on-error: #690005;
+    --md-sys-color-error-container: #93000a;
+    --md-sys-color-on-error-container: #ffdad6;
+    
+    /* Surface Palette */
+    --md-sys-color-surface: #141218;
+    --md-sys-color-on-surface: #e6e0e9;
+    --md-sys-color-surface-variant: #49454f;
+    --md-sys-color-on-surface-variant: #cac4d0;
+    --md-sys-color-surface-container: #211f26;
+    --md-sys-color-surface-container-high: #2b2930;
+    --md-sys-color-surface-container-highest: #36343b;
+    
+    /* Outline */
+    --md-sys-color-outline: #938f99;
+    --md-sys-color-outline-variant: #49454f;
+    
+    /* Inverse */
+    --md-sys-color-inverse-surface: #e6e0e9;
+    --md-sys-color-inverse-on-surface: #322f35;
+    --md-sys-color-inverse-primary: #059669;
   }
 }
 
+/* Body and base styles */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: 'Roboto', 'Arial', sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Form elements with Material Design 3 styling */
+input, textarea, select {
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  border-color: var(--md-sys-color-outline);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: #059669 !important;
+  background-color: var(--md-sys-color-surface-container-high);
+  outline: 2px solid #059669 !important;
+  outline-offset: -2px;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1) !important;
+}
+
+/* Button base styles */
+button {
+  border-radius: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Material Design 3 Button Variants */
+.btn-primary {
+  background-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: var(--md-sys-color-primary);
+  box-shadow: 0 4px 8px rgba(103, 80, 164, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  border: 1px solid var(--md-sys-color-outline);
+}
+
+.btn-secondary:hover {
+  background-color: var(--md-sys-color-secondary);
+  color: var(--md-sys-color-on-secondary);
+}
+
+.btn-tertiary {
+  background-color: transparent;
+  color: var(--md-sys-color-primary);
+  border: 1px solid var(--md-sys-color-primary);
+}
+
+.btn-tertiary:hover {
+  background-color: var(--md-sys-color-primary-container);
+}
+
+/* Card components with Material Design 3 */
+.card {
+  background-color: var(--md-sys-color-surface-container);
+  border-radius: 16px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  transition: all 0.3s ease-in-out;
+}
+
+.card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.card-elevated {
+  background-color: var(--md-sys-color-surface-container-high);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Typography system */
+.display-large {
+  font-size: 57px;
+  line-height: 64px;
+  font-weight: 400;
+  letter-spacing: -0.25px;
+}
+
+.display-medium {
+  font-size: 45px;
+  line-height: 52px;
+  font-weight: 400;
+  letter-spacing: 0px;
+}
+
+.display-small {
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 400;
+  letter-spacing: 0px;
+}
+
+.headline-large {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 400;
+  letter-spacing: 0px;
+}
+
+.headline-medium {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 400;
+  letter-spacing: 0px;
+}
+
+.headline-small {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 400;
+  letter-spacing: 0px;
+}
+
+.title-large {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 400;
+  letter-spacing: 0px;
+}
+
+.title-medium {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+.title-small {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+.body-large {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  letter-spacing: 0.15px;
+}
+
+.body-medium {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: 0.25px;
+}
+
+.body-small {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.4px;
+}
+
+.label-large {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+
+.label-medium {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.label-small {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Authentication form styling (based on BTCBot24) */
+.auth-container {
+  background: linear-gradient(135deg, var(--md-sys-color-primary) 0%, var(--md-sys-color-tertiary) 100%);
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-form {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Animated background elements */
+.floating-shape {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: multiply;
+  filter: blur(40px);
+  opacity: 0.6;
+  animation: float 20s infinite ease-in-out;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-20px) rotate(120deg); }
+  66% { transform: translateY(10px) rotate(240deg); }
+}
+
+.shape-1 { 
+  top: 10%; 
+  left: 10%; 
+  width: 300px; 
+  height: 300px; 
+  background: var(--md-sys-color-primary-container);
+  animation-delay: 0s; 
+}
+
+.shape-2 { 
+  top: 20%; 
+  right: 10%; 
+  width: 200px; 
+  height: 200px; 
+  background: var(--md-sys-color-tertiary-container);
+  animation-delay: 5s; 
+}
+
+.shape-3 { 
+  bottom: 10%; 
+  left: 15%; 
+  width: 250px; 
+  height: 250px; 
+  background: var(--md-sys-color-secondary-container);
+  animation-delay: 10s; 
+}
+
+.shape-4 { 
+  bottom: 20%; 
+  right: 20%; 
+  width: 180px; 
+  height: 180px; 
+  background: var(--md-sys-color-success-container);
+  animation-delay: 15s; 
+}
+
+/* Form input styling with Material Design 3 */
+.form-input {
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: 12px;
+  padding: 16px 20px;
+  font-size: 16px;
+  transition: all 0.2s ease-in-out;
+  width: 100%;
+}
+
+.form-input:focus {
+  border-color: var(--md-sys-color-primary);
+  background-color: var(--md-sys-color-surface-container-high);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(103, 80, 164, 0.2);
+}
+
+.form-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 1;
+}
+
+/* Auto-fill protection */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus,
+.form-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px var(--md-sys-color-surface-container) inset !important;
+  -webkit-text-fill-color: var(--md-sys-color-on-surface) !important;
+}
+
+/* Status indicators */
+.status-success {
+  background-color: var(--md-sys-color-success-container);
+  color: var(--md-sys-color-on-success-container);
+  border-left: 4px solid var(--md-sys-color-success);
+}
+
+.status-error {
+  background-color: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-left: 4px solid var(--md-sys-color-error);
+}
+
+.status-warning {
+  background-color: var(--md-sys-color-warning-container);
+  color: var(--md-sys-color-on-warning-container);
+  border-left: 4px solid var(--md-sys-color-warning);
+}
+
+/* Loading states */
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--md-sys-color-outline-variant);
+  border-top: 2px solid var(--md-sys-color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive design breakpoints */
+@media (max-width: 768px) {
+  .auth-form {
+    margin: 16px;
+    border-radius: 20px;
+  }
+  
+  .floating-shape {
+    width: 150px !important;
+    height: 150px !important;
+  }
+}
+
+/* Focus management for accessibility */
+.focus-ring:focus {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth animations */
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(30px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.9); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Dashboard layout */
+.dashboard-container {
+  background: var(--md-sys-color-surface);
+  min-height: 100vh;
+}
+
+.dashboard-card {
+  background: var(--md-sys-color-surface-container);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  transition: all 0.3s ease-in-out;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  border-color: var(--md-sys-color-primary);
+}
+
+/* Role-based color coding */
+.role-super-admin { 
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  color: white;
+}
+
+.role-admin { 
+  background: linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+  color: white;
+}
+
+.role-dairy { 
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: white;
+}
+
+.role-bmc { 
+  background: linear-gradient(135deg, #00d2d3, #01a3a4);
+  color: white;
+}
+
+.role-society { 
+  background: linear-gradient(135deg, #ff9ff3, #f368e0);
+  color: white;
+}
+
+.role-farmer { 
+  background: linear-gradient(135deg, #26de81, #20bf6b);
+  color: white;
+}
+
+/* Utility classes */
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Loading Animations */
+@keyframes flower-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes loading-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Custom loading animation classes */
+.animate-flower-spin {
+  animation: flower-spin 1.5s linear infinite;
+}
+
+.animate-loading-pulse {
+  animation: loading-pulse 2s ease-in-out infinite;
+}
+
+.animate-loading-shimmer {
+  animation: loading-shimmer 2s ease-in-out infinite;
+}
+
+/* Flower spinner brightness for dark backgrounds */
+.flower-spinner-bright {
+  filter: brightness(1.5) contrast(1.2);
+}
+
+/* Flower spinner for light backgrounds */
+.flower-spinner-dark {
+  filter: brightness(0.8) contrast(1.1);
+}
+
+/* Loading overlay styles */
+.loading-overlay {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease-in-out;
+}
+
+.loading-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(103, 80, 164, 0.1);
+}
+
+/* Loading skeleton styles */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* PSR Brand Component Classes */
+.psr-btn-primary {
+  @apply bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 text-white font-semibold py-3 px-6 rounded-xl hover:from-green-700 hover:via-emerald-700 hover:to-green-800 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200 transform hover:scale-[1.02] shadow-lg shadow-green-500/25;
+}
+
+.psr-btn-secondary {
+  @apply bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-700 text-white font-semibold py-3 px-6 rounded-xl hover:from-teal-700 hover:via-cyan-700 hover:to-teal-800 focus:ring-2 focus:ring-teal-500/20 focus:outline-none transition-all duration-200 transform hover:scale-[1.02] shadow-lg shadow-teal-500/25;
+}
+
+.psr-btn-outline {
+  @apply border-2 border-green-600 text-green-600 font-semibold py-3 px-6 rounded-xl hover:bg-green-600 hover:text-white focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200 transform hover:scale-[1.02];
+}
+
+.psr-input {
+  @apply w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl placeholder-gray-300 dark:placeholder-gray-600 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200;
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.dark .psr-input {
+  color: #f3f4f6 !important;
+  background-color: #1f2937 !important;
+  -webkit-text-fill-color: #f3f4f6 !important;
+}
+
+.psr-input:focus {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #111827 !important;
+  outline: none !important;
+}
+
+.dark .psr-input:focus {
+  color: #f3f4f6 !important;
+  background-color: #1f2937 !important;
+  -webkit-text-fill-color: #f3f4f6 !important;
+  outline: none !important;
+}
+
+/* Form Input Custom Styling - Ensures consistent background colors */
+.form-input-custom {
+  background-color: #ffffff !important;
+}
+
+.dark .form-input-custom {
+  background-color: #374151 !important;
+}
+
+.form-input-custom:focus {
+  background-color: #ffffff !important;
+}
+
+.dark .form-input-custom:focus {
+  background-color: #374151 !important;
+}
+
+.form-input-custom:hover {
+  background-color: #ffffff !important;
+}
+
+.dark .form-input-custom:hover {
+  background-color: #374151 !important;
+}
+
+.form-input-custom:active {
+  background-color: #ffffff !important;
+}
+
+.dark .form-input-custom:active {
+  background-color: #374151 !important;
+}
+
+/* Handle all autofill states for both classes */
+.psr-input:-webkit-autofill,
+.psr-input:-webkit-autofill:hover,
+.psr-input:-webkit-autofill:focus,
+.psr-input:-webkit-autofill:active,
+.psr-input:autofill,
+.form-input-custom:-webkit-autofill,
+.form-input-custom:-webkit-autofill:hover,
+.form-input-custom:-webkit-autofill:focus,
+.form-input-custom:-webkit-autofill:active,
+.form-input-custom:autofill {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
+.dark .psr-input:-webkit-autofill,
+.dark .psr-input:-webkit-autofill:hover,
+.dark .psr-input:-webkit-autofill:focus,
+.dark .psr-input:-webkit-autofill:active,
+.dark .psr-input:autofill,
+.dark .form-input-custom:-webkit-autofill,
+.dark .form-input-custom:-webkit-autofill:hover,
+.dark .form-input-custom:-webkit-autofill:focus,
+.dark .form-input-custom:-webkit-autofill:active,
+.dark .form-input-custom:autofill {
+  -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+  box-shadow: 0 0 0 1000px #374151 inset !important;
+  -webkit-text-fill-color: #f3f4f6 !important;
+  color: #f3f4f6 !important;
+  background-color: #374151 !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
+.psr-textarea {
+  @apply w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl placeholder-gray-300 dark:placeholder-gray-600 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200 resize-none;
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.dark .psr-textarea {
+  color: #f3f4f6 !important;
+  background-color: #1f2937 !important;
+  -webkit-text-fill-color: #f3f4f6 !important;
+}
+
+.psr-card {
+  @apply bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-200 hover:border-green-200;
+}
+
+.psr-gradient-bg {
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 25%, #0d9488 50%, #059669 75%, #047857 100%);
+}
+
+.psr-sidebar-active {
+  @apply bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg;
+}
+
+.psr-link {
+  @apply text-green-600 hover:text-green-700 font-medium transition-colors underline-offset-4 hover:underline;
+}
+
+.psr-badge-success {
+  @apply bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.psr-badge-warning {
+  @apply bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.psr-badge-error {
+  @apply bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.psr-badge-info {
+  @apply bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-medium;
+}
+
+/* Responsive loading sizes */
+@media (max-width: 640px) {
+  .loading-responsive {
+    transform: scale(0.8);
+  }
+}
+
+/* Safe Area Support for iOS Notch */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Touch-friendly minimum sizes */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.touch-target-comfortable {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* ============================================ */
+/* PSR Global Form Elements - Universal Styles */
+/* ============================================ */
+
+/* Select Dropdown - Universal Styling */
+select.psr-select,
+select[class*="psr-"],
+select {
+  @apply px-3 py-2 rounded-lg border transition-all outline-none;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  accent-color: #059669 !important;
+  color-scheme: light;
+}
+
+select.psr-select:focus,
+select[class*="psr-"]:focus,
+select:focus {
+  border-color: #059669 !important;
+  outline-color: #059669 !important;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1) !important;
+}
+
+/* Override browser default highlight color */
+select::-webkit-scrollbar-thumb {
+  background: #059669 !important;
+}
+
+select::-moz-selection {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+select::selection {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.dark select.psr-select,
+.dark select[class*="psr-"],
+.dark select {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+  border-color: #4b5563 !important;
+  accent-color: #10b981 !important;
+  color-scheme: dark;
+}
+
+/* Option elements in select */
+select.psr-select option,
+select[class*="psr-"] option,
+select option {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  padding: 8px !important;
+}
+
+/* Force green highlight on selected/focused options */
+select.psr-select option:focus,
+select[class*="psr-"] option:focus,
+select option:focus,
+select.psr-select option:active,
+select[class*="psr-"] option:active,
+select option:active {
+  background-color: #d1fae5 !important;
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+  outline: none !important;
+}
+
+select.psr-select option:hover,
+select[class*="psr-"] option:hover,
+select option:hover {
+  background-color: #d1fae5 !important;
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+select.psr-select option:checked,
+select[class*="psr-"] option:checked,
+select option:checked {
+  background-color: #d1fae5 !important;
+  background: linear-gradient(#d1fae5, #d1fae5) !important;
+  color: #065f46 !important;
+}
+
+.dark select.psr-select option,
+.dark select[class*="psr-"] option,
+.dark select option {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+.dark select.psr-select option:focus,
+.dark select[class*="psr-"] option:focus,
+.dark select option:focus,
+.dark select.psr-select option:active,
+.dark select[class*="psr-"] option:active,
+.dark select option:active {
+  background-color: #064e3b !important;
+  background: #064e3b !important;
+  color: #6ee7b7 !important;
+}
+
+.dark select.psr-select option:hover,
+.dark select[class*="psr-"] option:hover,
+.dark select option:hover {
+  background-color: #064e3b !important;
+  background: #064e3b !important;
+  color: #6ee7b7 !important;
+}
+
+.dark select.psr-select option:checked,
+.dark select[class*="psr-"] option:checked,
+.dark select option:checked {
+  background-color: #064e3b !important;
+  background: linear-gradient(#064e3b, #064e3b) !important;
+  color: #6ee7b7 !important;
+}
+
+/* Button - Universal Styling */
+.psr-button-primary {
+  @apply px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg shadow-green-500/25 font-medium;
+}
+
+.psr-button-secondary {
+  @apply px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors;
+}
+
+.psr-button-danger {
+  @apply px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors;
+}
+
+/* Modal Overlay - Universal Styling */
+.psr-modal-overlay {
+  @apply fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4;
+  z-index: 9999 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+.psr-modal-content {
+  @apply bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto;
+}
+
+/* Placeholder Colors - Universal */
+.psr-placeholder::placeholder,
+input[class*="psr-"]::placeholder,
+textarea[class*="psr-"]::placeholder {
+  color: #d1d5db !important;
+  opacity: 1 !important;
+}
+
+.dark .psr-placeholder::placeholder,
+.dark input[class*="psr-"]::placeholder,
+.dark textarea[class*="psr-"]::placeholder {
+  color: #6b7280 !important;
+  opacity: 1 !important;
+}
+
+/* Search Input - Universal Styling */
+.psr-search {
+  @apply w-full px-10 py-2 rounded-xl border transition-all outline-none;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+
+.psr-search:focus {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  @apply ring-2 ring-green-500/20 border-green-500;
+}
+
+.dark .psr-search {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+  border-color: #4b5563 !important;
+}
+
+.dark .psr-search:focus {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+}
+
+/* Autocomplete Prevention for all PSR inputs */
+input[class*="psr-"]:-webkit-autofill,
+input[class*="psr-"]:-webkit-autofill:hover,
+input[class*="psr-"]:-webkit-autofill:focus,
+input[class*="psr-"]:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  color: #111827 !important;
+  background-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
+.dark input[class*="psr-"]:-webkit-autofill,
+.dark input[class*="psr-"]:-webkit-autofill:hover,
+.dark input[class*="psr-"]:-webkit-autofill:focus,
+.dark input[class*="psr-"]:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #1f2937 inset !important;
+  box-shadow: 0 0 0 1000px #1f2937 inset !important;
+  -webkit-text-fill-color: #f3f4f6 !important;
+  color: #f3f4f6 !important;
+  background-color: #1f2937 !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
+/* Mobile Responsive Utilities */
+
+/* Hide scrollbar while allowing scroll - for horizontal tab navigation */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, and Opera */
+}
+
+/* Safe area for notched devices (iOS) */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Touch target minimum for mobile accessibility */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Mobile Responsive Utilities */
+/* Hide scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area for notched devices (iPhone, etc.) */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Touch target minimum size utility */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
 }

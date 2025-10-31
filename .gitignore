@@ -39,3 +39,32 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Additional project-specific ignores
+# Logs
+logs/
+*.log
+
+# Uploads and temporary files
+uploads/
+temp/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# SSL Certificates
+*.pem
+*.crt
+*.key
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+Thumbs.db
+ehthumbs.db

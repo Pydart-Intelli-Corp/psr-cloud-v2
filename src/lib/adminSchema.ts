@@ -1,0 +1,401 @@
+import { connectDB } from '@/lib/database';
+import { UserAttributes } from '@/models/User';
+
+/**
+ * Generates a unique dbKey for an admin user
+ * Format: 3 letters from name + 4 random digits
+ */
+export function generateDbKey(fullName: string): string {
+  // Extract first 3 letters from name (remove spaces, convert to uppercase)
+  const cleanName = fullName.replace(/[^a-zA-Z]/g, '').toUpperCase();
+  const namePrefix = cleanName.substring(0, 3).padEnd(3, 'X'); // Pad with X if less than 3 letters
+  
+  // Generate 4 random digits
+  const digits = Math.floor(1000 + Math.random() * 9000); // Ensures 4 digits
+  
+  return `${namePrefix}${digits}`;
+}
+
+/**
+ * Checks if a dbKey already exists in the database
+ */
+export async function isDbKeyUnique(dbKey: string): Promise<boolean> {
+  try {
+    await connectDB();
+    const { User } = await import('@/models').then(m => m.getModels());
+    
+    const existingUser = await User.findOne({
+      where: { dbKey }
+    });
+    
+    return !existingUser;
+  } catch (error) {
+    console.error('Error checking dbKey uniqueness:', error);
+    return false;
+  }
+}
+
+/**
+ * Generates a unique dbKey by retrying if duplicates are found
+ */
+export async function generateUniqueDbKey(fullName: string): Promise<string> {
+  let dbKey: string;
+  let attempts = 0;
+  const maxAttempts = 10;
+  
+  do {
+    dbKey = generateDbKey(fullName);
+    attempts++;
+    
+    if (attempts >= maxAttempts) {
+      throw new Error('Failed to generate unique dbKey after maximum attempts');
+    }
+  } while (!(await isDbKeyUnique(dbKey)));
+  
+  return dbKey;
+}
+
+/**
+ * Creates a new database schema for an admin user
+ */
+export async function createAdminSchema(adminUser: UserAttributes, dbKey: string): Promise<void> {
+  try {
+    await connectDB();
+    
+    // Generate schema name: adminName + dbKey
+    const cleanAdminName = adminUser.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const schemaName = `${cleanAdminName}_${dbKey.toLowerCase()}`;
+    
+    console.log(`🏗️ Creating schema: ${schemaName} for admin: ${adminUser.fullName}`);
+    
+    // Get the database connection
+    const { sequelize } = await import('@/models').then(m => m.getModels());
+    
+    // Create the schema
+    await sequelize.query(`CREATE SCHEMA IF NOT EXISTS \`${schemaName}\``);
+    
+    console.log(`✅ Schema created successfully: ${schemaName}`);
+    
+    // Create tables in the new schema
+    // This includes creating admin-specific tables like:
+    // - dairy_farms
+    // - bmcs  
+    // - societies
+    // - farmers
+    // - milk_collections
+    // - machines
+    
+    await createAdminTables(schemaName);
+    
+  } catch (error) {
+    console.error('❌ Error creating admin schema:', error);
+    throw new Error(`Failed to create schema for admin: ${error}`);
+  }
+}
+
+/**
+ * Creates the necessary tables in the admin's schema
+ */
+async function createAdminTables(schemaName: string): Promise<void> {
+  try {
+    const { sequelize } = await import('@/models').then(m => m.getModels());
+    
+    // Example table creation - customize based on your needs
+    const tables = [
+      // Dairy Farms table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`dairy_farms\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`dairy_id\` VARCHAR(50) UNIQUE NOT NULL,
+        \`password\` VARCHAR(255) NOT NULL,
+        \`location\` VARCHAR(255),
+        \`contact_person\` VARCHAR(255),
+        \`phone\` VARCHAR(20),
+        \`email\` VARCHAR(255),
+        \`capacity\` INT DEFAULT 5000 COMMENT 'Storage capacity in liters',
+        \`status\` ENUM('active', 'inactive', 'maintenance') DEFAULT 'active',
+        \`monthly_target\` INT DEFAULT 5000 COMMENT 'Monthly production target in liters',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`,
+      
+      // BMCs (Bulk Milk Cooling Centers) table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`bmcs\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`bmc_id\` VARCHAR(50) UNIQUE NOT NULL,
+        \`password\` VARCHAR(255) NOT NULL,
+        \`location\` VARCHAR(255),
+        \`contactPerson\` VARCHAR(255),
+        \`phone\` VARCHAR(20),
+        \`email\` VARCHAR(255),
+        \`capacity\` INT DEFAULT 10000 COMMENT 'Storage capacity in liters',
+        \`status\` ENUM('active', 'inactive') DEFAULT 'active',
+        \`monthly_target\` DECIMAL(10,2) DEFAULT 10000 COMMENT 'Monthly collection target in liters',
+        \`dairy_farm_id\` INT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`dairy_farm_id\`) REFERENCES \`${schemaName}\`.\`dairy_farms\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE,
+        INDEX \`idx_bmc_id\` (\`bmc_id\`),
+        INDEX \`idx_dairy_farm_id\` (\`dairy_farm_id\`),
+        INDEX \`idx_status\` (\`status\`)
+      )`,
+      
+      // Societies table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`societies\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`society_id\` VARCHAR(50) UNIQUE NOT NULL,
+        \`password\` VARCHAR(255) NOT NULL,
+        \`location\` VARCHAR(255),
+        \`president_name\` VARCHAR(255),
+        \`contact_phone\` VARCHAR(20),
+        \`bmc_id\` INT,
+        \`status\` ENUM('active', 'inactive', 'maintenance') DEFAULT 'active',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`bmc_id\`) REFERENCES \`${schemaName}\`.\`bmcs\`(\`id\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_bmc_id\` (\`bmc_id\`),
+        INDEX \`idx_status\` (\`status\`)
+      )`,
+      
+      // Farmers table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`farmers\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`farmer_id\` VARCHAR(50) NOT NULL,
+        \`rf_id\` VARCHAR(50),
+        \`phone\` VARCHAR(20),
+        \`sms_enabled\` ENUM('ON', 'OFF') DEFAULT 'OFF',
+        \`bonus\` DECIMAL(10,2) DEFAULT 0.00,
+        \`address\` TEXT,
+        \`bank_name\` VARCHAR(100),
+        \`bank_account_number\` VARCHAR(50),
+        \`ifsc_code\` VARCHAR(15),
+        \`status\` ENUM('active', 'inactive', 'suspended', 'maintenance') DEFAULT 'active',
+        \`notes\` TEXT,
+        \`password\` VARCHAR(255),
+        \`society_id\` INT,
+        \`cattle_count\` INT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE,
+        UNIQUE KEY \`unique_farmer_per_society\` (\`farmer_id\`, \`society_id\`),
+        UNIQUE KEY \`unique_rf_id\` (\`rf_id\`),
+        INDEX \`idx_farmer_id\` (\`farmer_id\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_status\` (\`status\`),
+        INDEX \`idx_created_at\` (\`created_at\`)
+      )`,
+      
+      // Milk Collections table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`milk_collections\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`farmer_id\` INT,
+        \`collection_date\` DATE,
+        \`morning_quantity\` DECIMAL(10,2) DEFAULT 0,
+        \`evening_quantity\` DECIMAL(10,2) DEFAULT 0,
+        \`total_quantity\` DECIMAL(10,2) AS (\`morning_quantity\` + \`evening_quantity\`) STORED,
+        \`fat_percentage\` DECIMAL(5,2),
+        \`snf_percentage\` DECIMAL(5,2),
+        \`rate_per_liter\` DECIMAL(10,2),
+        \`total_amount\` DECIMAL(10,2),
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`farmer_id\`) REFERENCES \`${schemaName}\`.\`farmers\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        INDEX \`idx_farmer_id\` (\`farmer_id\`),
+        INDEX \`idx_collection_date\` (\`collection_date\`),
+        INDEX \`idx_created_at\` (\`created_at\`)
+      )`,
+      
+      // Machines table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`machines\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`machine_id\` VARCHAR(50) UNIQUE NOT NULL,
+        \`machine_type\` VARCHAR(100) NOT NULL,
+        \`society_id\` INT,
+        \`location\` VARCHAR(255),
+        \`installation_date\` DATE,
+        \`operator_name\` VARCHAR(100),
+        \`contact_phone\` VARCHAR(15),
+        \`status\` ENUM('active', 'inactive', 'maintenance') DEFAULT 'active',
+        \`notes\` TEXT,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE,
+        INDEX \`idx_machine_type\` (\`machine_type\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_status\` (\`status\`),
+        INDEX \`idx_created_at\` (\`created_at\`)
+      )`
+    ];
+    
+    // Execute table creation queries
+    for (const tableQuery of tables) {
+      await sequelize.query(tableQuery);
+    }
+    
+    console.log(`✅ Admin tables created successfully in schema: ${schemaName}`);
+    
+  } catch (error) {
+    console.error('❌ Error creating admin tables:', error);
+    throw error;
+  }
+}
+
+/**
+ * Updates existing admin schemas with the new farmers table structure
+ */
+export async function updateAdminSchemasWithFarmersTable(): Promise<void> {
+  try {
+    await connectDB();
+    const { sequelize, User } = await import('@/models').then(m => m.getModels());
+
+    // Get all admin users
+    const admins = await User.findAll({
+      where: { role: 'admin' },
+      attributes: ['id', 'fullName', 'dbKey']
+    });
+
+    console.log(`🔄 Updating ${admins.length} admin schemas with new farmers table structure...`);
+
+    for (const admin of admins) {
+      if (!admin.dbKey) {
+        console.log(`⚠️ Skipping admin ${admin.fullName} - no dbKey`);
+        continue;
+      }
+
+      const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+      console.log(`🔧 Updating farmers table in schema: ${schemaName}`);
+
+      // Check if schema exists
+      const [schemas] = await sequelize.query(`
+        SELECT SCHEMA_NAME 
+        FROM INFORMATION_SCHEMA.SCHEMATA 
+        WHERE SCHEMA_NAME = '${schemaName}'
+      `);
+
+      if (schemas.length === 0) {
+        console.log(`⚠️ Schema ${schemaName} does not exist, skipping...`);
+        continue;
+      }
+
+      // Check if old farmers table exists
+      const [existingTables] = await sequelize.query(`
+        SELECT TABLE_NAME, COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = '${schemaName}' AND TABLE_NAME = 'farmers'
+      `);
+
+      if (existingTables.length === 0) {
+        // No farmers table exists, create new one
+        console.log(`📝 Creating new farmers table in schema: ${schemaName}`);
+        await sequelize.query(`
+          CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`farmers\` (
+            \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+            \`name\` VARCHAR(255) NOT NULL,
+            \`farmer_id\` VARCHAR(50) NOT NULL,
+            \`rf_id\` VARCHAR(50),
+            \`phone\` VARCHAR(20),
+            \`sms_enabled\` ENUM('ON', 'OFF') DEFAULT 'OFF',
+            \`bonus\` DECIMAL(10,2) DEFAULT 0.00,
+            \`address\` TEXT,
+            \`bank_name\` VARCHAR(100),
+            \`bank_account_number\` VARCHAR(50),
+            \`ifsc_code\` VARCHAR(15),
+            \`status\` ENUM('active', 'inactive', 'suspended', 'maintenance') DEFAULT 'active',
+            \`notes\` TEXT,
+            \`password\` VARCHAR(255),
+            \`society_id\` INT,
+            \`cattle_count\` INT,
+            \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE,
+            UNIQUE KEY \`unique_farmer_per_society\` (\`farmer_id\`, \`society_id\`),
+            UNIQUE KEY \`unique_rf_id\` (\`rf_id\`),
+            INDEX \`idx_farmer_id\` (\`farmer_id\`),
+            INDEX \`idx_society_id\` (\`society_id\`),
+            INDEX \`idx_status\` (\`status\`),
+            INDEX \`idx_created_at\` (\`created_at\`)
+          )
+        `);
+      } else {
+        // Check if table has new structure
+        const columns = existingTables as Array<{ COLUMN_NAME: string }>;
+        const hasPassword = columns.some(col => col.COLUMN_NAME === 'password');
+        const hasRfId = columns.some(col => col.COLUMN_NAME === 'rf_id');
+        
+        if (!hasPassword || !hasRfId) {
+          console.log(`🔄 Migrating existing farmers table in schema: ${schemaName}`);
+          
+          // Backup existing data
+          const [existingData] = await sequelize.query(`
+            SELECT * FROM \`${schemaName}\`.\`farmers\`
+          `);
+          
+          // Drop and recreate table with new structure
+          await sequelize.query(`DROP TABLE \`${schemaName}\`.\`farmers\``);
+          
+          await sequelize.query(`
+            CREATE TABLE \`${schemaName}\`.\`farmers\` (
+              \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+              \`name\` VARCHAR(255) NOT NULL,
+              \`farmer_id\` VARCHAR(50) NOT NULL,
+              \`rf_id\` VARCHAR(50),
+              \`phone\` VARCHAR(20),
+              \`sms_enabled\` ENUM('ON', 'OFF') DEFAULT 'OFF',
+              \`bonus\` DECIMAL(10,2) DEFAULT 0.00,
+              \`address\` TEXT,
+              \`bank_name\` VARCHAR(100),
+              \`bank_account_number\` VARCHAR(50),
+              \`ifsc_code\` VARCHAR(15),
+              \`status\` ENUM('active', 'inactive', 'suspended', 'maintenance') DEFAULT 'active',
+              \`notes\` TEXT,
+              \`password\` VARCHAR(255),
+              \`society_id\` INT,
+              \`cattle_count\` INT,
+              \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE,
+              UNIQUE KEY \`unique_farmer_per_society\` (\`farmer_id\`, \`society_id\`),
+              UNIQUE KEY \`unique_rf_id\` (\`rf_id\`),
+              INDEX \`idx_farmer_id\` (\`farmer_id\`),
+              INDEX \`idx_society_id\` (\`society_id\`),
+              INDEX \`idx_status\` (\`status\`),
+              INDEX \`idx_created_at\` (\`created_at\`)
+            )
+          `);
+          
+          // Restore data with mapping to new structure
+          for (const row of existingData as Array<Record<string, unknown>>) {
+            await sequelize.query(`
+              INSERT INTO \`${schemaName}\`.\`farmers\` 
+              (\`farmer_id\`, \`name\`, \`phone\`, \`address\`, \`society_id\`, \`status\`, \`created_at\`)
+              VALUES (?, ?, ?, ?, ?, 'active', ?)
+            `, {
+              replacements: [
+                row.farmer_id || `FARMER_${row.id}`,
+                row.name || row.farmer_name || 'Unknown Farmer',
+                row.phone || row.contact_number,
+                row.address,
+                row.society_id,
+                row.created_at
+              ]
+            });
+          }
+        }
+      }
+
+      console.log(`✅ Farmers table updated successfully in schema: ${schemaName}`);
+    }
+
+    console.log('🎉 All admin schemas updated with new farmers table structure!');
+
+  } catch (error) {
+    console.error('❌ Error updating admin schemas:', error);
+    throw error;
+  }
+}
