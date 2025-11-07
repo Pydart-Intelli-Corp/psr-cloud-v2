@@ -12,7 +12,7 @@ Complete VPS setup in 3 steps - ports 80/443 configured automatically!
 
 Go to: `https://github.com/Pydart-Intelli-Corp/psr-cloud-v2/settings/secrets/actions`
 
-Add 5 secrets:
+Add 5 secrets (required):
 
 | Secret Name | Value | Example |
 |------------|-------|---------|
@@ -23,6 +23,18 @@ Add 5 secrets:
 | `EMAIL_PASSWORD` | Gmail app password | `abcd efgh ijkl mnop` |
 
 > **Gmail App Password**: Go to Google Account → Security → 2-Step Verification → App passwords
+
+### Optional: GitHub Personal Access Token
+
+**Usually not needed** - The built-in token works for most cases.
+
+**Add this if deployment fails with authentication errors:**
+
+| Secret Name | Value | When Needed |
+|------------|-------|-------------|
+| `GH_PAT` | Personal Access Token | Repository in different org, or authentication errors |
+
+See detailed setup: [`docs/GITHUB_TOKEN_SETUP.md`](docs/GITHUB_TOKEN_SETUP.md)
 
 ## Step 2: Run Automated Setup (8 minutes)
 

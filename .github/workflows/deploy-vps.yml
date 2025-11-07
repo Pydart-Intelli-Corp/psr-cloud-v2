@@ -87,6 +87,12 @@ jobs:
             # Navigate to application directory
             cd /var/www/psr-v4
             
+            # Backup .env.production if it exists
+            if [ -f ".env.production" ]; then
+              echo "💾 Backing up .env.production..."
+              cp .env.production /tmp/.env.production.backup
+            fi
+            
             # Check if git repository exists
             if [ ! -d ".git" ]; then
               echo "⚠️  Git repository not initialized. Initializing..."
@@ -117,6 +123,16 @@ jobs:
             echo "📥 Pulling latest changes from GitHub..."
             git fetch origin
             git reset --hard origin/master
+            
+            # Restore .env.production after git reset
+            if [ -f "/tmp/.env.production.backup" ]; then
+              echo "♻️  Restoring .env.production..."
+              cp /tmp/.env.production.backup .env.production
+            else
+              echo "⚠️  WARNING: .env.production not found!"
+              echo "This usually means the VPS setup didn't complete properly."
+              echo "Please run 'Setup VPS Environment' workflow again."
+            fi
             
             # Install dependencies
             echo "📦 Installing dependencies..."
