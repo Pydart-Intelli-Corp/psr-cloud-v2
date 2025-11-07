@@ -26,6 +26,21 @@ jobs:
             echo "For help, see: docs/GITHUB_SECRETS_SETUP.md or QUICKSTART.md"
             exit 1
           fi
+          if [ -z "${{ secrets.DB_HOST }}" ] || [ -z "${{ secrets.DB_USER }}" ] || [ -z "${{ secrets.DB_PASSWORD }}" ] || [ -z "${{ secrets.DB_NAME }}" ]; then
+            echo "⚠️  WARNING: Database secrets not fully configured!"
+            echo "Using default database configuration."
+            echo "For custom database, add these secrets:"
+            echo "  - DB_HOST (default: localhost)"
+            echo "  - DB_USER (default: psr_admin)"
+            echo "  - DB_PASSWORD (default: PsrAdmin@20252!)"
+            echo "  - DB_NAME (default: psr_v4_main)"
+            echo ""
+          fi
+          if [ -z "${{ secrets.EMAIL_USER }}" ] || [ -z "${{ secrets.EMAIL_PASSWORD }}" ]; then
+            echo "⚠️  WARNING: Email secrets not configured!"
+            echo "Email functionality will not work without these secrets."
+            echo "Add EMAIL_USER and EMAIL_PASSWORD secrets if needed."
+          fi
           if [ -z "${{ secrets.GH_PAT }}" ]; then
             echo "⚠️  WARNING: GH_PAT secret not configured!"
             echo "The built-in GITHUB_TOKEN will be used for git operations."
@@ -56,12 +71,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           REPO_URL: ${{ github.repository }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST || 'localhost' }}
+          DB_PORT: ${{ secrets.DB_PORT || '3306' }}
+          DB_USER: ${{ secrets.DB_USER || 'psr_admin' }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'PsrAdmin@20252!' }}
+          DB_NAME: ${{ secrets.DB_NAME || 'psr_v4_main' }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
-          envs: GITHUB_TOKEN,REPO_URL
+          envs: GITHUB_TOKEN,REPO_URL,VPS_HOST,EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME
           script: |
             set -e
             
@@ -124,14 +147,57 @@ jobs:
             git fetch origin
             git reset --hard origin/master
             
-            # Restore .env.production after git reset
+            # Restore or create .env.production
             if [ -f "/tmp/.env.production.backup" ]; then
               echo "♻️  Restoring .env.production..."
               cp /tmp/.env.production.backup .env.production
             else
-              echo "⚠️  WARNING: .env.production not found!"
-              echo "This usually means the VPS setup didn't complete properly."
-              echo "Please run 'Setup VPS Environment' workflow again."
+              echo "⚠️  .env.production not found - creating new one..."
+              
+              # Generate JWT secrets
+              JWT_SECRET=$(openssl rand -hex 64)
+              JWT_REFRESH_SECRET=$(openssl rand -hex 64)
+              
+              # Create .env.production with variable substitution
+              cat > .env.production << ENV_EOF
+            # Database Configuration
+            DB_HOST=${DB_HOST}
+            DB_PORT=${DB_PORT}
+            DB_USER=${DB_USER}
+            DB_PASSWORD=${DB_PASSWORD}
+            DB_NAME=${DB_NAME}
+            DB_SSL_CA=
+            DB_REJECT_UNAUTHORIZED=false
+            
+            # Application
+            NODE_ENV=production
+            PORT=3000
+            NEXT_TELEMETRY_DISABLED=1
+            
+            # JWT Secrets (Auto-generated)
+            JWT_SECRET=${JWT_SECRET}
+            JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+            JWT_EXPIRES_IN=1h
+            JWT_REFRESH_EXPIRES_IN=7d
+            
+            # Email Configuration
+            EMAIL_HOST=smtp.gmail.com
+            EMAIL_PORT=587
+            EMAIL_SECURE=false
+            EMAIL_USER=${EMAIL_USER}
+            EMAIL_PASSWORD=${EMAIL_PASSWORD}
+            EMAIL_FROM=noreply@poornasreeequipments.com
+            
+            # Application URLs
+            NEXT_PUBLIC_API_URL=http://${VPS_HOST}
+            NEXT_PUBLIC_APP_URL=http://${VPS_HOST}
+            ENV_EOF
+              
+              echo "✅ Created .env.production with:"
+              echo "   - Database: ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+              echo "   - Email: ${EMAIL_USER:-'Not configured'}"
+              echo "   - API URL: http://${VPS_HOST}"
+              echo "   - Auto-generated JWT secrets"
             fi
             
             # Install dependencies
