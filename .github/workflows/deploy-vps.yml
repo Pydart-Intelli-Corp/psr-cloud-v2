@@ -217,9 +217,24 @@ jobs:
             if [ "$TABLE_COUNT" = "0" ]; then
               echo "📊 Database is empty - running all migrations from scratch..."
               npx sequelize-cli db:migrate --env production
+              
+              echo "🌱 Running database seeders..."
+              npx sequelize-cli db:seed:all --env production
+              echo "✅ Super admin created: admin@poornasreeequipments.com / psr@2025"
             else
               echo "📊 Database has ${TABLE_COUNT} tables - running pending migrations..."
               npx sequelize-cli db:migrate --env production
+              
+              # Check if super admin exists
+              ADMIN_EXISTS=$(mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SELECT COUNT(*) FROM Users WHERE role = 'super_admin' AND email = 'admin@poornasreeequipments.com';" -ss 2>/dev/null || echo "0")
+              
+              if [ "$ADMIN_EXISTS" = "0" ]; then
+                echo "🌱 Super admin not found - running seeders..."
+                npx sequelize-cli db:seed:all --env production
+                echo "✅ Super admin created: admin@poornasreeequipments.com / psr@2025"
+              else
+                echo "✅ Super admin already exists"
+              fi
             fi
             
             # Reload Nginx if configuration changed
