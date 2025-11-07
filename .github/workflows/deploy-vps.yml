@@ -245,6 +245,19 @@ jobs:
               fi
             fi
             
+            # Verify MySQL port 3306 is open for remote access
+            echo "🔍 Checking MySQL port 3306 access..."
+            MYSQL_PORT_OPEN=$(ufw status | grep -E "^3306.*ALLOW.*Anywhere" | grep -v "127.0.0.1" | wc -l)
+            
+            if [ "$MYSQL_PORT_OPEN" = "0" ]; then
+              echo "⚠️  MySQL port 3306 is not open for remote access"
+              echo "🔓 Opening MySQL port 3306..."
+              ufw allow from any to any port 3306 comment 'MySQL remote access'
+              echo "✅ MySQL port 3306 opened for remote connections"
+            else
+              echo "✅ MySQL port 3306 is already open for remote access"
+            fi
+            
             # Reload Nginx if configuration changed
             echo "🔄 Reloading Nginx..."
             nginx -t && systemctl reload nginx || echo "Nginx reload skipped"

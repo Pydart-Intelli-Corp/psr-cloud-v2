@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/database';
+import { requestLogger, extractRequestMetadata } from '@/lib/monitoring/requestLogger';
 
 interface FarmerInfoResult {
   rf_id: string;
@@ -21,21 +22,39 @@ async function handleRequest(
   try {
     let inputString: string | null = null;
     
+    // Log request details for debugging Quectel 4G module issues
+    console.log(`📡 External API Request Details:`);
+    console.log(`   Method: ${request.method}`);
+    console.log(`   Full URL: ${request.url}`);
+    console.log(`   Headers:`, Object.fromEntries(request.headers.entries()));
+    
     // Handle both GET and POST requests
     if (request.method === 'GET') {
       // Extract from query parameters for GET requests
       const { searchParams } = new URL(request.url);
       inputString = searchParams.get('InputString');
+      
+      // Also try URL-decoded version in case pipes are encoded as %7C
+      if (!inputString) {
+        const rawInput = searchParams.get('InputString');
+        if (rawInput) {
+          inputString = decodeURIComponent(rawInput);
+        }
+      }
+      
+      console.log(`   GET Query Params:`, Object.fromEntries(searchParams.entries()));
     } else if (request.method === 'POST') {
       // Extract from request body for POST requests
       try {
         const body = await request.json();
         inputString = body.InputString || null;
+        console.log(`   POST JSON Body:`, body);
       } catch (error) {
         // If JSON parsing fails, try form data
         try {
           const formData = await request.formData();
           inputString = formData.get('InputString') as string || null;
+          console.log(`   POST Form Data:`, Object.fromEntries(formData.entries()));
         } catch {
           console.log(`❌ Failed to parse POST body:`, error);
         }
@@ -46,10 +65,9 @@ async function handleRequest(
     const resolvedParams = await params;
     const dbKey = resolvedParams['db-key'] || resolvedParams.dbKey || resolvedParams['dbkey'];
 
-    console.log(`🔍 External API Request - Full URL: ${request.url}`);
-    console.log(`🔍 Resolved Params:`, resolvedParams);
-    console.log(`🔍 DB Key: "${dbKey}", InputString: "${inputString}"`);
-    console.log(`🔍 DB Key type: ${typeof dbKey}, length: ${dbKey?.length}`);
+    console.log(`🔍 Parsed Values:`);
+    console.log(`   DB Key: "${dbKey}" (type: ${typeof dbKey}, length: ${dbKey?.length})`);
+    console.log(`   InputString: "${inputString}"`);
 
     // Validate required parameters
     if (!dbKey || dbKey.trim() === '') {
@@ -374,7 +392,71 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<Record<string, string>> }
 ) {
-  return handleRequest(request, context);
+  const startTime = Date.now();
+  try {
+    const response = await handleRequest(request, context);
+    const endTime = Date.now();
+    
+    // Log request
+    try {
+      const metadata = extractRequestMetadata(request.url);
+      console.log('🔔 Logging request to monitoring system:', {
+        endpoint: 'FarmerInfo/GetLatest',
+        dbKey: metadata.dbKey,
+        societyId: metadata.societyId,
+        statusCode: response.status,
+        responseTime: endTime - startTime
+      });
+      
+      requestLogger.log({
+        method: request.method,
+        path: new URL(request.url).pathname,
+        endpoint: 'FarmerInfo/GetLatest',
+        dbKey: metadata.dbKey,
+        societyId: metadata.societyId,
+        machineId: metadata.machineId,
+        inputString: metadata.inputString,
+        statusCode: response.status,
+        responseTime: endTime - startTime,
+        userAgent: request.headers.get('user-agent') || undefined,
+        ip: request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown',
+        category: 'external',
+      });
+      
+      console.log('✅ Request logged successfully');
+    } catch (logError) {
+      console.error('❌ Failed to log request:', logError);
+    }
+    
+    return response;
+  } catch (error) {
+    const endTime = Date.now();
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Log error
+    try {
+      const metadata = extractRequestMetadata(request.url);
+      requestLogger.log({
+        method: request.method,
+        path: new URL(request.url).pathname,
+        endpoint: 'FarmerInfo/GetLatest',
+        dbKey: metadata.dbKey,
+        societyId: metadata.societyId,
+        machineId: metadata.machineId,
+        inputString: metadata.inputString,
+        statusCode: 500,
+        responseTime: endTime - startTime,
+        userAgent: request.headers.get('user-agent') || undefined,
+        ip: request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown',
+        error: errorMsg,
+        category: 'external',
+      });
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
+    
+    throw error;
+  }
 }
 
 // Export POST handler
@@ -382,7 +464,61 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<Record<string, string>> }
 ) {
-  return handleRequest(request, context);
+  const startTime = Date.now();
+  try {
+    const response = await handleRequest(request, context);
+    const endTime = Date.now();
+    
+    // Log request
+    try {
+      const metadata = extractRequestMetadata(request.url);
+      requestLogger.log({
+        method: request.method,
+        path: new URL(request.url).pathname,
+        endpoint: 'FarmerInfo/GetLatest',
+        dbKey: metadata.dbKey,
+        societyId: metadata.societyId,
+        machineId: metadata.machineId,
+        inputString: metadata.inputString,
+        statusCode: response.status,
+        responseTime: endTime - startTime,
+        userAgent: request.headers.get('user-agent') || undefined,
+        ip: request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown',
+        category: 'external',
+      });
+    } catch (logError) {
+      console.error('Failed to log request:', logError);
+    }
+    
+    return response;
+  } catch (error) {
+    const endTime = Date.now();
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Log error
+    try {
+      const metadata = extractRequestMetadata(request.url);
+      requestLogger.log({
+        method: request.method,
+        path: new URL(request.url).pathname,
+        endpoint: 'FarmerInfo/GetLatest',
+        dbKey: metadata.dbKey,
+        societyId: metadata.societyId,
+        machineId: metadata.machineId,
+        inputString: metadata.inputString,
+        statusCode: 500,
+        responseTime: endTime - startTime,
+        userAgent: request.headers.get('user-agent') || undefined,
+        ip: request.headers.get('x-forwarded-for')?.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown',
+        error: errorMsg,
+        category: 'external',
+      });
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
+    
+    throw error;
+  }
 }
 
 // Handle OPTIONS request for CORS

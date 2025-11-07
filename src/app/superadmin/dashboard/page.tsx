@@ -18,7 +18,8 @@ import {
   Factory,
   Home,
   Eye,
-  Plus
+  Plus,
+  Radio
 } from 'lucide-react';
 import { FlowerSpinner, MachineManager } from '@/components';
 
@@ -193,6 +194,7 @@ const SuperAdminDashboard = () => {
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'monitoring', label: 'Live Monitor', icon: Radio },
     { id: 'approvals', label: 'Approvals', icon: Shield },
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'machines', label: 'Machines', icon: Building },
@@ -296,6 +298,17 @@ const SuperAdminDashboard = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Live Monitoring Button */}
+              <button
+                onClick={() => router.push('/superadmin/monitoring')}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                title="Open Live Monitor"
+              >
+                <Radio className="w-4 h-4" />
+                <span className="hidden sm:inline font-medium">Live Monitor</span>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              </button>
+              
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">{user?.username}</p>
                 <p className="text-xs text-gray-500">Super Administrator</p>
@@ -306,6 +319,21 @@ const SuperAdminDashboard = () => {
 
         {/* Dashboard content */}
         <main className="p-6">
+          {activeTab === 'monitoring' && (
+            <div className="bg-white rounded-xl p-6 shadow-sm border">
+              <div className="text-center">
+                <p className="text-gray-600 mb-4">Redirecting to Live Monitor...</p>
+                <button
+                  onClick={() => router.push('/superadmin/monitoring')}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+                >
+                  <Radio className="w-5 h-5" />
+                  Open Live Monitor
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Stats Grid */}
