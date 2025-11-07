@@ -6,24 +6,29 @@ import path from 'path';
 let sequelize: Sequelize | null = null;
 
 const createSequelizeInstance = () => {
-  if (!sequelize) {
+    if (!sequelize) {
     // Don't initialize during build time
     if (process.env.NODE_ENV === 'development' || process.env.BUILDING !== 'true') {
-      sequelize = new Sequelize(
-      process.env.DB_NAME || 'psr_v4_c',
-      process.env.DB_USER || 'psrcloud',
-      process.env.DB_PASSWORD || 'Access@LRC2404',
+      // Determine SSL configuration based on environment
+      // Only use SSL if DB_SSL_CA is explicitly set and not empty
+      const sslConfig = (process.env.DB_SSL_CA && process.env.DB_SSL_CA.trim() !== '') ? {
+        require: true,
+        rejectUnauthorized: process.env.DB_REJECT_UNAUTHORIZED !== 'false',
+        ca: path.join(process.cwd(), process.env.DB_SSL_CA),
+      } : (process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('azure')) ? {
+        require: true,
+        rejectUnauthorized: false,
+      } : false;      sequelize = new Sequelize(
+      process.env.DB_NAME || 'psr_v4_main',
+      process.env.DB_USER || 'psr_admin',
+      process.env.DB_PASSWORD || 'Access@404',
       {
-        host: process.env.DB_HOST || 'psrazuredb.mysql.database.azure.com',
+        host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT || '3306'),
         dialect: 'mysql',
         dialectModule: mysql2,
         dialectOptions: {
-          ssl: {
-            require: true,
-            rejectUnauthorized: false, // For Azure MySQL, we'll allow self-signed certificates
-            ca: process.env.DB_SSL_CA ? path.join(process.cwd(), process.env.DB_SSL_CA) : undefined,
-          },
+          ssl: sslConfig,
           connectTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30') * 1000,
         },
         pool: {
@@ -124,20 +129,28 @@ export const createAdminSchema = async (adminEmail: string): Promise<string> => 
 
 // Function to get connection for specific admin schema
 export const getAdminConnection = (dbKey: string): Sequelize => {
+  // Determine SSL configuration based on environment
+  // Only use SSL if DB_SSL_CA is explicitly set and not empty
+  const sslConfig = (process.env.DB_SSL_CA && process.env.DB_SSL_CA.trim() !== '') ? {
+    require: true,
+    rejectUnauthorized: process.env.DB_REJECT_UNAUTHORIZED !== 'false',
+    ca: path.join(process.cwd(), process.env.DB_SSL_CA),
+  } : (process.env.NODE_ENV === 'production' && process.env.DB_HOST?.includes('azure')) ? {
+    require: true,
+    rejectUnauthorized: false,
+  } : false;
+
   return new Sequelize(
     dbKey,
-    process.env.DB_USER || 'psrcloud',
-    process.env.DB_PASSWORD || 'Access@LRC2404',
+    process.env.DB_USER || 'psr_admin',
+    process.env.DB_PASSWORD || '',
     {
-      host: process.env.DB_HOST || 'psrazuredb.mysql.database.azure.com',
+      host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306'),
       dialect: 'mysql',
+      dialectModule: mysql2,
       dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: true,
-          ca: process.env.DB_SSL_CA ? path.join(process.cwd(), process.env.DB_SSL_CA) : undefined,
-        },
+        ssl: sslConfig,
         connectTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30') * 1000,
         acquireTimeout: parseInt(process.env.DB_COMMAND_TIMEOUT || '60') * 1000,
         timeout: parseInt(process.env.DB_COMMAND_TIMEOUT || '60') * 1000,

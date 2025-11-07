@@ -19,6 +19,7 @@ export const hi: TranslationKeys = {
     next: 'अगला',
     previous: 'पिछला',
     refresh: 'ताज़ा करें',
+    filter: 'फ़िल्टर',
     markAllRead: 'सभी को पढ़ा हुआ चिह्नित करें',
     noDataAvailable: 'कोई डेटा उपलब्ध नहीं है',
     createdAt: 'बनाया गया',
@@ -213,6 +214,124 @@ export const hi: TranslationKeys = {
     bmcCreated: 'बीएमसी बनाया गया',
     statusUpdated: 'स्थिति अपडेट की गई',
     leaveBlankToKeep: '(वर्तमान रखने के लिए खाली छोड़ें)',
+  },
+
+  // किसान प्रबंधन
+  farmerManagement: {
+    title: 'किसान प्रबंधन',
+    subtitle: 'किसानों और उनकी जानकारी का प्रबंधन करें',
+    addFarmer: 'किसान जोड़ें',
+    editFarmer: 'किसान संपादित करें',
+    deleteFarmer: 'किसान हटाएं',
+    uploadCSV: 'CSV अपलोड करें',
+    downloadData: 'डेटा डाउनलोड करें',
+    bulkActions: 'बल्क कार्रवाइयां',
+    selectAll: 'सभी चुनें',
+    clearSelection: 'चयन साफ़ करें',
+    selected: 'चयनित',
+    
+    // किसान फ़ील्ड
+    farmerId: 'किसान आईडी',
+    farmerName: 'किसान का नाम',
+    rfId: 'आरएफ आईडी',
+    contactNumber: 'संपर्क नंबर',
+    smsEnabled: 'एसएमएस सक्षम',
+    bonus: 'बोनस',
+    address: 'पता',
+    bankName: 'बैंक का नाम',
+    bankAccountNumber: 'बैंक खाता संख्या',
+    ifscCode: 'आईएफएससी कोड',
+    society: 'सोसायटी',
+    machine: 'मशीन',
+    status: 'स्थिति',
+    
+    // स्थिति मान
+    active: 'सक्रिय',
+    inactive: 'निष्क्रिय',
+    suspended: 'निलंबित',
+    maintenance: 'रखरखाव',
+    all: 'सभी',
+    
+    // कार्रवाइयां
+    refresh: 'ताज़ा करें',
+    search: 'किसान खोजें...',
+    filter: 'फ़िल्टर',
+    viewMode: 'देखने का मोड',
+    listView: 'सूची दृश्य',
+    gridView: 'ग्रिड दृश्य',
+    
+    // बल्क कार्रवाइयां
+    updateStatus: 'स्थिति अपडेट करें',
+    deleteSelected: 'चयनित हटाएं',
+    downloadSelected: 'चयनित डाउनलोड करें',
+    
+    // संदेश
+    noFarmersFound: 'कोई किसान नहीं मिला',
+    noMatchingFarmers: 'कोई किसान आपके फ़िल्टर से मेल नहीं खाता',
+    tryChangingFilters: 'अधिक परिणाम देखने के लिए फ़िल्टर बदलने का प्रयास करें',
+    getStartedMessage: 'अपना पहला किसान जोड़कर शुरुआत करें',
+    
+    // लोडिंग स्थितियां
+    addingFarmer: 'किसान जोड़ा जा रहा है...',
+    updatingFarmer: 'किसान अपडेट किया जा रहा है...',
+    deletingFarmers: 'किसान हटाए जा रहे हैं...',
+    updatingFarmers: 'किसान अपडेट किए जा रहे हैं...',
+    updatingStatus: 'स्थिति अपडेट की जा रही है...',
+    pleaseWait: 'कृपया प्रतीक्षा करें',
+    
+    // फॉर्म लेबल
+    enterFarmerId: 'किसान आईडी दर्ज करें',
+    enterFarmerName: 'किसान का नाम दर्ज करें',
+    enterRfId: 'आरएफ आईडी दर्ज करें',
+    enterContactNumber: 'संपर्क नंबर दर्ज करें',
+    enterBonus: 'बोनस राशि दर्ज करें',
+    enterAddress: 'पता दर्ज करें',
+    enterBankName: 'बैंक का नाम दर्ज करें',
+    enterAccountNumber: 'खाता संख्या दर्ज करें',
+    enterIfscCode: 'आईएफएससी कोड दर्ज करें',
+    selectSociety: 'सोसायटी चुनें',
+    selectMachine: 'मशीन चुनें',
+    selectStatus: 'स्थिति चुनें',
+    
+    // पुष्टि
+    confirmDelete: 'क्या आप वाकई हटाना चाहते हैं',
+    confirmBulkDelete: 'चयनित किसान हटाएं',
+    deleteWarning: 'यह क्रिया पूर्ववत नहीं की जा सकती।',
+    itemsFromFiltered: 'फ़िल्टर किए गए परिणामों से',
+    
+    // आंकड़े
+    totalFarmers: 'कुल किसान',
+    activeFarmers: 'सक्रिय किसान',
+    inactiveFarmers: 'निष्क्रिय किसान',
+    showing: 'दिखाया जा रहा है',
+    of: 'में से',
+    farmers: 'किसान',
+    
+    // CSV अपलोड
+    csvUploadTitle: 'किसान CSV अपलोड करें',
+    csvUploadDescription: 'कई किसानों को जोड़ने के लिए CSV फ़ाइल अपलोड करें',
+    selectFile: 'फ़ाइल चुनें',
+    downloadTemplate: 'टेम्पलेट डाउनलोड करें',
+    upload: 'अपलोड करें',
+    uploadSuccess: 'CSV अपलोड सफलतापूर्वक पूर्ण हुआ!',
+    uploadError: 'CSV अपलोड विफल',
+    
+    // फ़िल्टर
+    filterBySociety: 'सोसायटी द्वारा फ़िल्टर करें',
+    filterByMachine: 'मशीन द्वारा फ़िल्टर करें',
+    filterByStatus: 'स्थिति द्वारा फ़िल्टर करें',
+    unassigned: 'असाइन नहीं किया गया',
+    
+    // विवरण देखें
+    farmerDetails: 'किसान विवरण',
+    basicInformation: 'बुनियादी जानकारी',
+    contactInformation: 'संपर्क जानकारी',
+    bankInformation: 'बैंक जानकारी',
+    assignmentInformation: 'असाइनमेंट जानकारी',
+    
+    // आवश्यक
+    requiredField: '*',
+    required: 'आवश्यक',
   },
 
   // सूचनाएं

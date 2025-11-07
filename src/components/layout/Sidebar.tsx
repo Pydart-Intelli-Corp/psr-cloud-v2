@@ -77,15 +77,15 @@ const navigationItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY]
   },
   {
-    icon: Cog,
-    labelKey: 'machineManagement',
-    href: '/admin/machine',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
-  },
-  {
     icon: Tractor,
     labelKey: 'farmerManagement',
     href: '/admin/farmer',
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+  },
+  {
+    icon: Cog,
+    labelKey: 'machineManagement',
+    href: '/admin/machine',
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
   },
   {

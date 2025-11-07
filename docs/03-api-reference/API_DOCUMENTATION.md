@@ -6,13 +6,14 @@
 
 ## 📋 Overview
 
-The PSR-v4 API provides comprehensive endpoints for managing dairy equipment operations across a multi-tenant, role-based hierarchy. Built with Next.js 15 API routes, the system supports authentication, authorization, and complete CRUD operations for all entities.
+The PSR-v4 API provides comprehensive endpoints for managing dairy equipment operations across a multi-tenant, role-based hierarchy. Built with Next.js 16 API routes, the system supports authentication, authorization, and complete CRUD operations for all entities.
 
 **Base URL**: `/api`  
-**Authentication**: JWT Bearer Token  
+**Authentication**: JWT Bearer Token (Internal APIs) / DB Key (External APIs)  
 **Content Type**: `application/json`  
 **API Version**: v1.0  
-**Last Updated**: December 28, 2024
+**Total Endpoints**: 40+ (35+ Internal + 5 External)  
+**Last Updated**: November 5, 2025
 
 ---
 
@@ -899,6 +900,468 @@ machines (id, machineId, machineType, societyId, ...)
 
 ---
 
+---
+
+## 🔌 External API Endpoints
+
+The PSR-v4 system provides specialized external API endpoints designed for integration with partner systems, external devices, and third-party applications. These endpoints use a simplified authentication model based on database keys (`db-key`) and support both GET and POST methods for maximum compatibility.
+
+### Authentication Model
+- **Database Key (`db-key`)**: Used in the URL path to identify the admin/organization
+- **No JWT Required**: External APIs don't require Bearer tokens
+- **InputString Format**: All parameters passed as a single pipe-separated string
+- **Security**: Generic error messages to prevent information leakage
+
+### Common Features
+- **Dual Method Support**: Both GET (query parameter) and POST (body) requests
+- **Machine ID Format**: All machine IDs use `M` prefix (e.g., `M00001`, `M0000df`)
+- **Alphanumeric Support**: Machine IDs can be numeric (`M00001`) or alphanumeric (`M0000df`, `Mabc123`)
+- **Variant Matching**: Automatic matching with/without leading zeros (`M0000df` matches `df` or `0000df`)
+- **Error Handling**: Consistent quoted string responses with 200/400/404 status codes
+
+---
+
+### 1. GetLatestMachineCorrection
+
+Retrieve the latest machine correction values for all three channels of a specific machine.
+
+**Endpoint:**
+```
+GET/POST /api/[db-key]/MachineCorrection/GetLatestMachineCorrection
+```
+
+**Input Format:**
+```
+InputString=societyId|machineType|version|machineId
+```
+
+**Example:**
+```
+S-s12|ECOD|LE3.34|M00001
+```
+
+**Parameters:**
+- `societyId`: Society ID (with or without `S-` prefix)
+- `machineType`: Machine type (e.g., ECOD, DPST-G)
+- `version`: Machine model/version (e.g., LE3.34)
+- `machineId`: Machine ID with M prefix - supports numeric (`M00001`) or alphanumeric (`M0000df`)
+
+**Response Format:**
+```
+"DD-MM-YYYY HH:mm:ss AM/PM||1|fat|snf|clr|temp|water|protein||2|fat|snf|clr|temp|water|protein||3|fat|snf|clr|temp|water|protein"
+```
+
+**Example Response:**
+```
+"23-07-2025 12:52:08 PM||1|1.00|9.00|67.00|9.00|8.00|0.00||2|1.00|9.00|67.00|9.00|8.00|0.00||3|1.00|9.00|67.00|9.00|8.00|0.00"
+```
+
+**Field Breakdown:**
+- **Date/Time**: `DD-MM-YYYY HH:mm:ss AM/PM`
+- **Channel 1-3** (each): `channel_number|fat|snf|clr|temp|water|protein`
+- **Separators**: `||` between date and channels, and between each channel
+
+**Error Responses:**
+- `"Machine correction not found."` (200) - No correction data found
+- `"Invalid DB Key"` (404) - Admin not found
+- `"Invalid machine ID format"` (400) - Machine ID validation failed
+
+**cURL Examples:**
+```bash
+# GET Request
+curl "http://localhost:3000/api/MAN5678/MachineCorrection/GetLatestMachineCorrection?InputString=S-s12|ECOD|LE3.34|M00001"
+
+# POST Request (JSON)
+curl -X POST "http://localhost:3000/api/MAN5678/MachineCorrection/GetLatestMachineCorrection" \
+  -H "Content-Type: application/json" \
+  -d '{"InputString": "S-s12|ECOD|LE3.34|M00001"}'
+
+# POST Request (Form Data)
+curl -X POST "http://localhost:3000/api/MAN5678/MachineCorrection/GetLatestMachineCorrection" \
+  -d "InputString=S-s12|ECOD|LE3.34|M00001"
+
+# Alphanumeric Machine ID
+curl "http://localhost:3000/api/MAN5678/MachineCorrection/GetLatestMachineCorrection?InputString=S-s12|ECOD|LE3.34|M0000df"
+```
+
+---
+
+### 2. SaveMachineCorrectionUpdationHistory
+
+Update the status of a machine correction record (sets status=0 to mark as processed).
+
+**Endpoint:**
+```
+GET/POST /api/[db-key]/MachineCorrection/SaveMachineCorrectionUpdationHistory
+```
+
+**Input Format:**
+```
+InputString=societyId|machineType|version|machineId
+```
+
+**Example:**
+```
+S-s12|ECOD|LE3.34|M00001
+```
+
+**Response:**
+```
+"Machine correction status updated successfully."
+```
+
+**Error Responses:**
+- `"Machine correction not found."` (200) - No correction record found
+- `"Invalid DB Key"` (404) - Admin not found
+- `"Invalid machine ID format"` (400) - Machine ID validation failed
+
+**cURL Examples:**
+```bash
+# GET Request
+curl "http://localhost:3000/api/MAN5678/MachineCorrection/SaveMachineCorrectionUpdationHistory?InputString=S-s12|ECOD|LE3.34|M00001"
+
+# POST Request
+curl -X POST "http://localhost:3000/api/MAN5678/MachineCorrection/SaveMachineCorrectionUpdationHistory" \
+  -H "Content-Type: application/json" \
+  -d '{"InputString": "S-s12|ECOD|LE3.34|M00001"}'
+```
+
+---
+
+### 3. GetLatestFarmerInfo
+
+Fetch farmer information for a specific society and machine with support for pagination or full CSV download.
+
+**Endpoint:**
+```
+GET/POST /api/[db-key]/FarmerInfo/GetLatestFarmerInfo
+```
+
+**Input Format (Paginated):**
+```
+InputString=societyId|machineType|version|machineId|pageNumber
+```
+
+**Input Format (CSV Download):**
+```
+InputString=societyId|machineType|version|machineId
+```
+
+**Examples:**
+```
+# Paginated (Page 1, 5 records)
+S-1|ECOD|LE2.00|M00001|C00001
+
+# CSV Download (All records)
+S-1|ECOD|LE2.00|M00001
+```
+
+**Parameters:**
+- `societyId`: Society ID (with or without `S-` prefix)
+- `machineType`: Machine type
+- `version`: Machine version
+- `machineId`: Machine ID with M prefix - supports numeric/alphanumeric
+- `pageNumber`: Optional - `C00001` for page 1, `C00002` for page 2, etc.
+
+**Response Format (Paginated):**
+```
+"id|farmer_id|name|phone|sms_enabled|bonus||id|farmer_id|name|phone|sms_enabled|bonus||..."
+```
+
+**Example Response (Paginated):**
+```
+"6|11116|John Doe|9446024636|ON|0.11||7|11117|Jane Smith|9446024637|OFF|0.12"
+```
+
+**Response Format (CSV Download):**
+- **Content-Type**: `text/csv`
+- **Filename**: `FarmerDetails.csv`
+- **Header**: `ID,RF-ID,NAME,MOBILE,SMS,BONUS`
+
+**Example CSV:**
+```csv
+ID,RF-ID,NAME,MOBILE,SMS,BONUS
+213,1,John Doe,9446024631,OFF,11
+222,10,Jane Smith,9446024640,ON,0
+```
+
+**Pagination:**
+- Page size: 5 records per page
+- `C00001` = Page 1 (offset 0)
+- `C00002` = Page 2 (offset 5)
+- `C00003` = Page 3 (offset 10)
+
+**Error Responses:**
+- `"Farmer info not found."` (200) - No farmers found
+- `"Invalid DB Key"` (404) - Admin not found
+- `"Failed to download farmer. Invalid token."` (400) - Invalid society ID
+- `"Failed to download farmer. Invalid machine details."` (400) - Invalid machine ID
+
+**cURL Examples:**
+```bash
+# Paginated Request
+curl "http://localhost:3000/api/MAN5678/FarmerInfo/GetLatestFarmerInfo?InputString=S-1|ECOD|LE2.00|M00001|C00001"
+
+# CSV Download
+curl "http://localhost:3000/api/MAN5678/FarmerInfo/GetLatestFarmerInfo?InputString=S-1|ECOD|LE2.00|M00001"
+
+# POST Request
+curl -X POST "http://localhost:3000/api/MAN5678/FarmerInfo/GetLatestFarmerInfo" \
+  -H "Content-Type: application/json" \
+  -d '{"InputString": "S-1|ECOD|LE2.00|M00001"}'
+```
+
+---
+
+### 4. GetLatestMachinePassword
+
+Retrieve user or supervisor password for a specific machine.
+
+**Endpoint:**
+```
+GET/POST /api/[db-key]/MachinePassword/GetLatestMachinePassword
+```
+
+**Input Format:**
+```
+InputString=societyId|machineType|version|machineId|passwordType
+```
+
+**Example:**
+```
+S-s12|ECOD|LE3.34|M00001|U
+```
+
+**Parameters:**
+- `societyId`: Society ID (with or without `S-` prefix)
+- `machineType`: Machine type
+- `version`: Machine version
+- `machineId`: Machine ID with M prefix - supports numeric/alphanumeric
+- `passwordType`: `U` for User password, `S` for Supervisor password
+
+**Response Format:**
+```
+"password_value"
+```
+
+**Example Responses:**
+```
+"123456"    // User password
+"000000"    // Supervisor password
+```
+
+**Error Responses:**
+- `"Machine password not found."` (200) - Machine or password not found
+- `"Invalid DB Key"` (404) - Admin not found
+- `"Failed to get password. Invalid machine details."` (400) - Invalid machine ID
+- `"Failed to get password. Invalid token."` (400) - Invalid society ID
+- `"Invalid password type. Must be U or S"` (400) - Invalid password type
+
+**cURL Examples:**
+```bash
+# Get User Password
+curl "http://localhost:3000/api/MAN5678/MachinePassword/GetLatestMachinePassword?InputString=S-s12|ECOD|LE3.34|M00001|U"
+
+# Get Supervisor Password
+curl "http://localhost:3000/api/MAN5678/MachinePassword/GetLatestMachinePassword?InputString=S-s12|ECOD|LE3.34|M00001|S"
+
+# POST Request
+curl -X POST "http://localhost:3000/api/MAN5678/MachinePassword/GetLatestMachinePassword" \
+  -H "Content-Type: application/json" \
+  -d '{"InputString": "S-s12|ECOD|LE3.34|M00001|U"}'
+
+# Alphanumeric Machine ID
+curl "http://localhost:3000/api/MAN5678/MachinePassword/GetLatestMachinePassword?InputString=S-s12|ECOD|LE3.34|M0000df|U"
+```
+
+---
+
+### 5. UpdateMachinePasswordStatus
+
+Update password status flag (statusU or statusS) to 0, effectively marking the password as "acknowledged" or "processed" by the external system.
+
+**Endpoint:**
+```
+GET/POST /api/[db-key]/MachinePassword/UpdateMachinePasswordStatus
+```
+
+**Input Format:**
+```
+InputString=societyId|machineType|version|machineId|passwordType
+```
+
+**Example:**
+```
+S-s12|ECOD|LE3.34|M00001|U
+```
+
+**Parameters:**
+- `societyId`: Society ID (with or without `S-` prefix)
+- `machineType`: Machine type
+- `version`: Machine version
+- `machineId`: Machine ID with M prefix - supports numeric/alphanumeric
+- `passwordType`: `U` to update statusU, `S` to update statusS
+
+**Response:**
+```
+"User password status updated to 0 for machine <machine_id>"
+```
+or
+```
+"Supervisor password status updated to 0 for machine <machine_id>"
+```
+
+**Error Responses:**
+- `"Machine not found"` (404) - Machine doesn't exist
+- `"Invalid DB Key"` (404) - Admin not found
+- `"Invalid machine ID format"` (400) - Machine ID validation failed
+- `"Invalid society ID"` (400) - Society not found
+- `"Invalid password type. Must be U or S"` (400) - Invalid password type
+
+**cURL Examples:**
+```bash
+# Update User Password Status
+curl "http://localhost:3000/api/MAN5678/MachinePassword/UpdateMachinePasswordStatus?InputString=S-s12|ECOD|LE3.34|M00001|U"
+
+# Update Supervisor Password Status
+curl "http://localhost:3000/api/MAN5678/MachinePassword/UpdateMachinePasswordStatus?InputString=S-s12|ECOD|LE3.34|M00001|S"
+
+# POST Request
+curl -X POST "http://localhost:3000/api/MAN5678/MachinePassword/UpdateMachinePasswordStatus" \
+  -H "Content-Type: application/json" \
+  -d '{"InputString": "S-s12|ECOD|LE3.34|M00001|U"}'
+```
+
+---
+
+### Machine ID Support
+
+All external API endpoints support both **numeric** and **alphanumeric** machine IDs with flexible variant matching:
+
+#### Numeric Machine IDs
+- **Format**: `M` followed by digits only
+- **Examples**: `M00001`, `M00123`, `M99999`
+- **Processing**: Leading zeros removed, parsed as integer
+- **Database Matching**: Direct integer comparison (`id = 1`)
+
+#### Alphanumeric Machine IDs
+- **Format**: `M` followed by letters and numbers
+- **Examples**: `M0000df`, `Mabc123`, `Mxyz789`
+- **Processing**: Creates variants with/without leading zeros
+- **Database Matching**: String comparison with variants (`machine_id IN ('0000df', 'df')`)
+
+#### Variant Matching Logic
+
+**Example 1: `M0000df`**
+- Removes `M` prefix → `0000df`
+- Creates variants: `['0000df', 'df']`
+- SQL Query: `machine_id IN ('0000df', 'df')`
+- Matches database entries: `0000df` OR `df`
+
+**Example 2: `M00001`**
+- Removes `M` prefix → `00001`
+- Parses as integer → `1`
+- SQL Query: `id = 1`
+- Direct numeric match (backward compatible)
+
+**Example 3: `Mabc123`**
+- Removes `M` prefix → `abc123`
+- No leading zeros to strip
+- Creates variant: `['abc123']`
+- SQL Query: `machine_id IN ('abc123')`
+
+#### Invalid Machine ID Formats
+- Missing `M` prefix: `00001` ❌
+- Special characters: `M@001`, `M-abc` ❌
+- Empty after M: `M` ❌
+- Spaces: `M 001` ❌
+
+---
+
+### External API Best Practices
+
+#### 1. Error Handling
+```javascript
+const response = await fetch(apiUrl);
+const text = await response.text();
+
+// All responses are quoted strings
+const data = text.replace(/^"|"$/g, ''); // Remove quotes
+
+if (response.status === 404) {
+  console.error('Admin or resource not found');
+} else if (response.status === 400) {
+  console.error('Validation error:', data);
+} else if (data.includes('not found')) {
+  console.log('No data available');
+} else {
+  // Process successful response
+  console.log('Data:', data);
+}
+```
+
+#### 2. Machine ID Format
+```javascript
+// Always include M prefix
+const machineId = 'M00001';  // ✅ Correct
+const machineId = '00001';   // ❌ Wrong
+
+// Alphanumeric support
+const machineId = 'M0000df'; // ✅ Correct
+const machineId = 'Mabc123'; // ✅ Correct
+```
+
+#### 3. InputString Construction
+```javascript
+// Build InputString from components
+const societyId = 'S-s12';
+const machineType = 'ECOD';
+const version = 'LE3.34';
+const machineId = 'M00001';
+const passwordType = 'U';
+
+const inputString = [societyId, machineType, version, machineId, passwordType]
+  .filter(Boolean)
+  .join('|');
+
+// Result: "S-s12|ECOD|LE3.34|M00001|U"
+```
+
+#### 4. Response Parsing
+
+**Machine Correction:**
+```javascript
+const response = "23-07-2025 12:52:08 PM||1|1.00|9.00|67.00|9.00|8.00|0.00||2|1.00|9.00|67.00|9.00|8.00|0.00||3|1.00|9.00|67.00|9.00|8.00|0.00";
+
+const parts = response.replace(/^"|"$/g, '').split('||');
+const dateTime = parts[0]; // "23-07-2025 12:52:08 PM"
+
+// Parse channel data
+for (let i = 1; i < parts.length; i++) {
+  const [channel, fat, snf, clr, temp, water, protein] = parts[i].split('|');
+  console.log(`Channel ${channel}:`, { fat, snf, clr, temp, water, protein });
+}
+```
+
+**Farmer Info (Paginated):**
+```javascript
+const response = "6|11116|John Doe|9446024636|ON|0.11||7|11117|Jane Smith|9446024637|OFF|0.12";
+
+const farmers = response.replace(/^"|"$/g, '').split('||').map(farmerStr => {
+  const [id, farmerId, name, phone, smsEnabled, bonus] = farmerStr.split('|');
+  return { id, farmerId, name, phone, smsEnabled, bonus };
+});
+```
+
+#### 5. Integration Security
+- **Never expose `db-key` publicly**: Store securely in environment variables
+- **Validate responses**: Check for error messages before processing data
+- **Rate limiting**: Implement client-side throttling (max 100 req/min)
+- **Retry logic**: Implement exponential backoff for failed requests
+- **Logging**: Log all API calls with timestamps for debugging
+
+---
+
 ## 🔄 Rate Limiting
 
 ### Current Limits
@@ -1000,5 +1463,5 @@ For API support and questions:
 ---
 
 **API Documentation Version**: 1.0  
-**Last Updated**: December 28, 2024  
+**Last Updated**: November 5, 2025  
 **Maintained By**: PSR-v4 Development Team

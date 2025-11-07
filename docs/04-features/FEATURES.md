@@ -1,6 +1,6 @@
 # PSR-v4 Features Documentation
 
-**Last Updated**: October 27, 2025
+**Last Updated**: November 5, 2025
 
 ## 📋 **Complete Feature List**
 
@@ -351,6 +351,115 @@
   - Load balancing ready
   - CDN integration ready
 
+### 🔌 **External API Integration** ⭐ **NEW**
+- **Database Key Authentication**
+  - Secure db-key based authentication for external systems
+  - No JWT token requirement for external endpoints
+  - Role-based access control maintained through db-key
+  - Separate authentication flow from internal APIs
+
+- **Machine Correction Data Access**
+  - **GetLatestMachineCorrection**: Retrieve latest milk test correction data
+    - Support for numeric machine IDs (M00001 → integer)
+    - Support for alphanumeric machine IDs (M0000df → variants: ['0000df', 'df'])
+    - Intelligent variant matching for mixed ID formats
+    - Returns complete correction data: fat, snf, clr, temp, water, protein (all 3 channels)
+  
+  - **SaveMachineCorrectionUpdationHistory**: Log correction data updates
+    - Track when external systems fetch correction data
+    - Maintain comprehensive audit trail
+    - Record fetch timestamps and machine IDs
+
+- **Farmer Information Access**
+  - **GetLatestFarmerInfo**: Retrieve comprehensive farmer details
+    - Farmer identification: ID, name, contact information
+    - Society and machine assignments
+    - Bank account details for payments
+    - Status and registration information
+    - Alphanumeric machine ID support with variant matching
+
+- **Machine Password Management**
+  - **GetLatestMachinePassword**: Fetch current machine passwords
+    - Retrieve active passwords for machine authentication
+    - Support for numeric and alphanumeric machine IDs
+    - Variant matching for flexible ID formats
+    - Password status tracking (pending/updated)
+  
+  - **UpdateMachinePasswordStatus**: Update password delivery status
+    - Mark passwords as delivered to machines
+    - Track password update timestamps
+    - Comprehensive validation and error handling
+    - Audit trail for password status changes
+
+- **Alphanumeric Machine ID Support**
+  - **Numeric Format**: M00001 → converted to integer 1
+  - **Alphanumeric Format**: M0000df → stored as variants ['0000df', 'df']
+  - **Intelligent Matching**: Searches both numeric and variant arrays
+  - **Case Insensitive**: Handles mixed case machine IDs
+  - **Zero Padding**: Automatically handles leading zeros
+
+- **External API Features**
+  - RESTful endpoint design with JSON responses
+  - Comprehensive error handling with meaningful messages
+  - Request validation and sanitization
+  - Rate limiting and security best practices
+  - Detailed logging for debugging and monitoring
+  - Cross-origin resource sharing (CORS) configuration
+
+- **Integration Best Practices**
+  - Secure db-key storage and transmission
+  - Error handling with fallback mechanisms
+  - Retry logic for failed requests
+  - Data validation before processing
+  - Timeout handling for long-running requests
+  - Comprehensive API documentation with examples
+
+### 🔧 **Machine Correction System** ⭐ **NEW**
+- **Correction Data Management**
+  - Full CRUD operations for milk test corrections
+  - Three-channel correction support (Channel 1, 2, 3)
+  - Real-time correction factor tracking
+  - Historical correction data maintenance
+
+- **Correction Parameters**
+  - **Fat Correction**: Precision adjustment for fat content measurement
+  - **SNF Correction**: Solids-Not-Fat calibration factors
+  - **CLR Correction**: Corrected Lactometer Reading adjustments
+  - **Temperature Correction**: Temperature compensation factors
+  - **Water Correction**: Water content detection calibration
+  - **Protein Correction**: Protein measurement precision tuning
+
+- **Database Schema (machine_corrections)**
+  ```
+  - machine_id: VARCHAR(50) - Supports numeric and alphanumeric IDs
+  - fat_ch1, fat_ch2, fat_ch3: DECIMAL(10,4) - Fat corrections per channel
+  - snf_ch1, snf_ch2, snf_ch3: DECIMAL(10,4) - SNF corrections per channel
+  - clr_ch1, clr_ch2, clr_ch3: DECIMAL(10,4) - CLR corrections per channel
+  - temp_ch1, temp_ch2, temp_ch3: DECIMAL(10,4) - Temperature corrections
+  - water_ch1, water_ch2, water_ch3: DECIMAL(10,4) - Water corrections
+  - protein_ch1, protein_ch2, protein_ch3: DECIMAL(10,4) - Protein corrections
+  - created_at, updated_at: TIMESTAMP - Audit trail
+  ```
+
+- **Machine ID Support**
+  - **Numeric Storage**: Integer machine_id column for numeric IDs (1, 2, 3...)
+  - **Alphanumeric Storage**: machine_id_variants JSON array for alphanumeric IDs
+  - **Flexible Querying**: Searches both numeric and variant fields
+  - **Automatic Variant Generation**: Extracts numeric and alphanumeric parts
+
+- **External API Integration**
+  - Real-time correction data retrieval via GetLatestMachineCorrection
+  - Update history tracking via SaveMachineCorrectionUpdationHistory
+  - Machine-specific correction factor lookup
+  - Support for both numeric and alphanumeric machine identification
+
+- **Technical Implementation**
+  - TypeScript interfaces for correction data structures
+  - Comprehensive validation for correction factors
+  - Error handling for missing or invalid data
+  - Audit logging for all correction updates
+  - Multi-channel support with independent factor tracking
+
 ---
 
 ## 🏗️ **Architecture Overview**
@@ -437,7 +546,33 @@
 
 ---
 
-## 🆕 **Recent Major Updates (October 27, 2025)** ⭐
+## 🆕 **Recent Major Updates (November 5, 2025)** ⭐
+
+### **External API Integration Complete** ⭐ **NEW**
+- ✅ 5 external API endpoints with db-key authentication
+- ✅ Machine correction data access (GetLatestMachineCorrection)
+- ✅ Farmer information retrieval (GetLatestFarmerInfo)
+- ✅ Machine password management (GetLatestMachinePassword, UpdateMachinePasswordStatus)
+- ✅ Correction update history tracking (SaveMachineCorrectionUpdationHistory)
+- ✅ Alphanumeric machine ID support with intelligent variant matching
+- ✅ Comprehensive API documentation with examples and best practices
+
+### **Machine Correction System** ⭐ **NEW**
+- ✅ Full CRUD operations for machine correction factors
+- ✅ Three-channel correction support (fat, snf, clr, temp, water, protein)
+- ✅ Database schema with correct column names
+- ✅ Numeric and alphanumeric machine ID support
+- ✅ External API integration for real-time data access
+- ✅ Comprehensive validation and error handling
+
+### **API System Enhancement**
+- ✅ 40+ total API endpoints (35+ Internal JWT-based + 5 External db-key-based)
+- ✅ Dual authentication system (JWT for internal, db-key for external)
+- ✅ RESTful design with comprehensive error handling
+- ✅ Complete TypeScript type definitions
+- ✅ Request validation and sanitization
+
+## 🆕 **Previous Updates (October 27, 2025)**
 
 ### **BMC Management System Complete**
 - ✅ Full CRUD functionality with modern UI design

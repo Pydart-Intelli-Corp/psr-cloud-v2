@@ -14,6 +14,7 @@ interface StatusDropdownProps {
   onStatusChange: (status: string) => void;
   options?: StatusOption[];
   className?: string;
+  compact?: boolean;
 }
 
 const defaultStatusOptions: StatusOption[] = [
@@ -51,25 +52,28 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({
   currentStatus,
   onStatusChange,
   options = defaultStatusOptions,
-  className = ''
+  className = '',
+  compact = false
 }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': 
-        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700';
+        return 'bg-green-600 hover:bg-green-700 text-white';
       case 'inactive': 
-        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700';
+        return 'bg-red-600 hover:bg-red-700 text-white';
       case 'maintenance': 
-        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700';
+        return 'bg-yellow-600 hover:bg-yellow-700 text-white';
+      case 'suspended': 
+        return 'bg-orange-600 hover:bg-orange-700 text-white';
       default: 
-        return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+        return 'bg-gray-600 hover:bg-gray-700 text-white';
     }
   };
 
   return (
     <div className={`relative group ${className}`}>
       <button
-        className={`px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium rounded-full border flex-shrink-0 ${getStatusColor(currentStatus)} hover:shadow-md transition-all cursor-pointer`}
+        className={`${compact ? 'px-3 py-1.5' : 'px-3 py-1.5'} text-xs font-medium rounded-lg transition-colors flex items-center space-x-1 ${getStatusColor(currentStatus)}`}
         onClick={(e) => {
           e.stopPropagation();
           const btn = e.currentTarget;
@@ -79,9 +83,12 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({
           }
         }}
       >
-        {currentStatus}
+        <span>{currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}</span>
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
-      <div className="hidden absolute right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-[140px]">
+      <div className="hidden absolute right-0 bottom-full mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-[140px]">
         {options.map((option, index) => (
           <button
             key={option.status}

@@ -22,7 +22,7 @@ interface Machine {
   machineType: string;
   description?: string;
   isActive: boolean;
-  status?: 'active' | 'inactive' | 'maintenance';
+  status?: 'active' | 'inactive' | 'maintenance' | 'suspended';
 }
 
 interface MachineManagerProps {
@@ -45,7 +45,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
     machineType: '',
     description: '',
     isActive: true,
-    status: 'active' as 'active' | 'inactive' | 'maintenance'
+    status: 'active' as 'active' | 'inactive' | 'maintenance' | 'suspended'
   });
 
   useEffect(() => {
@@ -119,7 +119,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
         await fetchMachines();
         setShowAddForm(false);
         setEditingMachine(null);
-        setFormData({ machineType: '', description: '', isActive: true, status: 'active' });
+        setFormData({ machineType: '', description: '', isActive: true, status: 'active' as 'active' | 'inactive' | 'maintenance' | 'suspended' });
         alert(editingMachine ? 'Machine updated successfully!' : 'Machine created successfully!');
       } else {
         alert(`Failed to ${editingMachine ? 'update' : 'create'} machine: ` + result.error);
@@ -233,7 +233,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
   const cancelEdit = () => {
     setEditingMachine(null);
     setShowAddForm(false);
-    setFormData({ machineType: '', description: '', isActive: true, status: 'active' });
+    setFormData({ machineType: '', description: '', isActive: true, status: 'active' as 'active' | 'inactive' | 'maintenance' | 'suspended' });
   };
 
   const getStatusInfo = (machine: Machine) => {
@@ -245,12 +245,14 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
         return { label: 'Inactive', bgColor: 'bg-red-100', textColor: 'text-red-800' };
       case 'maintenance':
         return { label: 'Maintenance', bgColor: 'bg-yellow-100', textColor: 'text-yellow-800' };
+      case 'suspended':
+        return { label: 'Suspended', bgColor: 'bg-orange-100', textColor: 'text-orange-800' };
       default:
         return { label: 'Unknown', bgColor: 'bg-gray-100', textColor: 'text-gray-800' };
     }
   };
 
-  const handleStatusChange = async (machineId: number, newStatus: 'active' | 'inactive' | 'maintenance') => {
+  const handleStatusChange = async (machineId: number, newStatus: 'active' | 'inactive' | 'maintenance' | 'suspended') => {
     try {
       const isActive = newStatus === 'active';
       const response = await fetch('/api/superadmin/machines', {
@@ -410,12 +412,12 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                            {['active', 'inactive', 'maintenance'].map((status) => {
-                              const statusInfo = getStatusInfo({ ...machine, status: status as 'active' | 'inactive' | 'maintenance' });
+                            {['active', 'inactive', 'maintenance', 'suspended'].map((status) => {
+                              const statusInfo = getStatusInfo({ ...machine, status: status as 'active' | 'inactive' | 'maintenance' | 'suspended' });
                               return (
                                 <button
                                   key={status}
-                                  onClick={() => handleStatusChange(machine.id, status as 'active' | 'inactive' | 'maintenance')}
+                                  onClick={() => handleStatusChange(machine.id, status as 'active' | 'inactive' | 'maintenance' | 'suspended')}
                                   className={`w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 transition-colors first:rounded-t-lg last:rounded-b-lg ${statusInfo.textColor}`}
                                 >
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${statusInfo.bgColor} ${statusInfo.textColor}`}>
@@ -510,7 +512,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
                   <select
                     value={formData.status}
                     onChange={(e) => {
-                      const status = e.target.value as 'active' | 'inactive' | 'maintenance';
+                      const status = e.target.value as 'active' | 'inactive' | 'maintenance' | 'suspended';
                       setFormData({ 
                         ...formData, 
                         status,
@@ -522,6 +524,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                     <option value="maintenance">Maintenance</option>
+                    <option value="suspended">Suspended</option>
                   </select>
                 </div>
                 

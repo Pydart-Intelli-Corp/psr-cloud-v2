@@ -6,11 +6,11 @@
 
 ## 📋 Executive Summary
 
-PSR-v4 is a comprehensive, full-stack web application designed for managing dairy equipment operations across a multi-tier organizational hierarchy. Built with modern technologies (Next.js 15, React 19, TypeScript), the system provides role-based access control, multi-tenant database architecture, and comprehensive dairy management capabilities.
+PSR-v4 is a comprehensive, full-stack web application designed for managing dairy equipment operations across a multi-tier organizational hierarchy. Built with modern technologies (Next.js 16, React 19, TypeScript 5), the system provides role-based access control, multi-tenant database architecture, and comprehensive dairy management capabilities.
 
 **Current Version**: 0.1.0  
 **Status**: Production Ready - Multi-Tenant System Stable  
-**Last Updated**: December 28, 2024
+**Last Updated**: November 5, 2025
 
 ---
 
@@ -40,19 +40,22 @@ Each level has specific permissions and can only manage users in levels below th
 ## ⚙️ Technical Stack
 
 ### Frontend
-- **Framework**: Next.js 15 with App Router
-- **UI Library**: React 19
+- **Framework**: Next.js 16.0.0 with App Router
+- **UI Library**: React 19.2.0
 - **Language**: TypeScript 5
 - **Styling**: Tailwind CSS 3.4 + Material Design 3
-- **Animations**: Framer Motion 12
-- **Icons**: Heroicons 2.2 + Lucide React
+- **Animations**: Framer Motion 12.23.24
+- **Icons**: Heroicons 2.2.0 + Lucide React 0.546.0
 
 ### Backend
-- **Runtime**: Node.js (Next.js API Routes)
-- **Framework**: Express.js 5.1
-- **Database**: Azure MySQL 8.0
-- **ORM**: Sequelize 6.37
-- **Validation**: Express-Validator 7.2
+- **Runtime**: Node.js with Next.js API Routes
+- **Framework**: Express.js 5.1.0
+- **Database**: Azure MySQL 8.0 with SSL
+- **ORM**: Sequelize 6.37.7 with TypeScript
+- **Authentication**: JWT (jsonwebtoken 9.0.2) with bcryptjs 3.0.2
+- **Email**: Nodemailer 7.0.9 with Gmail SMTP
+- **Security**: Helmet 8.1.0, CORS 2.8.5, Rate Limiting 8.1.0
+- **Validation**: Express-Validator 7.2.1
 
 ### Authentication & Security
 - **Auth Method**: JWT (JSON Web Tokens)
@@ -70,7 +73,10 @@ Each level has specific permissions and can only manage users in levels below th
 - **Package Manager**: npm
 - **Linting**: ESLint 9
 - **Build Tool**: Next.js built-in
-- **Migration Tool**: Sequelize CLI 6.6
+- **Migration Tool**: Sequelize CLI 6.6.3 + Custom TypeScript Runner (tsx 4.20.6)
+- **PDF Generation**: jsPDF 3.0.3 + jsPDF-AutoTable 5.0.2
+- **File Upload**: Multer 2.0.2
+- **Logging**: Winston 3.18.3
 
 ---
 
@@ -273,51 +279,82 @@ Response to Client
 - Database relationships with BMCs and farmers
 - Comprehensive validation and error handling
 
-### 6. Machine Management System (100% Complete) ⭐
+### 6. Machine Management System (100% Complete) ✅ Advanced
 
 **Features**
 - Complete machine inventory management
 - Society-based machine allocation
 - Installation and maintenance tracking
 - Operator assignment and contact management
-- Status monitoring (Active, Inactive, Maintenance)
+- Status monitoring (Active, Inactive, Maintenance, Suspended)
+- Machine password management system
+- Machine type management (Super Admin)
+- CSV bulk upload/download for machine types
+- Machine-farmer assignment tracking
 
 **Machine Information**
-- Machine ID and type classification
+- Machine ID and type classification (from central machine types)
 - Society assignment and location tracking
 - Installation date and operator details
 - Contact information and operational notes
 - Real-time status updates and history
+- Machine passwords with status tracking (Sent, Pending, Received)
 
 **Technical Implementation**
 - Admin-specific schema isolation for multi-tenant support
 - Dynamic status updates with API endpoints
+- Machine password API for external system integration
 - Proper error handling and validation
-- Relationship management with societies
+- Relationship management with societies and farmers
 - Comprehensive logging and audit trail
+- Super Admin machine type management
+- External API endpoints for machine password retrieval and updates
 
-### 7. Farmer Management System (95% Complete) ⭐
+### 7. Farmer Management System (100% Complete) ✅ Advanced
 
 **Features**
-- Complete farmer profile management
+- Complete CRUD operations for farmer management
+- Advanced search and filtering across all farmer data
+- Machine assignment integration with mandatory selection
+- Bulk operations for status updates and deletion
+- CSV bulk upload and data export (CSV/PDF)
+- Real-time search highlighting and visual feedback
 - Society and BMC hierarchy integration
-- Bonus calculation and tracking system
-- Livestock and production analytics
-- Payment and transaction history
+- Comprehensive status management (Active, Inactive, Suspended, Maintenance)
+- Bank account details management
+- Address and contact information tracking
+- Detailed farmer profiles with all information
 
-**Farmer Information**
-- Personal details (name, contact, address)
-- Society and BMC associations
-- Livestock count and production metrics
-- Bonus calculations and payment tracking
-- Activity logs and performance analytics
+**Search & Filtering Capabilities**
+- Global search integration with header search bar
+- Real-time search across all fields (name, ID, contact, address, bank, society, machine)
+- Multi-criteria filtering (status, society, machine, search query)
+- Machine-based filtering with unassigned option
+- Live text highlighting with visual indicators
+- Clear search and filter functionality
+
+**Bulk Operations**
+- Select All functionality for filtered results
+- Concurrent bulk status updates using Promise.allSettled
+- Bulk deletion with confirmation dialogs
+- Progress tracking and comprehensive error handling
+- Selection state management during filtering
+
+**Data Management**
+- CSV and PDF export with column selection including machine data
+- Customizable download formats for filtered data
+- Bulk CSV upload with society and machine mapping
+- Machine ID support in CSV import/export workflows
+- Import error handling and preview workflows
+- Comprehensive form validation with mandatory machine assignment
 
 **Technical Implementation**
-- Multi-tenant database architecture
-- Complex bonus calculation algorithms
-- Professional PDF generation for reports
-- Comprehensive data validation
-- Mobile-optimized interface design
+- TypeScript interfaces for complete type safety
+- CustomEvent-based global search architecture
+- Real-time text highlighting with regex safety
+- Optimistic UI updates with rollback capability
+- Material Design 3 responsive interface
+- Dark mode support throughout
 
 ### 8. PDF Generation System (100% Complete) ⭐
 
@@ -418,6 +455,79 @@ Response to Client
 - ESLint integration with error prevention
 - Automated dependency optimization
 
+### 12. External API Integration (100% Complete) ⭐ **NEW**
+
+**Overview**
+- 5 dedicated external API endpoints using database key (db-key) authentication
+- Separate authentication system from internal JWT-based APIs
+- Support for third-party system integration (dairy machines, external applications)
+- Comprehensive documentation and integration guides
+
+**Machine Correction Data Access**
+- **GetLatestMachineCorrection**: Retrieve latest milk test correction factors
+  - Support for 3-channel correction data (Channel 1, 2, 3)
+  - Correction parameters: fat, snf, clr, temp, water, protein
+  - Numeric machine ID support (M00001 → integer 1)
+  - Alphanumeric machine ID support (M0000df → variants: ['0000df', 'df'])
+  - Intelligent variant matching for flexible ID formats
+
+- **SaveMachineCorrectionUpdationHistory**: Log correction data update history
+  - Track when external systems fetch correction data
+  - Maintain comprehensive audit trail with timestamps
+  - Support for both numeric and alphanumeric machine IDs
+
+**Farmer Information Access**
+- **GetLatestFarmerInfo**: Comprehensive farmer data retrieval
+  - Complete farmer details (name, contact, address)
+  - Society and machine assignments
+  - Bank account information for payments
+  - Status tracking (Active, Inactive, Suspended, Maintenance)
+  - Alphanumeric machine ID support
+
+**Machine Password Management**
+- **GetLatestMachinePassword**: Retrieve current machine passwords
+  - Fetch active passwords for machine authentication
+  - Support for numeric and alphanumeric machine IDs
+  - Password status tracking (pending/updated)
+  - Variant matching for flexible machine identification
+
+- **UpdateMachinePasswordStatus**: Update password delivery status
+  - Mark passwords as delivered to machines
+  - Track password update timestamps
+  - Comprehensive validation and error handling
+  - Audit trail for password status changes
+
+**Alphanumeric Machine ID System**
+- **Numeric Format**: M00001 → stored as integer 1
+- **Alphanumeric Format**: M0000df → stored as variants ['0000df', 'df']
+- **Intelligent Matching**: Searches both numeric and variant arrays
+- **Case Insensitive**: Handles mixed case machine IDs
+- **Automatic Variant Generation**: Extracts numeric and alphanumeric portions
+
+**Security Features**
+- Database key (dbKey) authentication (no JWT required)
+- Request validation and sanitization
+- Comprehensive error handling with meaningful messages
+- Rate limiting per endpoint
+- CORS configuration for cross-origin access
+- Activity logging and audit trails
+
+**Integration Best Practices**
+- Secure db-key storage and transmission
+- Error handling with fallback mechanisms
+- Retry logic for failed requests
+- Data validation before processing
+- Timeout handling for long-running requests
+- Comprehensive API documentation with examples
+
+**Technical Implementation**
+- RESTful endpoint design with JSON responses
+- TypeScript interfaces for type safety
+- Comprehensive validation and error handling
+- Detailed logging for debugging and monitoring
+- Cross-origin resource sharing (CORS) configuration
+- Rate limiting and security best practices
+
 ---
 
 ## 📊 Key Metrics
@@ -426,31 +536,38 @@ Response to Client
 
 | Feature Category | Completion | Status |
 |-----------------|-----------|--------|
-| Authentication | 100% | ✅ Complete |
-| Admin Approval | 100% | ✅ Complete |
-| Email System | 100% | ✅ Complete |
+| Authentication System | 100% | ✅ Complete |
+| Admin Approval Workflow | 100% | ✅ Complete |
+| Email Communication System | 100% | ✅ Complete |
 | Dairy Management | 100% | ✅ Complete |
 | BMC Management | 100% | ✅ Complete |
-| Society Management | 100% | ✅ Complete ⭐ |
-| Farmer Management | 95% | ✅ Near Complete ⭐ |
-| Machine Management | 100% | ✅ Complete ⭐ |
-| PDF Generation | 100% | ✅ Complete ⭐ |
-| Analytics Dashboard | 85% | 🔄 In Progress |
-| Mobile Responsive | 100% | ✅ Complete |
-| Build System | 100% | ✅ Complete |
-| Multi-Language | 100% | ✅ Complete |
-| API Documentation | 100% | ✅ Complete ⭐ |
+| Society Management | 100% | ✅ Complete |
+| Farmer Management | 100% | ✅ Complete (Advanced) |
+| Machine Management | 100% | ✅ Complete (Advanced) |
+| Machine-Farmer Integration | 100% | ✅ Complete |
+| PDF Generation & Export | 100% | ✅ Complete |
+| CSV Import/Export | 100% | ✅ Complete |
+| External API Integration | 100% | ✅ Complete |
+| Admin Dashboard | 100% | ✅ Complete |
+| Super Admin Dashboard | 100% | ✅ Complete |
+| Profile Management | 100% | ✅ Complete |
+| Mobile Responsive Design | 100% | ✅ Complete |
+| Dark Mode Support | 100% | ✅ Complete |
+| Multi-Language (i18n) | 100% | ✅ Complete |
+| Build System & Deployment | 100% | ✅ Complete |
+| Comprehensive Documentation | 100% | ✅ Complete |
 
 ### Code Statistics
 
-- **Total Files**: 150+
-- **Lines of Code**: ~18,000+
-- **TypeScript Coverage**: 95%
-- **React Components**: 45+
-- **API Endpoints**: 25+
-- **Database Tables**: 3 (master) + 6 per admin schema
-- **Migration Files**: 6 database migrations
-- **Utility Scripts**: 15+ management scripts
+- **Total Files**: 200+
+- **Lines of Code**: ~25,000+
+- **TypeScript Coverage**: 98%
+- **React Components**: 50+
+- **API Endpoints**: 40+ (35+ Internal JWT-based + 5 External db-key-based)
+- **Database Tables**: 5 (master) + 7 per admin schema
+- **Migration Files**: 14 database migrations
+- **Utility Scripts**: 20+ management scripts
+- **Documentation Files**: 25+ markdown files
 
 ### Performance Targets
 
@@ -650,14 +767,18 @@ psr-v4/
 - ✅ Email system
 - ✅ Multi-tenant database
 
-### Phase 2: Entity Management (95% Complete) ⭐
-- ✅ BMC management system
-- ✅ Society management system
-- ✅ Farmer management system
-- ✅ Machine management system
-- ✅ PDF generation and reporting
-- 🔄 Profile management (In Progress)
-- 🔄 Enhanced analytics (In Progress)
+### Phase 2: Entity Management (100% Complete) ✅
+- ✅ BMC management system with full CRUD
+- ✅ Society management system with hierarchy
+- ✅ Farmer management system (with advanced search, bulk operations, CSV import/export)
+- ✅ Machine management system (with password management, type management)
+- ✅ Machine-Farmer integration and assignment tracking
+- ✅ PDF generation and reporting for all entities
+- ✅ CSV import/export for farmers and machine types
+- ✅ Profile management and user settings
+- ✅ External API endpoints for machine passwords and farmer info
+- ✅ Enhanced admin dashboard with entity overview
+- ✅ Super admin dashboard with approval workflow
 
 ### Phase 3: Advanced Features (3-6 months)
 - [ ] Real-time data sync (WebSockets)

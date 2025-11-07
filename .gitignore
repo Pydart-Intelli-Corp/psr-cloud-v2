@@ -59,6 +59,15 @@ temp/
 *.crt
 *.key
 
+# SSH Keys
+psr_vps
+psr_vps.pub
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.ppk
+
 # IDE files
 .vscode/
 .idea/

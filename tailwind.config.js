@@ -76,6 +76,9 @@ const config = {
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
+      rotate: {
+        '135': '135deg',
+      },
       boxShadow: {
         'material': '0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04)',
         'material-lg': '0 4px 8px rgba(0, 0, 0, 0.12), 0 0 16px rgba(0, 0, 0, 0.04)',

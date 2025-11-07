@@ -39,6 +39,7 @@ interface FarmerQueryResult {
   society_identifier?: string;
   machine_id?: number;
   machine_name?: string;
+  machine_type?: string;
   status?: 'active' | 'inactive' | 'suspended' | 'maintenance';
   notes?: string;
   cattle_count?: number;
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
           f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
           f.society_id, f.machine_id, f.status, f.notes, f.cattle_count, f.created_at, f.updated_at,
           s.name as society_name, s.society_id as society_identifier,
-          m.machine_id as machine_name
+          m.machine_id as machine_name, m.machine_type
         FROM \`${schemaName}\`.farmers f
         LEFT JOIN \`${schemaName}\`.societies s ON f.society_id = s.id
         LEFT JOIN \`${schemaName}\`.machines m ON f.machine_id = m.id
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
           f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
           f.society_id, f.machine_id, f.status, f.notes, f.cattle_count, f.created_at, f.updated_at,
           s.name as society_name, s.society_id as society_identifier,
-          m.machine_id as machine_name
+          m.machine_id as machine_name, m.machine_type
         FROM \`${schemaName}\`.farmers f
         LEFT JOIN \`${schemaName}\`.societies s ON f.society_id = s.id
         LEFT JOIN \`${schemaName}\`.machines m ON f.machine_id = m.id
@@ -132,6 +133,7 @@ export async function GET(request: NextRequest) {
       societyIdentifier: farmer.society_identifier,
       machineId: farmer.machine_id,
       machineName: farmer.machine_name,
+      machineType: farmer.machine_type,
       status: farmer.status || 'active',
       notes: farmer.notes,
       cattleCount: farmer.cattle_count,

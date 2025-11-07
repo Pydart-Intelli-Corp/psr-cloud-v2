@@ -19,6 +19,7 @@ export const ml: TranslationKeys = {
     next: 'അടുത്തത്',
     previous: 'മുമ്പത്തെ',
     refresh: 'പുതുക്കുക',
+    filter: 'ഫിൽട്ടർ',
     markAllRead: 'എല്ലാം വായിച്ചതായി അടയാളപ്പെടുത്തുക',
     noDataAvailable: 'ഡാറ്റ ലഭ്യമല്ല',
     createdAt: 'സൃഷ്ടിച്ചത്',
@@ -213,6 +214,124 @@ export const ml: TranslationKeys = {
     bmcCreated: 'ബിഎംസി സൃഷ്ടിച്ചു',
     statusUpdated: 'അവസ്ഥ അപ്ഡേറ്റ് ചെയ്തു',
     leaveBlankToKeep: '(നിലവിലുള്ളത് സൂക്ഷിക്കാൻ ശൂന്യമായി വിടുക)',
+  },
+
+  // കർഷക മാനേജ്‌മെന്റ്
+  farmerManagement: {
+    title: 'കർഷക മാനേജ്‌മെന്റ്',
+    subtitle: 'കർഷകരെയും അവരുടെ വിവരങ്ങളും കൈകാര്യം ചെയ്യുക',
+    addFarmer: 'കർഷകനെ ചേർക്കുക',
+    editFarmer: 'കർഷകനെ എഡിറ്റ് ചെയ്യുക',
+    deleteFarmer: 'കർഷകനെ ഇല്ലാതാക്കുക',
+    uploadCSV: 'CSV അപ്‌ലോഡ് ചെയ്യുക',
+    downloadData: 'ഡാറ്റ ഡൗൺലോഡ് ചെയ്യുക',
+    bulkActions: 'ബൾക്ക് പ്രവർത്തനങ്ങൾ',
+    selectAll: 'എല്ലാം തിരഞ്ഞെടുക്കുക',
+    clearSelection: 'തിരഞ്ഞെടുക്കൽ മായ്ക്കുക',
+    selected: 'തിരഞ്ഞെടുത്തു',
+    
+    // കർഷക ഫീൽഡുകൾ
+    farmerId: 'കർഷക ഐഡി',
+    farmerName: 'കർഷകന്റെ പേര്',
+    rfId: 'ആർഎഫ് ഐഡി',
+    contactNumber: 'ബന്ധപ്പെടാനുള്ള നമ്പർ',
+    smsEnabled: 'SMS പ്രാപ്തമാക്കി',
+    bonus: 'ബോണസ്',
+    address: 'വിലാസം',
+    bankName: 'ബാങ്കിന്റെ പേര്',
+    bankAccountNumber: 'ബാങ്ക് അക്കൗണ്ട് നമ്പർ',
+    ifscCode: 'ഐഎഫ്എസ്‌സി കോഡ്',
+    society: 'സൊസൈറ്റി',
+    machine: 'മെഷീൻ',
+    status: 'നില',
+    
+    // നില മൂല്യങ്ങൾ
+    active: 'സജീവം',
+    inactive: 'നിഷ്‌ക്രിയം',
+    suspended: 'താൽക്കാലികമായി നിർത്തി',
+    maintenance: 'അറ്റകുറ്റപ്പണി',
+    all: 'എല്ലാം',
+    
+    // പ്രവർത്തനങ്ങൾ
+    refresh: 'പുതുക്കുക',
+    search: 'കർഷകരെ തിരയുക...',
+    filter: 'ഫിൽട്ടർ',
+    viewMode: 'കാഴ്ച മോഡ്',
+    listView: 'പട്ടിക കാഴ്ച',
+    gridView: 'ഗ്രിഡ് കാഴ്ച',
+    
+    // ബൾക്ക് പ്രവർത്തനങ്ങൾ
+    updateStatus: 'നില അപ്‌ഡേറ്റ് ചെയ്യുക',
+    deleteSelected: 'തിരഞ്ഞെടുത്തവ ഇല്ലാതാക്കുക',
+    downloadSelected: 'തിരഞ്ഞെടുത്തവ ഡൗൺലോഡ് ചെയ്യുക',
+    
+    // സന്ദേശങ്ങൾ
+    noFarmersFound: 'കർഷകരെ കണ്ടെത്തിയില്ല',
+    noMatchingFarmers: 'നിങ്ങളുടെ ഫിൽട്ടറുമായി യോജിക്കുന്ന കർഷകരില്ല',
+    tryChangingFilters: 'കൂടുതൽ ഫലങ്ങൾ കാണാൻ ഫിൽട്ടർ മാറ്റാൻ ശ്രമിക്കുക',
+    getStartedMessage: 'നിങ്ങളുടെ ആദ്യത്തെ കർഷകനെ ചേർത്ത് ആരംഭിക്കുക',
+    
+    // ലോഡിംഗ് അവസ്ഥകൾ
+    addingFarmer: 'കർഷകനെ ചേർക്കുന്നു...',
+    updatingFarmer: 'കർഷകനെ അപ്‌ഡേറ്റ് ചെയ്യുന്നു...',
+    deletingFarmers: 'കർഷകരെ ഇല്ലാതാക്കുന്നു...',
+    updatingFarmers: 'കർഷകരെ അപ്‌ഡേറ്റ് ചെയ്യുന്നു...',
+    updatingStatus: 'നില അപ്‌ഡേറ്റ് ചെയ്യുന്നു...',
+    pleaseWait: 'ദയവായി കാത്തിരിക്കുക',
+    
+    // ഫോം ലേബലുകൾ
+    enterFarmerId: 'കർഷക ഐഡി നൽകുക',
+    enterFarmerName: 'കർഷകന്റെ പേര് നൽകുക',
+    enterRfId: 'ആർഎഫ് ഐഡി നൽകുക',
+    enterContactNumber: 'ബന്ധപ്പെടാനുള്ള നമ്പർ നൽകുക',
+    enterBonus: 'ബോണസ് തുക നൽകുക',
+    enterAddress: 'വിലാസം നൽകുക',
+    enterBankName: 'ബാങ്കിന്റെ പേര് നൽകുക',
+    enterAccountNumber: 'അക്കൗണ്ട് നമ്പർ നൽകുക',
+    enterIfscCode: 'ഐഎഫ്എസ്‌സി കോഡ് നൽകുക',
+    selectSociety: 'സൊസൈറ്റി തിരഞ്ഞെടുക്കുക',
+    selectMachine: 'മെഷീൻ തിരഞ്ഞെടുക്കുക',
+    selectStatus: 'നില തിരഞ്ഞെടുക്കുക',
+    
+    // സ്ഥിരീകരണം
+    confirmDelete: 'നിങ്ങൾക്ക് തീർച്ചയായും ഇല്ലാതാക്കണോ',
+    confirmBulkDelete: 'തിരഞ്ഞെടുത്ത കർഷകരെ ഇല്ലാതാക്കുക',
+    deleteWarning: 'ഈ പ്രവർത്തനം പഴയപടിയാക്കാൻ കഴിയില്ല.',
+    itemsFromFiltered: 'ഫിൽട്ടർ ചെയ്ത ഫലങ്ങളിൽ നിന്ന്',
+    
+    // സ്ഥിതിവിവരക്കണക്കുകൾ
+    totalFarmers: 'മൊത്തം കർഷകർ',
+    activeFarmers: 'സജീവ കർഷകർ',
+    inactiveFarmers: 'നിഷ്‌ക്രിയ കർഷകർ',
+    showing: 'കാണിക്കുന്നു',
+    of: 'ൽ',
+    farmers: 'കർഷകർ',
+    
+    // CSV അപ്‌ലോഡ്
+    csvUploadTitle: 'കർഷക CSV അപ്‌ലോഡ് ചെയ്യുക',
+    csvUploadDescription: 'ഒന്നിലധികം കർഷകരെ ചേർക്കാൻ CSV ഫയൽ അപ്‌ലോഡ് ചെയ്യുക',
+    selectFile: 'ഫയൽ തിരഞ്ഞെടുക്കുക',
+    downloadTemplate: 'ടെംപ്ലേറ്റ് ഡൗൺലോഡ് ചെയ്യുക',
+    upload: 'അപ്‌ലോഡ് ചെയ്യുക',
+    uploadSuccess: 'CSV അപ്‌ലോഡ് വിജയകരമായി പൂർത്തിയാക്കി!',
+    uploadError: 'CSV അപ്‌ലോഡ് പരാജയപ്പെട്ടു',
+    
+    // ഫിൽട്ടറുകൾ
+    filterBySociety: 'സൊസൈറ്റി അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
+    filterByMachine: 'മെഷീൻ അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
+    filterByStatus: 'നില അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
+    unassigned: 'നിയോഗിച്ചിട്ടില്ല',
+    
+    // വിശദാംശങ്ങൾ കാണുക
+    farmerDetails: 'കർഷക വിശദാംശങ്ങൾ',
+    basicInformation: 'അടിസ്ഥാന വിവരം',
+    contactInformation: 'ബന്ധപ്പെടാനുള്ള വിവരങ്ങൾ',
+    bankInformation: 'ബാങ്ക് വിവരങ്ങൾ',
+    assignmentInformation: 'നിയമന വിവരങ്ങൾ',
+    
+    // ആവശ്യമായ
+    requiredField: '*',
+    required: 'ആവശ്യമാണ്',
   },
 
   // അറിയിപ്പുകൾ

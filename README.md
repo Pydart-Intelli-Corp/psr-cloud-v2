@@ -6,6 +6,8 @@
 
 A comprehensive, multi-tenant dairy equipment management platform built with modern web technologies. Features complete role-based authentication, dedicated database schemas per organization, and comprehensive entity management for dairy operations.
 
+**Last Updated**: November 5, 2025
+
 ## ✨ Key Highlights
 
 - 🏗️ **Multi-tenant Architecture** with complete data isolation
@@ -20,24 +22,30 @@ A comprehensive, multi-tenant dairy equipment management platform built with mod
 ## 🚀 Tech Stack
 
 ### Frontend
-- **Framework**: Next.js 15 with App Router
-- **UI Library**: React 19 with TypeScript 5
+- **Framework**: Next.js 16.0.0 with App Router
+- **UI Library**: React 19.2.0 with TypeScript 5
 - **Styling**: Tailwind CSS 3.4 + Material Design 3
-- **Animations**: Framer Motion 12
-- **Icons**: Heroicons 2.2 + Lucide React
+- **Animations**: Framer Motion 12.23.24
+- **Icons**: Heroicons 2.2.0 + Lucide React 0.546.0
 
 ### Backend
 - **Runtime**: Node.js with Next.js API Routes
+- **Framework**: Express.js 5.1.0
 - **Database**: Azure MySQL 8.0 with SSL
-- **ORM**: Sequelize 6.37 with TypeScript
-- **Authentication**: JWT with bcrypt password hashing
-- **Email**: Nodemailer with Gmail SMTP
+- **ORM**: Sequelize 6.37.7 with TypeScript
+- **Authentication**: JWT (jsonwebtoken 9.0.2) with bcryptjs 3.0.2
+- **Email**: Nodemailer 7.0.9 with Gmail SMTP
+- **Security**: Helmet 8.1.0, CORS 2.8.5, Rate Limiting
+- **Validation**: Express-Validator 7.2.1
 
 ### Development
 - **Language**: TypeScript 5 with strict configuration
 - **Linting**: ESLint 9 with Next.js rules
 - **Package Manager**: npm with lockfile v3
-- **Migration System**: Custom TypeScript migration runner
+- **Migration System**: Custom TypeScript migration runner (tsx 4.20.6)
+- **PDF Generation**: jsPDF 3.0.3 + jsPDF-AutoTable 5.0.2
+- **File Upload**: Multer 2.0.2
+- **Logging**: Winston 3.18.3
 
 ## 📁 Project Structure
 

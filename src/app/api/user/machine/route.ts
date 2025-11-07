@@ -11,7 +11,7 @@ interface MachineData {
   installationDate?: string;
   operatorName?: string;
   contactPhone?: string;
-  status?: 'active' | 'inactive' | 'maintenance';
+  status?: 'active' | 'inactive' | 'maintenance' | 'suspended';
   notes?: string;
 }
 
@@ -28,6 +28,10 @@ interface MachineQueryResult {
   contact_phone?: string;
   status: string;
   notes?: string;
+  user_password?: string;
+  supervisor_password?: string;
+  statusU: number;
+  statusS: number;
   created_at: string;
   updated_at?: string;
 }
@@ -66,18 +70,18 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Check if machine ID already exists
+    // Check if machine ID already exists in the same society
     const existingQuery = `
       SELECT id FROM \`${schemaName}\`.machines 
-      WHERE machine_id = ? LIMIT 1
+      WHERE machine_id = ? AND society_id = ? LIMIT 1
     `;
     
     const [existing] = await sequelize.query(existingQuery, {
-      replacements: [machineId]
+      replacements: [machineId, societyId]
     });
 
     if (existing.length > 0) {
-      return createErrorResponse('Machine ID already exists', 409);
+      return createErrorResponse('Machine ID already exists in this society', 409);
     }
 
     // Verify society exists
@@ -165,7 +169,8 @@ export async function GET(request: NextRequest) {
         SELECT 
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
-          m.notes, m.created_at, m.updated_at,
+          m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
+          m.created_at, m.updated_at,
           s.name as society_name, s.society_id as society_identifier
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
@@ -178,7 +183,8 @@ export async function GET(request: NextRequest) {
         SELECT 
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
-          m.notes, m.created_at,
+          m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
+          m.created_at,
           s.name as society_name, s.society_id as society_identifier
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
@@ -201,6 +207,9 @@ export async function GET(request: NextRequest) {
       contactPhone: machine.contact_phone,
       status: machine.status,
       notes: machine.notes,
+      // Don't include actual passwords in response for security
+      statusU: machine.statusU,
+      statusS: machine.statusS,
       createdAt: machine.created_at,
       updatedAt: machine.updated_at
     }));
@@ -280,6 +289,22 @@ export async function PUT(request: NextRequest) {
 
       if (societyExists.length === 0) {
         return createErrorResponse('Selected society not found', 400);
+      }
+    }
+
+    // Check if machine ID already exists in the same society (excluding current machine)
+    if (machineId && societyId) {
+      const duplicateQuery = `
+        SELECT id FROM \`${schemaName}\`.machines 
+        WHERE machine_id = ? AND society_id = ? AND id != ? LIMIT 1
+      `;
+      
+      const [duplicate] = await sequelize.query(duplicateQuery, {
+        replacements: [machineId, societyId, id]
+      });
+
+      if (duplicate.length > 0) {
+        return createErrorResponse('Machine ID already exists in this society', 409);
       }
     }
 

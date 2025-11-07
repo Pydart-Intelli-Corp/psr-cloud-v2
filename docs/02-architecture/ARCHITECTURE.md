@@ -6,12 +6,12 @@
 
 ## 📋 Architecture Overview
 
-PSR-v4 is built as a modern, scalable, multi-tenant web application using a hybrid Server-Side Rendering (SSR) and Client-Side Rendering (CSR) approach with Next.js 15. The system implements a role-based hierarchy with complete data isolation between organizations through dedicated database schemas.
+PSR-v4 is built as a modern, scalable, multi-tenant web application using a hybrid Server-Side Rendering (SSR) and Client-Side Rendering (CSR) approach with Next.js 16. The system implements a role-based hierarchy with complete data isolation between organizations through dedicated database schemas.
 
 **Architecture Pattern**: Multi-tenant SaaS with Schema Isolation  
 **Deployment Model**: Cloud-native (Azure)  
 **Scale Target**: 10,000+ organizations, 100,000+ users  
-**Last Updated**: December 28, 2024
+**Last Updated**: November 5, 2025
 
 ---
 
@@ -22,15 +22,15 @@ PSR-v4 is built as a modern, scalable, multi-tenant web application using a hybr
 │                    Client Layer                              │
 ├─────────────────────────────────────────────────────────────┤
 │  Web Browsers (Desktop/Mobile)  │  Progressive Web App      │
-│  - React 19 Components          │  - Service Workers        │
-│  - TypeScript                   │  - Offline Capabilities   │
+│  - React 19.2.0 Components      │  - Service Workers (TBD)  │
+│  - TypeScript 5                 │  - Offline Capabilities   │
 │  - Tailwind CSS + Material 3    │  - Push Notifications     │
 └─────────────────┬───────────────────────────────────────────┘
                   │ HTTPS/HTTP2
 ┌─────────────────▼───────────────────────────────────────────┐
 │                 Application Layer                            │
 ├─────────────────────────────────────────────────────────────┤
-│              Next.js 15 App Router                          │
+│              Next.js 16.0.0 App Router                      │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐          │
 │  │   Pages     │ │ API Routes  │ │ Middleware  │          │
 │  │   (SSR)     │ │   (REST)    │ │   (Auth)    │          │
@@ -43,21 +43,24 @@ PSR-v4 is built as a modern, scalable, multi-tenant web application using a hybr
 │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
 │ │Authentication│ │ Multi-Tenant│ │   Email     │           │
 │ │   Service   │ │  Management │ │  Service    │           │
+│ │ (JWT 9.0.2) │ │  (Sequelize)│ │(Nodemailer) │           │
 │ └─────────────┘ └─────────────┘ └─────────────┘           │
 │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
 │ │   Entity    │ │    PDF      │ │  Validation │           │
 │ │ Management  │ │ Generation  │ │  Service    │           │
+│ │  (CRUD)     │ │  (jsPDF)    │ │(Validator)  │           │
 │ └─────────────┘ └─────────────┘ └─────────────┘           │
 └─────────────────┬───────────────────────────────────────────┘
-                  │ Sequelize ORM
+                  │ Sequelize ORM 6.37.7
 ┌─────────────────▼───────────────────────────────────────────┐
 │                   Data Layer                                │
 ├─────────────────────────────────────────────────────────────┤
-│                 Azure MySQL Database                        │
+│                 Azure MySQL 8.0 Database                    │
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │              Master Database (psr_v4_c)                 │ │
 │  │  ┌─────────┐ ┌──────────────┐ ┌──────────────┐        │ │
 │  │  │  users  │ │admin_schemas │ │ audit_logs   │        │ │
+│  │  │machinetype│              │ │              │        │ │
 │  │  └─────────┘ └──────────────┘ └──────────────┘        │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │  ┌─────────────────────────────────────────────────────────┐ │
@@ -67,7 +70,7 @@ PSR-v4 is built as a modern, scalable, multi-tenant web application using a hybr
 │  │  ├─bmcs       │ ├─bmcs       │     │ ├─bmcs        │ │
 │  │  ├─societies  │ ├─societies  │     │ ├─societies   │ │
 │  │  ├─farmers    │ ├─farmers    │     │ ├─farmers     │ │
-│  │  └─machines   │ └─machines   │     │ └─machines    │ │
+│  │  └─admin_machines│└─admin_machines│  │└─admin_machines││
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -1013,7 +1016,327 @@ class AnalyticsService {
 
 ---
 
-## 🔮 Future Architecture Considerations
+## � External API Architecture ⭐ **NEW**
+
+### Overview
+
+The PSR-v4 system provides a dual authentication architecture supporting both internal JWT-based APIs and external db-key authenticated APIs. This separation enables secure third-party integration while maintaining strict internal security.
+
+### Authentication Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                Authentication Layer                           │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌─────────────────────┐         ┌──────────────────────┐   │
+│  │   JWT Authentication │         │  db-key Authentication│   │
+│  │  (Internal APIs)     │         │  (External APIs)     │   │
+│  ├─────────────────────┤         ├──────────────────────┤   │
+│  │ • Role-based access │         │ • Organization-level │   │
+│  │ • User-level auth   │         │ • System integration │   │
+│  │ • 7-day expiry      │         │ • No expiry          │   │
+│  │ • Refresh tokens    │         │ • Rate limiting      │   │
+│  └─────────────────────┘         └──────────────────────┘   │
+│           │                                  │               │
+│           ▼                                  ▼               │
+│  ┌─────────────────────┐         ┌──────────────────────┐   │
+│  │  35+ Internal       │         │  5 External          │   │
+│  │  Endpoints          │         │  Endpoints           │   │
+│  │  - User Management  │         │  - Machine Correction│   │
+│  │  - Entity CRUD      │         │  - Farmer Info       │   │
+│  │  - Admin Functions  │         │  - Machine Passwords │   │
+│  └─────────────────────┘         └──────────────────────┘   │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### External API Endpoint Structure
+
+```
+/api/[db-key]/[Module]/[Action]
+
+Examples:
+- /api/JOH1234/MachineCorrection/GetLatestMachineCorrection
+- /api/JOH1234/FarmerInfo/GetLatestFarmerInfo
+- /api/JOH1234/MachinePassword/GetLatestMachinePassword
+```
+
+### External API Request Flow
+
+```
+┌──────────────────┐
+│  External System │
+│  (Dairy Machine) │
+└────────┬─────────┘
+         │ 1. HTTP Request with db-key
+         ▼
+┌──────────────────────────────────┐
+│   Next.js API Route Handler      │
+│   /api/[db-key]/[Module]/[Action]│
+└────────┬─────────────────────────┘
+         │ 2. Extract db-key from URL
+         ▼
+┌──────────────────────────────────┐
+│   db-key Validation Service      │
+│   - Verify db-key exists         │
+│   - Get admin schema name        │
+│   - Check rate limits            │
+└────────┬─────────────────────────┘
+         │ 3. Valid db-key
+         ▼
+┌──────────────────────────────────┐
+│   Schema Context Switch          │
+│   - Switch to admin schema       │
+│   - Set Sequelize context        │
+└────────┬─────────────────────────┘
+         │ 4. Execute in admin schema
+         ▼
+┌──────────────────────────────────┐
+│   Business Logic Layer           │
+│   - Validate request parameters  │
+│   - Process machine ID variants  │
+│   - Query database               │
+└────────┬─────────────────────────┘
+         │ 5. Return data
+         ▼
+┌──────────────────────────────────┐
+│   Response Formatter             │
+│   - Format JSON response         │
+│   - Add metadata                 │
+│   - Log activity                 │
+└────────┬─────────────────────────┘
+         │ 6. HTTP Response
+         ▼
+┌──────────────────┐
+│  External System │
+└──────────────────┘
+```
+
+### Alphanumeric Machine ID Architecture
+
+#### Storage Strategy
+
+```
+Machine ID Formats:
+
+Numeric:
+  Input:    M00001
+  Storage:  machine_id (INT) = 1
+  Lookup:   WHERE machine_id = 1
+
+Alphanumeric:
+  Input:    M0000df
+  Storage:  machine_id (VARCHAR) = 'M0000df'
+            machine_id_variants (JSON) = ['0000df', 'df']
+  Lookup:   WHERE machine_id = 'M0000df'
+            OR JSON_CONTAINS(machine_id_variants, '"0000df"')
+            OR JSON_CONTAINS(machine_id_variants, '"df"')
+```
+
+#### Variant Matching Logic
+
+```typescript
+// Variant Generation Algorithm
+function generateMachineIdVariants(machineId: string): string[] {
+  // Input: M0000df
+  
+  // Step 1: Remove 'M' prefix
+  const withoutPrefix = machineId.slice(1); // "0000df"
+  
+  // Step 2: Generate variants
+  const variants: string[] = [];
+  
+  // Variant 1: Full ID without prefix
+  variants.push(withoutPrefix); // "0000df"
+  
+  // Variant 2: Remove leading zeros
+  const withoutZeros = withoutPrefix.replace(/^0+/, ''); // "df"
+  if (withoutZeros !== withoutPrefix) {
+    variants.push(withoutZeros); // "df"
+  }
+  
+  // Step 3: Add lowercase versions
+  variants.push(withoutPrefix.toLowerCase()); // "0000df"
+  variants.push(withoutZeros.toLowerCase()); // "df"
+  
+  // Return unique variants
+  return [...new Set(variants)];
+}
+
+// Matching Algorithm
+async function findMachineByVariant(machineId: string) {
+  const variants = generateMachineIdVariants(machineId);
+  
+  // Try numeric match first
+  if (/^\d+$/.test(machineId.slice(1))) {
+    const numericId = parseInt(machineId.slice(1), 10);
+    const machine = await Machine.findOne({
+      where: { machine_id: numericId }
+    });
+    if (machine) return machine;
+  }
+  
+  // Try alphanumeric variant matching
+  for (const variant of variants) {
+    const machine = await sequelize.query(`
+      SELECT * FROM admin_machines 
+      WHERE machine_id = :variant
+      OR JSON_CONTAINS(machine_id_variants, :variantJson)
+    `, {
+      replacements: { 
+        variant, 
+        variantJson: JSON.stringify(variant) 
+      }
+    });
+    if (machine[0].length > 0) return machine[0][0];
+  }
+  
+  return null;
+}
+```
+
+### Machine Correction Data Architecture
+
+#### Database Schema
+
+```sql
+CREATE TABLE machine_corrections (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  machine_id VARCHAR(50) NOT NULL,
+  machine_id_variants JSON,
+  
+  -- Channel 1 Corrections
+  fat_ch1 DECIMAL(10,4) DEFAULT 0.0000,
+  snf_ch1 DECIMAL(10,4) DEFAULT 0.0000,
+  clr_ch1 DECIMAL(10,4) DEFAULT 0.0000,
+  temp_ch1 DECIMAL(10,4) DEFAULT 0.0000,
+  water_ch1 DECIMAL(10,4) DEFAULT 0.0000,
+  protein_ch1 DECIMAL(10,4) DEFAULT 0.0000,
+  
+  -- Channel 2 Corrections
+  fat_ch2 DECIMAL(10,4) DEFAULT 0.0000,
+  snf_ch2 DECIMAL(10,4) DEFAULT 0.0000,
+  clr_ch2 DECIMAL(10,4) DEFAULT 0.0000,
+  temp_ch2 DECIMAL(10,4) DEFAULT 0.0000,
+  water_ch2 DECIMAL(10,4) DEFAULT 0.0000,
+  protein_ch2 DECIMAL(10,4) DEFAULT 0.0000,
+  
+  -- Channel 3 Corrections
+  fat_ch3 DECIMAL(10,4) DEFAULT 0.0000,
+  snf_ch3 DECIMAL(10,4) DEFAULT 0.0000,
+  clr_ch3 DECIMAL(10,4) DEFAULT 0.0000,
+  temp_ch3 DECIMAL(10,4) DEFAULT 0.0000,
+  water_ch3 DECIMAL(10,4) DEFAULT 0.0000,
+  protein_ch3 DECIMAL(10,4) DEFAULT 0.0000,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_machine_id (machine_id),
+  INDEX idx_updated_at (updated_at)
+);
+```
+
+#### Data Flow for GetLatestMachineCorrection
+
+```
+┌──────────────────────────┐
+│  External Request        │
+│  GET /api/JOH1234/...    │
+│  { machineId: "M0000df" }│
+└────────┬─────────────────┘
+         │
+         ▼
+┌──────────────────────────┐
+│  Parse Machine ID        │
+│  Input: M0000df          │
+│  Variants: [0000df, df]  │
+└────────┬─────────────────┘
+         │
+         ▼
+┌──────────────────────────┐
+│  Query Database          │
+│  - Check numeric ID      │
+│  - Check variant matches │
+└────────┬─────────────────┘
+         │
+         ▼
+┌──────────────────────────┐
+│  Format Response         │
+│  {                       │
+│    status: "success",    │
+│    data: {               │
+│      machine_id: "M0000df",
+│      corrections: {      │
+│        channel1: {...},  │
+│        channel2: {...},  │
+│        channel3: {...}   │
+│      }                   │
+│    }                     │
+│  }                       │
+└────────┬─────────────────┘
+         │
+         ▼
+┌──────────────────────────┐
+│  Return to External      │
+│  System                  │
+└──────────────────────────┘
+```
+
+### Security Architecture for External APIs
+
+```
+┌──────────────────────────────────────────────────────────┐
+│              Security Layer - External APIs              │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│  1. db-key Validation                                    │
+│     ✅ Verify db-key exists in AdminSchemas table        │
+│     ✅ Check admin account status (ACTIVE only)          │
+│     ✅ Validate db-key format (3 letters + 4 digits)     │
+│                                                           │
+│  2. Rate Limiting                                        │
+│     ✅ Per db-key rate limit (100 requests/minute)       │
+│     ✅ Per IP rate limit (1000 requests/hour)            │
+│     ✅ Burst protection (10 requests/second)             │
+│                                                           │
+│  3. Input Validation                                     │
+│     ✅ Machine ID format validation                      │
+│     ✅ Parameter sanitization                            │
+│     ✅ SQL injection prevention                          │
+│                                                           │
+│  4. CORS Configuration                                   │
+│     ✅ Allowed origins whitelist                         │
+│     ✅ Preflight request handling                        │
+│     ✅ Credentials policy                                │
+│                                                           │
+│  5. Audit Logging                                        │
+│     ✅ Log all external API requests                     │
+│     ✅ Track machine ID lookups                          │
+│     ✅ Record response status and timing                 │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+### API Versioning Strategy
+
+```
+Current Implementation: /api/[db-key]/[Module]/[Action]
+
+Future Versioning:
+- v1: /api/v1/[db-key]/[Module]/[Action]
+- v2: /api/v2/[db-key]/[Module]/[Action]
+
+Version Management:
+- Backwards compatibility for 2 major versions
+- Deprecation notices 6 months in advance
+- Clear migration guides between versions
+```
+
+---
+
+## �🔮 Future Architecture Considerations
 
 ### Planned Enhancements
 
@@ -1080,7 +1403,7 @@ class AnalyticsService {
 
 ---
 
-**Architecture Documentation Version**: 1.0  
-**Last Updated**: December 28, 2024  
+**Architecture Documentation Version**: 2.0  
+**Last Updated**: November 5, 2025  
 **Architecture Team**: PSR-v4 Development Team  
-**Next Review**: March 28, 2025
+**Next Review**: February 5, 2026

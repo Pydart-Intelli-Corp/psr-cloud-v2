@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-// import { useUser } from '@/contexts/UserContext';
-// import { useLanguage } from '@/contexts/LanguageContext';
-import { Users, UserCheck, UserX, AlertTriangle, Phone, Building2, Upload, Trash2, Download } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { Users, UserCheck, Phone, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload } from 'lucide-react';
 import { 
   FlowerSpinner,
   FormModal, 
@@ -13,49 +12,33 @@ import {
   FormActions, 
   FormGrid,
   StatusMessage,
-  StatsCard,
   ItemCard,
   EmptyState,
   ColumnSelectionModal
 } from '@/components';
-import StatusDropdown from '@/components/management/StatusDropdown';
+import {
+  BulkDeleteConfirmModal,
+  BulkActionsToolbar,
+  LoadingSnackbar,
+  ViewModeToggle,
+  FolderControls,
+  FilterDropdown,
+  StatsGrid,
+  ManagementPageHeader,
+  FloatingActionButton
+} from '@/components/management';
 import CSVUploadModal from '@/components/forms/CSVUploadModal';
 import { downloadFarmersAsCSV, downloadFarmersAsPDF, getFarmerColumns } from '@/lib/utils/downloadUtils';
+import { filterFarmers } from '@/lib/utils/farmerUtils';
 
-import { Society } from '@/types';
-
-
-
-interface Farmer {
-  id: number;
-  farmerId: string;
-  rfId?: string;
-  farmerName: string;
-  password?: string;
-  contactNumber?: string;
-  smsEnabled: string;
-  bonus: number;
-  address?: string;
-  bankName?: string;
-  bankAccountNumber?: string;
-  ifscCode?: string;
-  societyId?: number;
-  societyName?: string;
-  societyIdentifier?: string;
-  machineId?: number;
-  machineName?: string;
-  status: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
+import { Society, Farmer } from '@/types';
 
 const FarmerManagement = () => {
-  // const { t } = useLanguage(); // Will be used when translations are implemented
+  const { t } = useLanguage();
   const router = useRouter();
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [societies, setSocieties] = useState<Society[]>([]);
-  const [machines, setMachines] = useState<Array<{id: number, machineId: string, machineType: string}>>([]);
+  const [machines, setMachines] = useState<Array<{id: number, machineId: string, machineType: string, societyId?: number, societyName?: string}>>([]);
   const [loading, setLoading] = useState(true);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'maintenance'>('all');
@@ -81,6 +64,14 @@ const FarmerManagement = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [showColumnSelection, setShowColumnSelection] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isBulkUpdatingStatus, setIsBulkUpdatingStatus] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+  
+  // Folder view state
+  const [expandedSocieties, setExpandedSocieties] = useState<Set<number>>(new Set());
+  const [viewMode, setViewMode] = useState<'folder' | 'list'>('folder');
+  const [selectedSocieties, setSelectedSocieties] = useState<Set<number>>(new Set());
   
   // Bulk status update state
   const [bulkStatus, setBulkStatus] = useState<'active' | 'inactive' | 'suspended' | 'maintenance'>('active');
@@ -106,12 +97,6 @@ const FarmerManagement = () => {
 
 
   // Fetch farmers, societies, and machines
-  useEffect(() => {
-    fetchFarmers();
-    fetchSocieties();
-    fetchAllMachines();
-  }, []);
-
   // Clear messages after 5 seconds
   useEffect(() => {
     if (success || error) {
@@ -137,12 +122,35 @@ const FarmerManagement = () => {
     };
   }, []);
 
-  const fetchFarmers = async () => {
+  // Reset machine filter when society filter changes
+  useEffect(() => {
+    if (societyFilter !== 'all' && machineFilter !== 'all' && machineFilter !== 'unassigned') {
+      // Check if current machine selection is still valid for the selected society
+      const currentMachine = machines.find(m => m.id.toString() === machineFilter);
+      if (currentMachine && currentMachine.societyId?.toString() !== societyFilter) {
+        setMachineFilter('all');
+      }
+    }
+  }, [societyFilter, machineFilter, machines]);
+
+  const fetchFarmers = useCallback(async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
       const response = await fetch('/api/user/farmer', {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      if (response.status === 401) {
+        localStorage.removeItem('authToken');
+        router.push('/login');
+        return;
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -153,7 +161,7 @@ const FarmerManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   const fetchSocieties = async () => {
     try {
@@ -219,10 +227,13 @@ const FarmerManagement = () => {
 
   // Handle status change
   const handleStatusChange = async (id: number, newStatus: string) => {
+    setIsUpdatingStatus(true);
+    setUpdateProgress(0);
     try {
       const farmer = farmers.find(f => f.id === id);
       if (!farmer) return;
 
+      setUpdateProgress(30);
       const token = localStorage.getItem('authToken');
       const response = await fetch('/api/user/farmer', {
         method: 'PUT',
@@ -249,10 +260,12 @@ const FarmerManagement = () => {
         })
       });
 
+      setUpdateProgress(70);
       if (response.ok) {
         setFarmers(prev =>
-          prev.map(f => (f.id === id ? { ...f, status: newStatus } : f))
+          prev.map(f => (f.id === id ? { ...f, status: newStatus as Farmer['status'] } : f))
         );
+        setUpdateProgress(100);
         setSuccess('Farmer status updated successfully');
         setError('');
       } else {
@@ -263,6 +276,8 @@ const FarmerManagement = () => {
       console.error('Error updating status:', error);
       setError('Error updating farmer status');
       setSuccess('');
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -300,10 +315,130 @@ const FarmerManagement = () => {
   const handleSelectFarmer = (farmerId: number) => {
     setSelectedFarmers(prev => {
       const newSelected = new Set(prev);
-      if (newSelected.has(farmerId)) {
+      const isDeselecting = newSelected.has(farmerId);
+      
+      if (isDeselecting) {
         newSelected.delete(farmerId);
+        
+        // When deselecting a farmer, uncheck selectAll
+        setSelectAll(false);
+        
+        // Check if we should deselect the society folder
+        const farmer = filteredFarmers.find(f => f.id === farmerId);
+        if (farmer && farmer.societyId) {
+          const societyId = farmer.societyId;
+          const societyFarmers = filteredFarmers.filter(f => f.societyId === societyId);
+          const allSocietyFarmersSelected = societyFarmers.every(f => 
+            f.id === farmerId ? false : newSelected.has(f.id)
+          );
+          
+          // If not all farmers in the society are selected, deselect the society folder
+          if (!allSocietyFarmersSelected) {
+            setSelectedSocieties(prevSocieties => {
+              const updatedSocieties = new Set(prevSocieties);
+              updatedSocieties.delete(societyId);
+              return updatedSocieties;
+            });
+          }
+        }
       } else {
         newSelected.add(farmerId);
+        
+        // Check if the society folder should be selected
+        const farmer = filteredFarmers.find(f => f.id === farmerId);
+        if (farmer && farmer.societyId) {
+          const societyId = farmer.societyId;
+          const societyFarmers = filteredFarmers.filter(f => f.societyId === societyId);
+          const allSocietyFarmersSelected = societyFarmers.every(f => 
+            f.id === farmerId ? true : newSelected.has(f.id)
+          );
+          
+          // If all farmers in the society are now selected, select the society folder
+          if (allSocietyFarmersSelected) {
+            setSelectedSocieties(prevSocieties => {
+              const updatedSocieties = new Set(prevSocieties);
+              updatedSocieties.add(societyId);
+              return updatedSocieties;
+            });
+          }
+        }
+        
+        // Check if all filtered farmers are now selected
+        const allFilteredIds = new Set(filteredFarmers.map(f => f.id));
+        const allSelected = Array.from(allFilteredIds).every(id => 
+          id === farmerId ? true : newSelected.has(id)
+        );
+        
+        if (allSelected) {
+          setSelectAll(true);
+        }
+      }
+      
+      return newSelected;
+    });
+  };
+
+  // Toggle society folder expansion
+  const toggleSocietyExpansion = (societyId: number) => {
+    setExpandedSocieties(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(societyId)) {
+        newExpanded.delete(societyId);
+      } else {
+        newExpanded.add(societyId);
+      }
+      return newExpanded;
+    });
+  };
+
+  // Expand all societies
+  const expandAllSocieties = () => {
+    const allSocietyIds = new Set(
+      farmers
+        .filter(f => f.societyId)
+        .map(f => f.societyId as number)
+    );
+    setExpandedSocieties(allSocietyIds);
+  };
+
+  // Collapse all societies
+  const collapseAllSocieties = () => {
+    setExpandedSocieties(new Set());
+  };
+
+  // Toggle society selection
+  const toggleSocietySelection = (societyId: number, farmerIds: number[]) => {
+    setSelectedSocieties(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(societyId)) {
+        // Deselect society and all its farmers
+        newSelected.delete(societyId);
+        setSelectedFarmers(prevFarmers => {
+          const updatedFarmers = new Set(prevFarmers);
+          farmerIds.forEach(id => updatedFarmers.delete(id));
+          
+          // Check if we should unset selectAll
+          // If any farmer is deselected, selectAll should be false
+          setSelectAll(false);
+          
+          return updatedFarmers;
+        });
+      } else {
+        // Select society and all its farmers
+        newSelected.add(societyId);
+        setSelectedFarmers(prevFarmers => {
+          const updatedFarmers = new Set(prevFarmers);
+          farmerIds.forEach(id => updatedFarmers.add(id));
+          
+          // Check if all filtered farmers are now selected
+          const allFilteredIds = new Set(filteredFarmers.map(f => f.id));
+          const allSelected = Array.from(allFilteredIds).every(id => updatedFarmers.has(id));
+          if (allSelected) {
+            setSelectAll(true);
+          }
+          
+          return updatedFarmers;
+        });
       }
       return newSelected;
     });
@@ -312,10 +447,22 @@ const FarmerManagement = () => {
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedFarmers(new Set());
+      setSelectedSocieties(new Set());
       setSelectAll(false);
     } else {
       // Select only the currently filtered farmers
       setSelectedFarmers(new Set(filteredFarmers.map(f => f.id)));
+      
+      // Also select all societies that have farmers in the filtered list
+      const farmersBySociety = filteredFarmers.reduce((acc, farmer) => {
+        const societyId = farmer.societyId || 0;
+        if (!acc.includes(societyId)) {
+          acc.push(societyId);
+        }
+        return acc;
+      }, [] as number[]);
+      setSelectedSocieties(new Set(farmersBySociety));
+      
       setSelectAll(true);
     }
   };
@@ -354,32 +501,58 @@ const FarmerManagement = () => {
       if (updatedSelection.size !== selectedFarmers.size) {
         setSelectedFarmers(updatedSelection);
         setSelectAll(false);
+        
+        // Update society selections based on remaining selected farmers
+        const visibleSocietyIds = new Set(currentlyFilteredFarmers.map(f => f.societyId).filter(Boolean));
+        const updatedSocietySelection = new Set<number>();
+        
+        visibleSocietyIds.forEach(societyId => {
+          const societyFarmers = currentlyFilteredFarmers.filter(f => f.societyId === societyId);
+          const allSocietyFarmersSelected = societyFarmers.every(f => updatedSelection.has(f.id));
+          if (allSocietyFarmersSelected && societyFarmers.length > 0) {
+            updatedSocietySelection.add(societyId as number);
+          }
+        });
+        
+        setSelectedSocieties(updatedSocietySelection);
       }
     } else {
       setSelectAll(false);
+      setSelectedSocieties(new Set());
     }
   }, [statusFilter, societyFilter, machineFilter, searchQuery, farmers, selectedFarmers]);
 
   const handleBulkDelete = async () => {
     if (selectedFarmers.size === 0) return;
 
+    // Close the confirmation modal immediately and show LoadingSnackbar
+    setShowDeleteConfirm(false);
     setIsDeletingBulk(true);
+    setUpdateProgress(0);
+    
     try {
       const token = localStorage.getItem('authToken');
+      setUpdateProgress(10);
+      
       const ids = Array.from(selectedFarmers);
+      setUpdateProgress(20);
       
       const response = await fetch(`/api/user/farmer?ids=${encodeURIComponent(JSON.stringify(ids))}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      setUpdateProgress(60);
 
       if (response.ok) {
+        setUpdateProgress(80);
         await fetchFarmers(); // Refresh the list
+        setUpdateProgress(95);
         setSelectedFarmers(new Set());
         setSelectAll(false);
-        setShowDeleteConfirm(false);
         setSuccess(`Successfully deleted ${ids.length} farmer(s)${(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') ? ' from filtered results' : ''}`);
         setError('');
+        setUpdateProgress(100);
       } else {
         const data = await response.json();
         setError(data.message || 'Failed to delete selected farmers');
@@ -391,6 +564,7 @@ const FarmerManagement = () => {
       setSuccess('');
     } finally {
       setIsDeletingBulk(false);
+      setUpdateProgress(0);
     }
   };
 
@@ -399,15 +573,23 @@ const FarmerManagement = () => {
     if (selectedFarmers.size === 0) return;
 
     const statusToUpdate = newStatus || bulkStatus;
+    setIsBulkUpdatingStatus(true);
+    setUpdateProgress(0);
 
     try {
+      // Step 1: Get token (5%)
       const token = localStorage.getItem('authToken');
+      setUpdateProgress(5);
       
-      // Get the selected farmers for the update
+      // Step 2: Get selected farmers list (10%)
       const selectedFarmersList = farmers.filter(farmer => selectedFarmers.has(farmer.id));
+      setUpdateProgress(10);
       
-      // Create update promises for all selected farmers
-      const updatePromises = selectedFarmersList.map(farmer => 
+      const totalFarmers = selectedFarmersList.length;
+      let completedFarmers = 0;
+      
+      // Step 3-93: Update farmers with incremental progress (10% to 90%)
+      const updatePromises = selectedFarmersList.map((farmer) => 
         fetch('/api/user/farmer', {
           method: 'PUT',
           headers: {
@@ -431,36 +613,59 @@ const FarmerManagement = () => {
             status: statusToUpdate,
             notes: farmer.notes
           })
+        }).then(response => {
+          completedFarmers++;
+          // Update progress from 10% to 90% based on completion
+          const progress = 10 + Math.floor((completedFarmers / totalFarmers) * 80);
+          setUpdateProgress(progress);
+          return response;
         })
       );
 
       const results = await Promise.allSettled(updatePromises);
       
-      // Check results
+      // Step 4: Process results (95%)
+      setUpdateProgress(95);
       const successful = results.filter(result => result.status === 'fulfilled').length;
       const failed = results.length - successful;
 
+      // Step 5: Refresh data and finalize (100%)
       if (failed === 0) {
-        await fetchFarmers(); // Refresh the list
+        await fetchFarmers();
+        setUpdateProgress(100);
         setSelectedFarmers(new Set());
         setSelectAll(false);
         setSuccess(`Successfully updated status to "${statusToUpdate}" for ${successful} farmer(s)${(statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''}`);
         setError('');
       } else if (successful > 0) {
-        await fetchFarmers(); // Refresh the list
+        await fetchFarmers();
+        setUpdateProgress(100);
         setSelectedFarmers(new Set());
         setSelectAll(false);
         setSuccess(`Updated ${successful} farmer(s) successfully. ${failed} failed.`);
         setError('Some farmers could not be updated. Please try again.');
       } else {
+        setUpdateProgress(100);
         setError('Failed to update farmer status. Please try again.');
         setSuccess('');
       }
     } catch (error) {
       console.error('Error updating farmer status:', error);
+      setUpdateProgress(100);
       setError('Error updating farmer status');
       setSuccess('');
+    } finally {
+      setIsBulkUpdatingStatus(false);
     }
+  };
+
+  // Handle bulk download for selected farmers
+  const handleBulkDownload = () => {
+    if (selectedFarmers.size === 0) {
+      setError('No farmers selected');
+      return;
+    }
+    handleOpenColumnSelection();
   };
 
   // Handle opening column selection modal
@@ -945,82 +1150,55 @@ const FarmerManagement = () => {
     setSuccess('');
   };
 
-  // Filter farmers based on status, society, machine, and search query
-  const filteredFarmers = farmers.filter(farmer => {
-    const statusMatch = statusFilter === 'all' || farmer.status === statusFilter;
-    const societyMatch = societyFilter === 'all' || farmer.societyId?.toString() === societyFilter;
-    const machineMatch = machineFilter === 'all' || 
-      (machineFilter === 'unassigned' && !farmer.machineId) ||
-      farmer.machineId?.toString() === machineFilter;
+  // Initial data fetch
+  useEffect(() => {
+    fetchFarmers();
+    fetchSocieties();
+    fetchAllMachines();
+  }, [fetchFarmers]);
+
+  // Filter farmers using utility function
+  const filteredFarmers = filterFarmers(
+    farmers,
+    searchQuery,
+    statusFilter,
+    null, // bmcFilter - not used in farmer management
+    societyFilter === 'all' ? null : parseInt(societyFilter)
+  ).filter(farmer => {
+    // Additional machine filter
+    if (machineFilter === 'all') return true;
+    if (machineFilter === 'unassigned') return !farmer.machineId;
     
-    // Search match - search across multiple fields
-    const searchMatch = searchQuery === '' || 
-      farmer.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.farmerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.machineName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.bankAccountNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.ifscCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      farmer.notes?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return statusMatch && societyMatch && machineMatch && searchMatch;
+    // Compare machine IDs (handle both number and string types)
+    const farmerMachineId = farmer.machineId?.toString();
+    return farmerMachineId === machineFilter;
   });
 
   return (
     <>
+    {/* Loading Snackbar for All Operations */}
+    <LoadingSnackbar
+      isVisible={isSubmitting || isUpdatingStatus || isBulkUpdatingStatus || isDeletingBulk}
+      message={
+        isSubmitting ? (selectedFarmer ? t.farmerManagement.updatingFarmer : t.farmerManagement.addingFarmer) :
+        isDeletingBulk ? t.farmerManagement.deletingFarmers :
+        isBulkUpdatingStatus ? t.farmerManagement.updatingFarmers : 
+        t.farmerManagement.updatingStatus
+      }
+      submessage={t.farmerManagement.pleaseWait}
+      progress={isBulkUpdatingStatus || isDeletingBulk ? updateProgress : undefined}
+      showProgress={isBulkUpdatingStatus || isDeletingBulk}
+    />
+    
     <div className="p-3 xs:p-4 sm:p-6 lg:p-8 space-y-3 xs:space-y-4 sm:space-y-6 lg:pb-8">
       {/* Page Header */}
-      <div className="flex flex-col xs:flex-row gap-3 xs:gap-4 xs:items-center xs:justify-between">
-        <div className="flex items-center space-x-2 xs:space-x-3">
-          <div className="p-2 xs:p-2.5 sm:p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg">
-            <Users className="w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg xs:text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Farmer Management
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-              Manage farmers across societies
-            </p>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setShowCSVUpload(true)}
-            className="flex items-center justify-center px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-600 rounded-md sm:rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
-          >
-            <Upload className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Upload CSV</span>
-            <span className="sm:hidden ml-1">CSV</span>
-          </button>
-          <button
-            onClick={handleOpenColumnSelection}
-            disabled={filteredFarmers.length === 0 || isDownloading}
-            className="flex items-center justify-center px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-600 rounded-md sm:rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isDownloading ? (
-              <FlowerSpinner size={12} className="sm:w-4 sm:h-4 sm:mr-2" />
-            ) : (
-              <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-            )}
-            <span className="hidden sm:inline">Download</span>
-            <span className="sm:hidden ml-1">Export</span>
-          </button>
-          <button
-            onClick={openAddModal}
-            className="col-span-2 sm:col-span-1 flex items-center justify-center px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-white bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-800 rounded-md sm:rounded-lg transition-colors"
-          >
-            <Users className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-            Add Farmer
-          </button>
-        </div>
-      </div>
+      <ManagementPageHeader
+        title={t.farmerManagement.title}
+        subtitle={t.farmerManagement.subtitle}
+        icon={<Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
+        onRefresh={fetchFarmers}
+        hasData={filteredFarmers.length > 0}
+      />
 
       {/* Success/Error Messages */}
       <StatusMessage 
@@ -1029,209 +1207,66 @@ const FarmerManagement = () => {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 xs:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
-        <StatsCard
-          title="Total"
-          value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? `${filteredFarmers.length}/${farmers.length}` : farmers.length}
-          icon={<Users className="w-3 h-3 sm:w-4 sm:h-4" />}
-          color="green"
-          className="p-2 sm:p-3"
-        />
-        
-        <StatsCard
-          title="Active"
-          value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-            `${filteredFarmers.filter(f => f.status === 'active').length}/${farmers.filter(f => f.status === 'active').length}` :
-            farmers.filter(f => f.status === 'active').length
-          }
-          icon={<UserCheck className="w-3 h-3 sm:w-4 sm:h-4" />}
-          color="green"
-          className="p-2 sm:p-3"
-        />
-
-        <StatsCard
-          title="Inactive"
-          value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-            `${filteredFarmers.filter(f => f.status === 'inactive').length}/${farmers.filter(f => f.status === 'inactive').length}` :
-            farmers.filter(f => f.status === 'inactive').length
-          }
-          icon={<UserX className="w-3 h-3 sm:w-4 sm:h-4" />}
-          color="red"
-          className="p-2 sm:p-3"
-        />
-
-        <StatsCard
-          title="Suspended"
-          value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-            `${filteredFarmers.filter(f => f.status === 'suspended').length}/${farmers.filter(f => f.status === 'suspended').length}` :
-            farmers.filter(f => f.status === 'suspended').length
-          }
-          icon={<AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />}
-          color="yellow"
-          className="p-2 sm:p-3"
-        />
-
-        <StatsCard
-          title="Maintenance"
-          value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-            `${filteredFarmers.filter(f => f.status === 'maintenance').length}/${farmers.filter(f => f.status === 'maintenance').length}` :
-            farmers.filter(f => f.status === 'maintenance').length
-          }
-          icon={<AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />}
-          color="blue"
-          className="p-2 sm:p-3"
-        />
-      </div>
+      <StatsGrid
+        allItems={farmers}
+        filteredItems={filteredFarmers}
+        hasFilters={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all'}
+      />
 
       {/* Filter Controls */}
-      <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
-        {/* Header Info */}
-        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
-          <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-            <Users className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-            <span className="font-medium text-xs sm:text-sm">{`${filteredFarmers.length}/${farmers.length} farmers`}</span>
-          </div>
-          {searchQuery && (
-            <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-700 dark:text-blue-300 text-xs font-medium">
-              <span>&ldquo;{searchQuery}&rdquo;</span>
-            </div>
-          )}
-        </div>
-        
-        {/* Filters Grid - Mobile First */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-          {/* Status Filter */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-xs sm:text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-              <option value="maintenance">Maintenance</option>
-            </select>
-          </div>
+      <FilterDropdown
+        statusFilter={statusFilter}
+        onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
+        societyFilter={societyFilter}
+        onSocietyChange={setSocietyFilter}
+        machineFilter={machineFilter}
+        onMachineChange={setMachineFilter}
+        societies={societies}
+        machines={machines}
+        filteredCount={filteredFarmers.length}
+        totalCount={farmers.length}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        icon={<Users className="w-5 h-5" />}
+      />
 
-          {/* Society Filter */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-              Society
-            </label>
-            <select
-              value={societyFilter}
-              onChange={(e) => setSocietyFilter(e.target.value)}
-              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-xs sm:text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-            >
-              <option value="all">All Societies</option>
-              {societies.map(society => (
-                <option key={society.id} value={society.id.toString()}>
-                  {society.name} ({society.society_id})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Machine Filter */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-              Machine
-            </label>
-            <select
-              value={machineFilter}
-              onChange={(e) => setMachineFilter(e.target.value)}
-              className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-xs sm:text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-            >
-              <option value="all">All Machines</option>
-              <option value="unassigned">Unassigned</option>
-              {machines.map(machine => (
-                <option key={machine.id} value={machine.id.toString()}>
-                  {machine.machineId} - {machine.machineType}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Clear Filters Button */}
-          <div className="flex items-end">
-            {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' || searchQuery) && (
-              <button
-                onClick={() => {
-                  setStatusFilter('all');
-                  setSocietyFilter('all');
-                  setMachineFilter('all');
-                  setSearchQuery('');
-                }}
-                className="w-full xs:w-auto px-3 py-1.5 sm:py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Bulk Selection Controls */}
+      {/* Select All and View Mode Controls */}
       {filteredFarmers.length > 0 && (
-        <div className={`rounded-lg border p-3 sm:p-4 space-y-3 sm:space-y-0 sm:flex sm:items-center sm:justify-between ${(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}>
-          {/* Top Row - Selection Controls */}
-          <div className="flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-3">
-            {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') && (
-              <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
-                <span>Filtered View</span>
-              </div>
-            )}
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={selectAll}
-                onChange={handleSelectAll}
-                className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+        <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+          {/* Select All Control - Left Side */}
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectAll}
+              onChange={handleSelectAll}
+              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t.farmerManagement.selectAll} {filteredFarmers.length} {filteredFarmers.length === 1 ? t.roles.farmer : t.farmerManagement.farmers}
+              {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') && ` (${t.common.filter.toLowerCase()})`}
+            </span>
+          </label>
+
+          {/* View Mode Toggle and Folder Controls - Right Side */}
+          <div className="flex items-center gap-3">
+            {/* Folder Controls (shown only in folder view) */}
+            {viewMode === 'folder' && (
+              <FolderControls
+                onExpandAll={expandAllSocieties}
+                onCollapseAll={collapseAllSocieties}
+                expandedCount={expandedSocieties.size}
+                totalCount={societies.length}
               />
-              <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                Select All ({filteredFarmers.length})
-              </span>
-            </label>
-            {selectedFarmers.size > 0 && (
-              <div className="flex items-center space-x-1 xs:space-x-2">
-                <span className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-medium">
-                  {selectedFarmers.size} selected
-                </span>
-                <span className="hidden xs:inline text-xs text-gray-500 dark:text-gray-400">
-                  • Ready for bulk operations
-                </span>
-              </div>
             )}
+            
+            {/* View Mode Toggle */}
+            <ViewModeToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              folderLabel={t.farmerManagement.gridView}
+              listLabel={t.farmerManagement.listView}
+            />
           </div>
-          
-          {/* Bulk Actions */}
-          {selectedFarmers.size > 0 && (
-            <div className="flex flex-col xs:flex-row gap-2 xs:gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 sm:border-l border-gray-200 dark:border-gray-600 sm:pl-4">
-              <div className="flex-1 xs:flex-initial">
-                <StatusDropdown
-                  currentStatus={bulkStatus}
-                  onStatusChange={(status) => {
-                    setBulkStatus(status as typeof bulkStatus);
-                    handleBulkStatusUpdate(status);
-                  }}
-                />
-              </div>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center justify-center space-x-2 px-3 py-2 text-xs sm:text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-              >
-                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">Delete Selected</span>
-                <span className="xs:hidden">Delete ({selectedFarmers.size})</span>
-                <span className="hidden xs:inline">({selectedFarmers.size})</span>
-              </button>
-            </div>
-          )}
         </div>
       )}
 
@@ -1241,49 +1276,214 @@ const FarmerManagement = () => {
           <FlowerSpinner size={40} />
         </div>
       ) : filteredFarmers.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredFarmers.map(farmer => (
-          <ItemCard
-            key={farmer.id}
-            id={farmer.id}
-            name={farmer.farmerName}
-            identifier={`ID: ${farmer.farmerId}`}
-            status={farmer.status}
-            icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
-            details={[
-              ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
-              ...(farmer.societyName ? [{ 
-                icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
-                text: farmer.societyIdentifier 
-                  ? `${farmer.societyName} (${farmer.societyIdentifier})` 
-                  : farmer.societyName,
-                highlight: true // Highlight society name and ID in green
-              }] : []),
-              { icon: <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Bonus: ${farmer.bonus}` }
-            ]}
-            onStatusChange={(newStatus) => handleStatusChange(farmer.id, newStatus)}
-            onView={() => router.push(`/admin/farmer/${farmer.id}`)}
-            onEdit={() => handleEditClick(farmer)}
-            onDelete={() => handleDelete(farmer.id)}
-            viewText="View Details"
-            selectable={true}
-            selected={selectedFarmers.has(farmer.id)}
-            onSelect={() => handleSelectFarmer(farmer.id)}
-            searchQuery={searchQuery}
-          />
-        ))}
-      </div>
+        viewMode === 'folder' ? (
+          // Folder View - Grouped by Society
+          <div className="space-y-4">
+            {(() => {
+              // Group farmers by society
+              const farmersBySociety = filteredFarmers.reduce((acc, farmer) => {
+                const societyId = farmer.societyId || 0;
+                const societyName = farmer.societyName || 'Unassigned';
+                const societyIdentifier = farmer.societyIdentifier || 'N/A';
+                
+                if (!acc[societyId]) {
+                  acc[societyId] = {
+                    id: societyId,
+                    name: societyName,
+                    identifier: societyIdentifier,
+                    farmers: []
+                  };
+                }
+                acc[societyId].farmers.push(farmer);
+                return acc;
+              }, {} as Record<number, {id: number; name: string; identifier: string; farmers: Farmer[]}>);
+
+              const societyGroups = Object.values(farmersBySociety).sort((a, b) => 
+                a.name.localeCompare(b.name)
+              );
+
+              return societyGroups.map(society => {
+                const isExpanded = expandedSocieties.has(society.id);
+                const isSocietySelected = selectedSocieties.has(society.id);
+                const farmerCount = society.farmers.length;
+                const activeCount = society.farmers.filter(f => f.status === 'active').length;
+                const inactiveCount = society.farmers.filter(f => f.status === 'inactive').length;
+                const farmerIds = society.farmers.map(f => f.id);
+
+                return (
+                  <div key={society.id} className={`bg-white dark:bg-gray-800 rounded-lg border-2 overflow-hidden transition-colors ${
+                    isSocietySelected 
+                      ? 'border-blue-500 dark:border-blue-400' 
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}>
+                    {/* Society Folder Header */}
+                    <div className="flex items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      {/* Society Selection Checkbox */}
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSocietySelection(society.id, farmerIds);
+                        }}
+                        className="flex items-center mr-3 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSocietySelected}
+                          onChange={() => {}} // Handled by parent div
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Expandable Header */}
+                      <button
+                        onClick={() => toggleSocietyExpansion(society.id)}
+                        className="flex-1 flex items-center justify-between"
+                      >
+                        <div className="flex items-center space-x-3">
+                          {isExpanded ? (
+                            <ChevronDown className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                          )}
+                          {isExpanded ? (
+                            <FolderOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          ) : (
+                            <Folder className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          )}
+                          <div className="text-left">
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                              {society.name}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                            ID: {society.identifier}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="text-right">
+                            <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                              <span className="flex items-center space-x-1">
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                <span>{activeCount}</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                <span>{inactiveCount}</span>
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {farmerCount} {farmerCount === 1 ? 'farmer' : 'farmers'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                    {/* Farmers Grid - Shown when expanded */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {society.farmers.map(farmer => (
+                            <ItemCard
+                              key={farmer.id}
+                              id={farmer.id}
+                              name={farmer.farmerName}
+                              identifier={`ID: ${farmer.farmerId}`}
+                              status={farmer.status}
+                              icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
+                              details={[
+                                ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
+                                ...(farmer.machineName || farmer.machineType ? [{ 
+                                  icon: <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                                  text: farmer.machineType && farmer.machineName 
+                                    ? `${farmer.machineType} (${farmer.machineName})`
+                                    : farmer.machineName || farmer.machineType || 'Machine Not Assigned',
+                                  highlight: farmer.machineName ? false : undefined
+                                }] : [{ 
+                                  icon: <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />, 
+                                  text: 'No Machine Assigned',
+                                  className: 'text-gray-500 dark:text-gray-400'
+                                }]),
+                                { icon: <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Bonus: ${farmer.bonus}` }
+                              ]}
+                              onStatusChange={(newStatus) => handleStatusChange(farmer.id, newStatus)}
+                              onView={() => router.push(`/admin/farmer/${farmer.id}`)}
+                              onEdit={() => handleEditClick(farmer)}
+                              onDelete={() => handleDelete(farmer.id)}
+                              viewText="View Details"
+                              selectable={true}
+                              selected={selectedFarmers.has(farmer.id)}
+                              onSelect={() => handleSelectFarmer(farmer.id)}
+                              searchQuery={searchQuery}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        ) : (
+          // List View - Traditional flat grid
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredFarmers.map(farmer => (
+              <ItemCard
+                key={farmer.id}
+                id={farmer.id}
+                name={farmer.farmerName}
+                identifier={`ID: ${farmer.farmerId}`}
+                status={farmer.status}
+                icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
+                details={[
+                  ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
+                  ...(farmer.societyName ? [{ 
+                    icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                    text: farmer.societyIdentifier 
+                      ? `${farmer.societyName} (${farmer.societyIdentifier})` 
+                      : farmer.societyName,
+                    highlight: true
+                  }] : []),
+                  ...(farmer.machineName || farmer.machineType ? [{ 
+                    icon: <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                    text: farmer.machineType && farmer.machineName 
+                      ? `${farmer.machineType} (${farmer.machineName})`
+                      : farmer.machineName || farmer.machineType || 'Machine Not Assigned',
+                    highlight: farmer.machineName ? false : undefined
+                  }] : [{ 
+                    icon: <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />, 
+                    text: 'No Machine Assigned',
+                    className: 'text-gray-500 dark:text-gray-400'
+                  }]),
+                  { icon: <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Bonus: ${farmer.bonus}` }
+                ]}
+                onStatusChange={(newStatus) => handleStatusChange(farmer.id, newStatus)}
+                onView={() => router.push(`/admin/farmer/${farmer.id}`)}
+                onEdit={() => handleEditClick(farmer)}
+                onDelete={() => handleDelete(farmer.id)}
+                viewText="View Details"
+                selectable={true}
+                selected={selectedFarmers.has(farmer.id)}
+                onSelect={() => handleSelectFarmer(farmer.id)}
+                searchQuery={searchQuery}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <EmptyState
           icon={<Users className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400" />}
-          title={farmers.length === 0 ? 'No farmers found' : 'No matching farmers'}
+          title={farmers.length === 0 ? t.farmerManagement.noFarmersFound : t.farmerManagement.noMatchingFarmers}
           message={farmers.length === 0 
-            ? 'Get started by adding your first farmer to the system.'
+            ? t.farmerManagement.getStartedMessage
             : searchQuery 
-              ? `No farmers match your search for "${searchQuery}". Try adjusting your search terms or clearing filters.`
-              : 'No farmers match the current filters. Try adjusting your filter criteria.'
+              ? `${t.farmerManagement.noMatchingFarmers}. ${t.farmerManagement.tryChangingFilters}`
+              : t.farmerManagement.tryChangingFilters
           }
-          actionText={farmers.length === 0 ? 'Add First Farmer' : undefined}
+          actionText={farmers.length === 0 ? t.farmerManagement.addFarmer : undefined}
           onAction={farmers.length === 0 ? openAddModal : undefined}
           showAction={farmers.length === 0}
         />
@@ -1294,31 +1494,31 @@ const FarmerManagement = () => {
       <FormModal
         isOpen={showAddForm}
         onClose={closeAddModal}
-        title="Add New Farmer"
+        title={t.farmerManagement.addFarmer}
       >
         <form onSubmit={handleAddSubmit} className="space-y-4 sm:space-y-6">
           <FormGrid>
           {/* Mandatory Fields First */}
           <FormInput
-            label="Farmer ID"
+            label={t.farmerManagement.farmerId}
             type="text"
             value={formData.farmerId}
             onChange={(value) => setFormData({ ...formData, farmerId: value })}
-            placeholder="Enter unique farmer ID (e.g., F001, FA-2024-001)"
+            placeholder={t.farmerManagement.enterFarmerId}
             required
             error={fieldErrors.farmerId}
           />
           <FormInput
-            label="Farmer Name"
+            label={t.farmerManagement.farmerName}
             type="text"
             value={formData.farmerName}
             onChange={(value) => setFormData({ ...formData, farmerName: value })}
-            placeholder="Enter farmer's full name"
+            placeholder={t.farmerManagement.enterFarmerName}
             required
             error={fieldErrors.farmerName}
           />
           <FormSelect
-            label="Society"
+            label={t.farmerManagement.society}
             value={formData.societyId}
             onChange={(value) => {
               setFormData({ ...formData, societyId: value, machineId: '' });
@@ -1328,21 +1528,21 @@ const FarmerManagement = () => {
               value: society.id.toString(),
               label: `${society.name} (${society.society_id})`
             }))}
-            placeholder="Select Society"
+            placeholder={t.farmerManagement.selectSociety}
             required
             colSpan={1}
           />
           
           {/* Machine Selection - Same row as society */}
           <FormSelect
-            label="Machine"
+            label={t.farmerManagement.machine}
             value={formData.machineId}
             onChange={(value) => setFormData({ ...formData, machineId: value })}
             options={machines.map(machine => ({
               value: machine.id.toString(),
               label: `${machine.machineId} - ${machine.machineType}`
             }))}
-            placeholder={machinesLoading ? "Loading..." : machines.length > 0 ? "Select Machine" : "No machines available"}
+            placeholder={machinesLoading ? t.common.loading : machines.length > 0 ? t.farmerManagement.selectMachine : t.farmerManagement.unassigned}
             disabled={machinesLoading}
             required
             colSpan={1}
@@ -1360,80 +1560,80 @@ const FarmerManagement = () => {
           
           {/* Contact Information */}
           <FormInput
-            label="Contact Number"
+            label={t.farmerManagement.contactNumber}
             type="tel"
             value={formData.contactNumber}
             onChange={(value) => setFormData({ ...formData, contactNumber: value })}
-            placeholder="Enter 10-digit mobile number"
+            placeholder={t.farmerManagement.enterContactNumber}
           />
           <FormSelect
-            label="SMS Enabled"
+            label={t.farmerManagement.smsEnabled}
             value={formData.smsEnabled}
             onChange={(value) => setFormData({ ...formData, smsEnabled: value })}
             options={[
               { value: 'OFF', label: 'OFF' },
               { value: 'ON', label: 'ON' }
             ]}
-            placeholder="Select SMS preference"
+            placeholder={t.farmerManagement.selectStatus}
           />
           
           {/* Optional Fields */}
           <FormInput
-            label="RF-ID"
+            label={t.farmerManagement.rfId}
             type="text"
             value={formData.rfId}
             onChange={(value) => setFormData({ ...formData, rfId: value })}
-            placeholder="Enter RF card ID (optional)"
+            placeholder={t.farmerManagement.enterRfId}
           />
           <FormInput
-            label="Bonus"
+            label={t.farmerManagement.bonus}
             type="number"
             value={formData.bonus}
             onChange={(value) => setFormData({ ...formData, bonus: Number(value) })}
-            placeholder="Enter bonus amount"
+            placeholder={t.farmerManagement.enterBonus}
           />
           <FormSelect
-            label="Status"
+            label={t.farmerManagement.status}
             value={formData.status}
             onChange={(value) => setFormData({ ...formData, status: value })}
             options={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-              { value: 'suspended', label: 'Suspended' },
-              { value: 'maintenance', label: 'Maintenance' }
+              { value: 'active', label: t.farmerManagement.active },
+              { value: 'inactive', label: t.farmerManagement.inactive },
+              { value: 'suspended', label: t.farmerManagement.suspended },
+              { value: 'maintenance', label: t.farmerManagement.maintenance }
             ]}
-            placeholder="Select farmer status"
+            placeholder={t.farmerManagement.selectStatus}
           />
           
           {/* Banking Information */}
           <FormInput
-            label="Bank Name"
+            label={t.farmerManagement.bankName}
             type="text"
             value={formData.bankName}
             onChange={(value) => setFormData({ ...formData, bankName: value })}
-            placeholder="Enter bank name (e.g., SBI, HDFC Bank)"
+            placeholder={t.farmerManagement.enterBankName}
           />
           <FormInput
-            label="Account Number"
+            label={t.farmerManagement.bankAccountNumber}
             type="text"
             value={formData.bankAccountNumber}
             onChange={(value) => setFormData({ ...formData, bankAccountNumber: value })}
-            placeholder="Enter bank account number"
+            placeholder={t.farmerManagement.enterAccountNumber}
           />
           <FormInput
-            label="IFSC Code"
+            label={t.farmerManagement.ifscCode}
             type="text"
             value={formData.ifscCode}
             onChange={(value) => setFormData({ ...formData, ifscCode: value })}
-            placeholder="Enter IFSC code (e.g., SBIN0001234)"
+            placeholder={t.farmerManagement.enterIfscCode}
           />
           
           <FormInput
-            label="Address"
+            label={t.farmerManagement.address}
             type="text"
             value={formData.address}
             onChange={(value) => setFormData({ ...formData, address: value })}
-            placeholder="Enter farmer's address"
+            placeholder={t.farmerManagement.enterAddress}
           />
           
           <FormInput
@@ -1459,7 +1659,7 @@ const FarmerManagement = () => {
       <FormModal
         isOpen={showEditForm && !!selectedFarmer}
         onClose={closeEditModal}
-        title="Edit Farmer"
+        title={t.farmerManagement.editFarmer}
       >
         <form onSubmit={handleEditSubmit} className="space-y-4 sm:space-y-6">
           <FormGrid>
@@ -1685,44 +1885,14 @@ const FarmerManagement = () => {
       </FormModal>
 
       {/* Bulk Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="text-center">
-              <div className="w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                Delete Selected Farmers
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Are you sure you want to delete {selectedFarmers.size} selected farmer(s)
-                {(statusFilter !== 'all' || societyFilter !== 'all') ? ' from the filtered results' : ''}? 
-                This action cannot be undone.
-              </p>
-              <div className="flex space-x-4 justify-center">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  disabled={isDeletingBulk}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={isDeletingBulk}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {isDeletingBulk && <FlowerSpinner size={16} />}
-                  <span>{isDeletingBulk ? 'Deleting...' : 'Delete'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-
+      <BulkDeleteConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleBulkDelete}
+        itemCount={selectedFarmers.size}
+        itemType="farmer"
+        hasFilters={statusFilter !== 'all' || societyFilter !== 'all'}
+      />
 
       {/* CSV Upload Modal */}
       <CSVUploadModal
@@ -1748,6 +1918,41 @@ const FarmerManagement = () => {
         defaultColumns={['farmerId', 'rfId', 'farmerName', 'contactNumber', 'smsEnabled', 'bonus']}
         title="Select Columns for Farmer Download"
         isDownloading={isDownloading}
+      />
+
+      {/* Floating Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        selectedCount={selectedFarmers.size}
+        onBulkDelete={() => setShowDeleteConfirm(true)}
+        onBulkDownload={handleBulkDownload}
+        onBulkStatusUpdate={handleBulkStatusUpdate}
+        onClearSelection={() => {
+          setSelectedFarmers(new Set());
+          setSelectedSocieties(new Set());
+          setSelectAll(false);
+        }}
+        itemType="farmer"
+        showStatusUpdate={true}
+        currentBulkStatus={bulkStatus}
+        onBulkStatusChange={(status) => setBulkStatus(status as typeof bulkStatus)}
+      />
+
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        actions={[
+          {
+            icon: <Plus className="w-6 h-6 text-white" />,
+            label: t.farmerManagement.addFarmer,
+            onClick: openAddModal,
+            color: 'bg-gradient-to-br from-emerald-500 to-emerald-600'
+          },
+          {
+            icon: <Upload className="w-6 h-6 text-white" />,
+            label: t.farmerManagement.uploadCSV,
+            onClick: () => setShowCSVUpload(true),
+            color: 'bg-gradient-to-br from-blue-500 to-blue-600'
+          }
+        ]}
       />
     </>
   );

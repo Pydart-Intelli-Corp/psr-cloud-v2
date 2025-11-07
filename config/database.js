@@ -3,18 +3,18 @@ const path = require('path');
 
 module.exports = {
   development: {
-    username: process.env.DB_USER || 'psrcloud',
-    password: process.env.DB_PASSWORD || 'Access@LRC2404',
-    database: process.env.DB_NAME || 'psr_v4_c',
-    host: process.env.DB_HOST || 'psrazuredb.mysql.database.azure.com',
+    username: process.env.DB_USER || 'psr_admin',
+    password: process.env.DB_PASSWORD || 'PsrAdmin@20252!',
+    database: process.env.DB_NAME || 'psr_v4_main',
+    host: process.env.DB_HOST || '168.231.121.19',
     port: parseInt(process.env.DB_PORT || '3306'),
     dialect: 'mysql',
     dialectOptions: {
-      ssl: {
+      ssl: (process.env.DB_SSL_CA && process.env.DB_SSL_CA.trim() !== '') ? {
         require: true,
-        rejectUnauthorized: false, // For development - set to true in production with proper CA
-        ca: process.env.DB_SSL_CA ? path.join(process.cwd(), process.env.DB_SSL_CA) : undefined,
-      },
+        rejectUnauthorized: false,
+        ca: path.join(process.cwd(), process.env.DB_SSL_CA),
+      } : false,
       connectTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30') * 1000,
     },
     pool: {
@@ -50,11 +50,11 @@ module.exports = {
     port: parseInt(process.env.DB_PORT || '3306'),
     dialect: 'mysql',
     dialectOptions: {
-      ssl: {
+      ssl: (process.env.DB_SSL_CA && process.env.DB_SSL_CA.trim() !== '') ? {
         require: true,
-        rejectUnauthorized: true,
-        ca: process.env.DB_SSL_CA ? path.join(process.cwd(), process.env.DB_SSL_CA) : undefined,
-      },
+        rejectUnauthorized: process.env.DB_REJECT_UNAUTHORIZED !== 'false',
+        ca: path.join(process.cwd(), process.env.DB_SSL_CA),
+      } : false,
     },
     pool: {
       max: parseInt(process.env.DB_POOL_MAX || '15'),

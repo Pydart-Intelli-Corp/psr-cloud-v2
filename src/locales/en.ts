@@ -17,6 +17,7 @@ export const en = {
     next: 'Next',
     previous: 'Previous',
     refresh: 'Refresh',
+    filter: 'Filter',
     markAllRead: 'Mark all read',
     noDataAvailable: 'No data available',
     createdAt: 'Created',
@@ -211,6 +212,124 @@ export const en = {
     bmcCreated: 'BMC Created',
     statusUpdated: 'Status Updated',
     leaveBlankToKeep: '(leave blank to keep current)',
+  },
+
+  // Farmer Management
+  farmerManagement: {
+    title: 'Farmer Management',
+    subtitle: 'Manage farmers and their information',
+    addFarmer: 'Add Farmer',
+    editFarmer: 'Edit Farmer',
+    deleteFarmer: 'Delete Farmer',
+    uploadCSV: 'Upload CSV',
+    downloadData: 'Download Data',
+    bulkActions: 'Bulk Actions',
+    selectAll: 'Select All',
+    clearSelection: 'Clear Selection',
+    selected: 'selected',
+    
+    // Farmer Fields
+    farmerId: 'Farmer ID',
+    farmerName: 'Farmer Name',
+    rfId: 'RF ID',
+    contactNumber: 'Contact Number',
+    smsEnabled: 'SMS Enabled',
+    bonus: 'Bonus',
+    address: 'Address',
+    bankName: 'Bank Name',
+    bankAccountNumber: 'Bank Account Number',
+    ifscCode: 'IFSC Code',
+    society: 'Society',
+    machine: 'Machine',
+    status: 'Status',
+    
+    // Status Values
+    active: 'Active',
+    inactive: 'Inactive',
+    suspended: 'Suspended',
+    maintenance: 'Maintenance',
+    all: 'All',
+    
+    // Actions
+    refresh: 'Refresh',
+    search: 'Search farmers...',
+    filter: 'Filter',
+    viewMode: 'View Mode',
+    listView: 'List View',
+    gridView: 'Grid View',
+    
+    // Bulk Actions
+    updateStatus: 'Update Status',
+    deleteSelected: 'Delete Selected',
+    downloadSelected: 'Download Selected',
+    
+    // Messages
+    noFarmersFound: 'No farmers found',
+    noMatchingFarmers: 'No farmers match your filters',
+    tryChangingFilters: 'Try changing the filter to see more results',
+    getStartedMessage: 'Get started by adding your first farmer',
+    
+    // Loading States
+    addingFarmer: 'Adding farmer...',
+    updatingFarmer: 'Updating farmer...',
+    deletingFarmers: 'Deleting farmers...',
+    updatingFarmers: 'Updating farmers...',
+    updatingStatus: 'Updating status...',
+    pleaseWait: 'Please wait',
+    
+    // Form Labels
+    enterFarmerId: 'Enter farmer ID',
+    enterFarmerName: 'Enter farmer name',
+    enterRfId: 'Enter RF ID',
+    enterContactNumber: 'Enter contact number',
+    enterBonus: 'Enter bonus amount',
+    enterAddress: 'Enter address',
+    enterBankName: 'Enter bank name',
+    enterAccountNumber: 'Enter account number',
+    enterIfscCode: 'Enter IFSC code',
+    selectSociety: 'Select society',
+    selectMachine: 'Select machine',
+    selectStatus: 'Select status',
+    
+    // Confirmation
+    confirmDelete: 'Are you sure you want to delete',
+    confirmBulkDelete: 'Delete Selected Farmers',
+    deleteWarning: 'This action cannot be undone.',
+    itemsFromFiltered: 'from the filtered results',
+    
+    // Stats
+    totalFarmers: 'Total Farmers',
+    activeFarmers: 'Active Farmers',
+    inactiveFarmers: 'Inactive Farmers',
+    showing: 'Showing',
+    of: 'of',
+    farmers: 'farmers',
+    
+    // CSV Upload
+    csvUploadTitle: 'Upload Farmers CSV',
+    csvUploadDescription: 'Upload a CSV file to add multiple farmers',
+    selectFile: 'Select File',
+    downloadTemplate: 'Download Template',
+    upload: 'Upload',
+    uploadSuccess: 'CSV upload completed successfully!',
+    uploadError: 'CSV upload failed',
+    
+    // Filters
+    filterBySociety: 'Filter by Society',
+    filterByMachine: 'Filter by Machine',
+    filterByStatus: 'Filter by Status',
+    unassigned: 'Unassigned',
+    
+    // View Details
+    farmerDetails: 'Farmer Details',
+    basicInformation: 'Basic Information',
+    contactInformation: 'Contact Information',
+    bankInformation: 'Bank Information',
+    assignmentInformation: 'Assignment Information',
+    
+    // Required
+    requiredField: '*',
+    required: 'Required',
   },
 
   // Notifications

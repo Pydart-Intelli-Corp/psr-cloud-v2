@@ -32,8 +32,8 @@ export async function PUT(
       return createErrorResponse('Status is required', 400);
     }
 
-    if (!['active', 'inactive', 'maintenance'].includes(status)) {
-      return createErrorResponse('Invalid status. Must be: active, inactive, or maintenance', 400);
+    if (!['active', 'inactive', 'maintenance', 'suspended'].includes(status)) {
+      return createErrorResponse('Invalid status. Must be: active, inactive, maintenance, or suspended', 400);
     }
 
     await connectDB();

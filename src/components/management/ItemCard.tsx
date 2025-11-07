@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit3, Trash2, Eye } from 'lucide-react';
+import { Edit3, Trash2, Eye, Lock } from 'lucide-react';
 import StatusDropdown from './StatusDropdown';
 
 interface DetailItem {
@@ -10,6 +10,7 @@ interface DetailItem {
   text: string;
   show?: boolean;
   highlight?: boolean; // New property for highlighting
+  className?: string; // Custom className for styling
 }
 
 // Helper function to highlight matching text
@@ -40,10 +41,12 @@ interface ItemCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onView: () => void;
-  onStatusChange: (status: string) => void;
+  onStatusChange?: (status: string) => void;
+  onPasswordSettings?: () => void;
   editTitle?: string;
   deleteTitle?: string;
   viewText?: string;
+  passwordTitle?: string;
   className?: string;
   // Selection support
   selectable?: boolean;
@@ -51,6 +54,8 @@ interface ItemCardProps {
   onSelect?: () => void;
   // Search highlighting
   searchQuery?: string;
+  // Display options
+  showStatus?: boolean;
 }
 
 /**
@@ -68,14 +73,17 @@ const ItemCard: React.FC<ItemCardProps> = ({
   onDelete,
   onView,
   onStatusChange,
+  onPasswordSettings,
   editTitle = 'Edit',
   deleteTitle = 'Delete',
   viewText = 'View Details',
+  passwordTitle = 'Password Settings',
   className = '',
   selectable = false,
   selected = false,
   onSelect,
-  searchQuery = ''
+  searchQuery = '',
+  showStatus = true
 }) => {
   return (
     <motion.div
@@ -110,10 +118,12 @@ const ItemCard: React.FC<ItemCardProps> = ({
               </p>
             </div>
           </div>
-          <StatusDropdown
-            currentStatus={status}
-            onStatusChange={onStatusChange}
-          />
+          {showStatus && onStatusChange && (
+            <StatusDropdown
+              currentStatus={status}
+              onStatusChange={onStatusChange}
+            />
+          )}
         </div>
 
         {/* Details */}
@@ -123,7 +133,7 @@ const ItemCard: React.FC<ItemCardProps> = ({
               <div key={index} className={`flex items-center text-xs sm:text-sm ${
                 detail.highlight 
                   ? 'text-green-600 dark:text-green-400 font-medium' 
-                  : 'text-gray-600 dark:text-gray-400'
+                  : detail.className || 'text-gray-600 dark:text-gray-400'
               }`}>
                 <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 flex-shrink-0 ${
                   detail.highlight ? 'text-green-600 dark:text-green-400' : ''
@@ -148,6 +158,15 @@ const ItemCard: React.FC<ItemCardProps> = ({
             >
               <Edit3 className="w-4 h-4" />
             </button>
+            {onPasswordSettings && (
+              <button
+                onClick={onPasswordSettings}
+                className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 touch-target sm:min-h-0 sm:min-w-0 flex items-center justify-center"
+                title={passwordTitle}
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onDelete}
               className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 touch-target sm:min-h-0 sm:min-w-0 flex items-center justify-center"
