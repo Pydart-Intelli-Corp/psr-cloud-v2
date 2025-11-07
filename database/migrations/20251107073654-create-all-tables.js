@@ -3,8 +3,8 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    // Create Users table
-    await queryInterface.createTable('Users', {
+    // Create users table
+    await queryInterface.createTable('users', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -73,7 +73,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id'
         },
         onDelete: 'SET NULL',
@@ -145,18 +145,18 @@ module.exports = {
     });
 
     // Add indexes
-    await queryInterface.addIndex('Users', ['email'], { name: 'users_email' });
-    await queryInterface.addIndex('Users', ['uid'], { name: 'users_uid' });
-    await queryInterface.addIndex('Users', ['role'], { name: 'users_role' });
-    await queryInterface.addIndex('Users', ['status'], { name: 'users_status' });
-    await queryInterface.addIndex('Users', ['parentId'], { name: 'users_parent_id' });
-    await queryInterface.addIndex('Users', ['isEmailVerified'], { name: 'users_is_email_verified' });
-    await queryInterface.addIndex('Users', ['emailVerificationToken'], { name: 'users_email_verification_token' });
-    await queryInterface.addIndex('Users', ['passwordResetToken'], { name: 'users_password_reset_token' });
-    await queryInterface.addIndex('Users', ['createdAt'], { name: 'users_created_at' });
+    await queryInterface.addIndex('users', ['email'], { name: 'users_email' });
+    await queryInterface.addIndex('users', ['uid'], { name: 'users_uid' });
+    await queryInterface.addIndex('users', ['role'], { name: 'users_role' });
+    await queryInterface.addIndex('users', ['status'], { name: 'users_status' });
+    await queryInterface.addIndex('users', ['parentId'], { name: 'users_parent_id' });
+    await queryInterface.addIndex('users', ['isEmailVerified'], { name: 'users_is_email_verified' });
+    await queryInterface.addIndex('users', ['emailVerificationToken'], { name: 'users_email_verification_token' });
+    await queryInterface.addIndex('users', ['passwordResetToken'], { name: 'users_password_reset_token' });
+    await queryInterface.addIndex('users', ['createdAt'], { name: 'users_created_at' });
 
-    // Create AdminSchemas table
-    await queryInterface.createTable('AdminSchemas', {
+    // Create admin_schemas table
+    await queryInterface.createTable('admin_schemas', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -166,7 +166,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id'
         },
         onDelete: 'CASCADE',
@@ -207,12 +207,12 @@ module.exports = {
       }
     });
 
-    await queryInterface.addIndex('AdminSchemas', ['adminId'], { name: 'admin_schemas_admin_id' });
-    await queryInterface.addIndex('AdminSchemas', ['schemaKey'], { name: 'admin_schemas_schema_key' });
-    await queryInterface.addIndex('AdminSchemas', ['status'], { name: 'admin_schemas_status' });
+    await queryInterface.addIndex('admin_schemas', ['adminId'], { name: 'admin_schemas_admin_id' });
+    await queryInterface.addIndex('admin_schemas', ['schemaKey'], { name: 'admin_schemas_schema_key' });
+    await queryInterface.addIndex('admin_schemas', ['status'], { name: 'admin_schemas_status' });
 
-    // Create AuditLogs table
-    await queryInterface.createTable('AuditLogs', {
+    // Create audit_logs table
+    await queryInterface.createTable('audit_logs', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -222,7 +222,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
-          model: 'Users',
+          model: 'users',
           key: 'id'
         },
         onDelete: 'SET NULL',
@@ -272,15 +272,15 @@ module.exports = {
       }
     });
 
-    await queryInterface.addIndex('AuditLogs', ['userId'], { name: 'audit_logs_user_id' });
-    await queryInterface.addIndex('AuditLogs', ['action'], { name: 'audit_logs_action' });
-    await queryInterface.addIndex('AuditLogs', ['resource'], { name: 'audit_logs_resource' });
-    await queryInterface.addIndex('AuditLogs', ['resourceId'], { name: 'audit_logs_resource_id' });
-    await queryInterface.addIndex('AuditLogs', ['timestamp'], { name: 'audit_logs_timestamp' });
-    await queryInterface.addIndex('AuditLogs', ['ipAddress'], { name: 'audit_logs_ip_address' });
+    await queryInterface.addIndex('audit_logs', ['userId'], { name: 'audit_logs_user_id' });
+    await queryInterface.addIndex('audit_logs', ['action'], { name: 'audit_logs_action' });
+    await queryInterface.addIndex('audit_logs', ['resource'], { name: 'audit_logs_resource' });
+    await queryInterface.addIndex('audit_logs', ['resourceId'], { name: 'audit_logs_resource_id' });
+    await queryInterface.addIndex('audit_logs', ['timestamp'], { name: 'audit_logs_timestamp' });
+    await queryInterface.addIndex('audit_logs', ['ipAddress'], { name: 'audit_logs_ip_address' });
 
-    // Create OTPs table
-    await queryInterface.createTable('OTPs', {
+    // Create otps table
+    await queryInterface.createTable('otps', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -324,12 +324,12 @@ module.exports = {
       }
     });
 
-    await queryInterface.addIndex('OTPs', ['email'], { name: 'otps_email' });
-    await queryInterface.addIndex('OTPs', ['otpCode'], { name: 'otps_otp_code' });
-    await queryInterface.addIndex('OTPs', ['expiresAt'], { name: 'otps_expires_at' });
+    await queryInterface.addIndex('otps', ['email'], { name: 'otps_email' });
+    await queryInterface.addIndex('otps', ['otpCode'], { name: 'otps_otp_code' });
+    await queryInterface.addIndex('otps', ['expiresAt'], { name: 'otps_expires_at' });
 
-    // Create MachineType table
-    await queryInterface.createTable('MachineType', {
+    // Create machinetype table
+    await queryInterface.createTable('machinetype', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -368,11 +368,11 @@ module.exports = {
       }
     });
 
-    await queryInterface.addIndex('MachineType', ['machine_type'], { name: 'idx_machine_type' });
-    await queryInterface.addIndex('MachineType', ['is_active'], { name: 'idx_is_active' });
+    await queryInterface.addIndex('machinetype', ['machine_type'], { name: 'idx_machine_type' });
+    await queryInterface.addIndex('machinetype', ['is_active'], { name: 'idx_is_active' });
 
     // Insert default machine types
-    await queryInterface.bulkInsert('MachineType', [
+    await queryInterface.bulkInsert('machinetype', [
       {
         machine_type: 'Lactoscan',
         description: 'Lactoscan Milk Analyzer - Automatic milk testing equipment',
@@ -419,11 +419,11 @@ module.exports = {
   },
 
   async down (queryInterface, Sequelize) {
-    await queryInterface.dropTable('MachineType');
-    await queryInterface.dropTable('OTPs');
-    await queryInterface.dropTable('AuditLogs');
-    await queryInterface.dropTable('AdminSchemas');
-    await queryInterface.dropTable('Users');
+    await queryInterface.dropTable('machinetype');
+    await queryInterface.dropTable('otps');
+    await queryInterface.dropTable('audit_logs');
+    await queryInterface.dropTable('admin_schemas');
+    await queryInterface.dropTable('users');
   }
 };
 

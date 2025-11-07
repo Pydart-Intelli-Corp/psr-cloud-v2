@@ -13,7 +13,7 @@ module.exports = {
     // Generate unique UID for super admin
     const uid = `PSR_SUPER_${Date.now()}`;
 
-    await queryInterface.bulkInsert('Users', [
+    await queryInterface.bulkInsert('users', [
       {
         uid: uid,
         email: 'admin@poornasreeequipments.com',
@@ -45,7 +45,7 @@ module.exports = {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('Users', {
+    await queryInterface.bulkDelete('users', {
       email: 'admin@poornasreeequipments.com'
     }, {});
   }

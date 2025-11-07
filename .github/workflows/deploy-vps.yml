@@ -226,7 +226,7 @@ jobs:
               npx sequelize-cli db:migrate --env production
               
               # Check if super admin exists
-              ADMIN_EXISTS=$(mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SELECT COUNT(*) FROM Users WHERE role = 'super_admin' AND email = 'admin@poornasreeequipments.com';" -ss 2>/dev/null || echo "0")
+              ADMIN_EXISTS=$(mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SELECT COUNT(*) FROM users WHERE role = 'super_admin' AND email = 'admin@poornasreeequipments.com';" -ss 2>/dev/null || echo "0")
               
               if [ "$ADMIN_EXISTS" = "0" ]; then
                 echo "🌱 Super admin not found - running seeders..."
