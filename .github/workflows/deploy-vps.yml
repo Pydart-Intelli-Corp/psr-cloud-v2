@@ -79,12 +79,15 @@ jobs:
           DB_USER: ${{ secrets.DB_USER || 'psr_admin' }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'PsrAdmin@20252!' }}
           DB_NAME: ${{ secrets.DB_NAME || 'psr_v4_main' }}
+          SUPER_ADMIN_USERNAME: ${{ secrets.SUPER_ADMIN_USERNAME || 'admin' }}
+          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD || 'psr@2025' }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL || 'admin@poornasreeequipments.com' }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
-          envs: GITHUB_TOKEN,REPO_URL,VPS_HOST,EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME
+          envs: GITHUB_TOKEN,REPO_URL,VPS_HOST,EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
           script: |
             set -e
             
@@ -179,6 +182,11 @@ jobs:
             JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
             JWT_EXPIRES_IN=1h
             JWT_REFRESH_EXPIRES_IN=7d
+            
+            # Super Admin Credentials
+            SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
+            SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
+            SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
             
             # Email Configuration
             EMAIL_HOST=smtp.gmail.com
