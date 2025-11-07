@@ -74,18 +74,29 @@ jobs:
               exit 1
             fi
             
+            # Navigate to application directory
+            cd /var/www/psr-v4
+            
             # Check if git repository exists
-            if [ ! -d "/var/www/psr-v4/.git" ]; then
-              echo "⚠️  Git repository not initialized. Running initial clone..."
-              cd /var/www/psr-v4
+            if [ ! -d ".git" ]; then
+              echo "⚠️  Git repository not initialized. Initializing..."
+              
+              # Backup existing files if any
+              if [ "$(ls -A)" ]; then
+                echo "📦 Backing up existing files..."
+                mkdir -p /tmp/psr-v4-backup
+                cp -r * /tmp/psr-v4-backup/ 2>/dev/null || true
+                cp -r .* /tmp/psr-v4-backup/ 2>/dev/null || true
+              fi
+              
+              # Initialize git and pull from remote
               git init
               git remote add origin https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git
               git fetch origin
               git reset --hard origin/master
+              
+              echo "✅ Repository initialized successfully"
             fi
-            
-            # Navigate to application directory
-            cd /var/www/psr-v4
             
             # Pull latest changes
             echo "📥 Pulling latest changes from GitHub..."
