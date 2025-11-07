@@ -53,8 +53,39 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           script: |
+            set -e
+            
+            # Check if initial setup has been completed
+            if [ ! -d "/var/www/psr-v4" ]; then
+              echo "❌ ERROR: VPS has not been set up yet!"
+              echo ""
+              echo "The directory /var/www/psr-v4 does not exist."
+              echo "This means you haven't run the initial VPS setup."
+              echo ""
+              echo "📋 REQUIRED ACTION:"
+              echo "  1. Go to: https://github.com/$GITHUB_REPOSITORY/actions"
+              echo "  2. Select 'Setup VPS Environment' workflow"
+              echo "  3. Click 'Run workflow'"
+              echo "  4. Wait ~10 minutes for completion"
+              echo ""
+              echo "After setup completes, deployments will work automatically."
+              echo ""
+              echo "See: QUICKSTART.md or ADD_SECRETS_NOW.md for details"
+              exit 1
+            fi
+            
+            # Check if git repository exists
+            if [ ! -d "/var/www/psr-v4/.git" ]; then
+              echo "⚠️  Git repository not initialized. Running initial clone..."
+              cd /var/www/psr-v4
+              git init
+              git remote add origin https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git
+              git fetch origin
+              git reset --hard origin/master
+            fi
+            
             # Navigate to application directory
-            cd /var/www/psr-v4 || exit 1
+            cd /var/www/psr-v4
             
             # Pull latest changes
             echo "📥 Pulling latest changes from GitHub..."
