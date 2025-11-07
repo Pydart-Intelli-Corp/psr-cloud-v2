@@ -56,6 +56,10 @@ jobs:
             echo "🗄️ Running database migrations..."
             npx sequelize-cli db:migrate --env production
             
+            # Reload Nginx if configuration changed
+            echo "🔄 Reloading Nginx..."
+            nginx -t && systemctl reload nginx || echo "Nginx reload skipped"
+            
             # Restart application with PM2
             echo "🔄 Restarting application..."
             pm2 restart psr-v4 || pm2 start npm --name "psr-v4" -- start

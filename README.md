@@ -3,10 +3,31 @@
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/your-repo/psr-v4)
 [![Status](https://img.shields.io/badge/status-production--ready-green.svg)](https://github.com/your-repo/psr-v4)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Auto Deploy](https://img.shields.io/badge/deploy-automated-success.svg)](https://github.com/your-repo/psr-v4/actions)
 
 A comprehensive, multi-tenant dairy equipment management platform built with modern web technologies. Features complete role-based authentication, dedicated database schemas per organization, and comprehensive entity management for dairy operations.
 
-**Last Updated**: November 5, 2025
+**Last Updated**: November 7, 2025
+
+## 🎯 Quick Deploy (10 Minutes)
+
+Get your production server running with **zero manual configuration**:
+
+```bash
+1. Add 5 GitHub Secrets → 2. Click "Run Workflow" → 3. Access your app!
+```
+
+**[📖 See QUICKSTART.md](QUICKSTART.md)** for the complete 3-step guide.
+
+### What Gets Configured Automatically:
+- ✅ **Ports 80 & 443** - HTTP/HTTPS with Nginx reverse proxy
+- ✅ **SSL Certificate** - Free Let's Encrypt with auto-renewal
+- ✅ **Firewall** - UFW configured with secure defaults
+- ✅ **Process Manager** - PM2 with auto-restart
+- ✅ **Continuous Deployment** - Auto-deploy on every push
+- ✅ **Database Migrations** - Automatic on deployment
+
+**Total Time**: ~10 minutes | **Manual Steps**: Add secrets + Click button
 
 ## ✨ Key Highlights
 

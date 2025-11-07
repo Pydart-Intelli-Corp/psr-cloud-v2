@@ -1,0 +1,495 @@
+name: Setup VPS Environment
+
+on:
+  workflow_dispatch:  # Manual trigger only for initial setup
+    inputs:
+      domain:
+        description: 'Domain name for SSL (optional, leave empty for IP-only)'
+        required: false
+        default: ''
+      email:
+        description: 'Email for SSL certificate (required if domain provided)'
+        required: false
+        default: ''
+
+jobs:
+  setup-vps:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install VPS Dependencies
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            echo "🔄 Updating system packages..."
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+            
+            echo "📦 Installing required packages..."
+            apt-get install -y curl wget git nginx ufw certbot python3-certbot-nginx
+            
+            echo "✅ System packages updated"
+
+      - name: Install Node.js 21.x
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            if ! command -v node &> /dev/null; then
+                echo "📥 Installing Node.js 21.x..."
+                curl -fsSL https://deb.nodesource.com/setup_21.x | bash -
+                apt-get install -y nodejs
+            else
+                echo "✅ Node.js already installed: $(node -v)"
+            fi
+            
+            echo "Node.js version: $(node -v)"
+            echo "NPM version: $(npm -v)"
+
+      - name: Install PM2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            if ! command -v pm2 &> /dev/null; then
+                echo "📥 Installing PM2..."
+                npm install -g pm2
+            else
+                echo "✅ PM2 already installed: $(pm2 -v)"
+            fi
+            
+            # Setup PM2 startup
+            pm2 startup systemd -u root --hp /root || true
+            systemctl enable pm2-root || true
+
+      - name: Configure Firewall (UFW)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            echo "🔒 Configuring firewall..."
+            
+            # Reset UFW to defaults
+            ufw --force reset
+            
+            # Set default policies
+            ufw default deny incoming
+            ufw default allow outgoing
+            
+            # Allow SSH (CRITICAL - must be first!)
+            ufw allow 22/tcp comment 'SSH'
+            
+            # Allow HTTP and HTTPS
+            ufw allow 80/tcp comment 'HTTP'
+            ufw allow 443/tcp comment 'HTTPS'
+            
+            # Allow MySQL only from localhost
+            ufw allow from 127.0.0.1 to any port 3306 comment 'MySQL local'
+            
+            # Enable firewall
+            ufw --force enable
+            
+            echo "✅ Firewall configured"
+            ufw status verbose
+
+      - name: Create Application Directory
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            echo "📁 Creating application directories..."
+            mkdir -p /var/www/psr-v4
+            mkdir -p /var/www/psr-v4/logs
+            mkdir -p /var/www/psr-v4/.next
+            
+            echo "✅ Directories created"
+
+      - name: Configure Nginx
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            echo "⚙️  Configuring Nginx..."
+            
+            # Create Nginx configuration
+            cat > /etc/nginx/sites-available/psr-v4 << 'NGINX_EOF'
+            # Rate limiting
+            limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+            limit_req_zone $binary_remote_addr zone=general_limit:10m rate=30r/s;
+            
+            # Upstream for Next.js app
+            upstream nextjs_backend {
+                server 127.0.0.1:3000;
+                keepalive 64;
+            }
+            
+            # HTTP server - redirect to HTTPS if domain configured
+            server {
+                listen 80;
+                listen [::]:80;
+                server_name _;
+                
+                # Client upload size
+                client_max_body_size 100M;
+                client_body_buffer_size 128k;
+                
+                # Security headers
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+                
+                # Gzip compression
+                gzip on;
+                gzip_vary on;
+                gzip_proxied any;
+                gzip_comp_level 6;
+                gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+                
+                # API routes - stricter rate limiting
+                location /api/ {
+                    limit_req zone=api_limit burst=20 nodelay;
+                    
+                    proxy_pass http://nextjs_backend;
+                    proxy_http_version 1.1;
+                    
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_set_header X-Forwarded-Host $host;
+                    proxy_set_header X-Forwarded-Port $server_port;
+                    
+                    proxy_cache_bypass $http_upgrade;
+                    proxy_read_timeout 300s;
+                    proxy_connect_timeout 300s;
+                    proxy_send_timeout 300s;
+                    
+                    # Disable buffering for SSE/streaming
+                    proxy_buffering off;
+                }
+                
+                # Static files - aggressive caching
+                location /_next/static/ {
+                    proxy_pass http://nextjs_backend;
+                    proxy_http_version 1.1;
+                    proxy_cache_bypass $http_upgrade;
+                    
+                    # Cache static files for 1 year
+                    expires 1y;
+                    add_header Cache-Control "public, immutable";
+                }
+                
+                # Public files
+                location /public/ {
+                    proxy_pass http://nextjs_backend;
+                    expires 7d;
+                    add_header Cache-Control "public";
+                }
+                
+                # All other routes
+                location / {
+                    limit_req zone=general_limit burst=50 nodelay;
+                    
+                    proxy_pass http://nextjs_backend;
+                    proxy_http_version 1.1;
+                    
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_set_header X-Forwarded-Host $host;
+                    proxy_set_header X-Forwarded-Port $server_port;
+                    
+                    proxy_cache_bypass $http_upgrade;
+                    proxy_read_timeout 300s;
+                    proxy_connect_timeout 300s;
+                    proxy_send_timeout 300s;
+                }
+                
+                # Health check endpoint
+                location /health {
+                    access_log off;
+                    return 200 "healthy\n";
+                    add_header Content-Type text/plain;
+                }
+            }
+            NGINX_EOF
+            
+            # Remove default site
+            rm -f /etc/nginx/sites-enabled/default
+            
+            # Enable our site
+            ln -sf /etc/nginx/sites-available/psr-v4 /etc/nginx/sites-enabled/psr-v4
+            
+            # Test Nginx configuration
+            nginx -t
+            
+            # Reload Nginx
+            systemctl reload nginx
+            systemctl enable nginx
+            
+            echo "✅ Nginx configured and enabled"
+
+      - name: Clone Repository
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/psr-v4
+            
+            if [ ! -d ".git" ]; then
+                echo "📥 Cloning repository..."
+                git clone https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git .
+            else
+                echo "✅ Repository already cloned"
+                git fetch origin
+                git reset --hard origin/master
+            fi
+
+      - name: Upload Environment File
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          source: ".env.production.example"
+          target: "/var/www/psr-v4/"
+
+      - name: Create Production Environment File
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/psr-v4
+            
+            # Generate JWT secrets
+            JWT_SECRET=$(openssl rand -hex 64)
+            JWT_REFRESH_SECRET=$(openssl rand -hex 64)
+            
+            # Create .env.production
+            cat > .env.production << ENV_EOF
+            # Database Configuration
+            DB_HOST=localhost
+            DB_PORT=3306
+            DB_USER=psr_admin
+            DB_PASSWORD=PsrAdmin@20252!
+            DB_NAME=psr_v4_main
+            DB_SSL_CA=
+            DB_REJECT_UNAUTHORIZED=false
+            
+            # Application
+            NODE_ENV=production
+            PORT=3000
+            NEXT_TELEMETRY_DISABLED=1
+            
+            # JWT Secrets (Auto-generated)
+            JWT_SECRET=${JWT_SECRET}
+            JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+            JWT_EXPIRES_IN=1h
+            JWT_REFRESH_EXPIRES_IN=7d
+            
+            # Email Configuration
+            EMAIL_HOST=smtp.gmail.com
+            EMAIL_PORT=587
+            EMAIL_SECURE=false
+            EMAIL_USER=${{ secrets.EMAIL_USER }}
+            EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
+            EMAIL_FROM=noreply@poornasreeequipments.com
+            
+            # Application URLs
+            NEXT_PUBLIC_API_URL=http://${{ secrets.VPS_HOST }}
+            NEXT_PUBLIC_APP_URL=http://${{ secrets.VPS_HOST }}
+            ENV_EOF
+            
+            echo "✅ Environment file created with auto-generated JWT secrets"
+
+      - name: Install Dependencies and Build
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          command_timeout: 20m
+          script: |
+            set -e
+            cd /var/www/psr-v4
+            
+            echo "📦 Installing dependencies..."
+            npm ci --production=false
+            
+            echo "🔨 Building application..."
+            npm run build
+            
+            echo "✅ Build completed"
+
+      - name: Run Database Migrations
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/psr-v4
+            
+            echo "🗄️  Running database migrations..."
+            npx sequelize-cli db:migrate --env production
+            
+            echo "🌱 Seeding super admin..."
+            npx sequelize-cli db:seed --seed 20241022000001-super-admin-user.js --env production || echo "Super admin already exists"
+            
+            echo "✅ Database setup completed"
+
+      - name: Start Application with PM2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/psr-v4
+            
+            echo "🚀 Starting application with PM2..."
+            
+            # Stop existing instance if running
+            pm2 delete psr-v4 || true
+            
+            # Start application
+            pm2 start ecosystem.config.js --env production
+            
+            # Save PM2 configuration
+            pm2 save
+            
+            echo "✅ Application started"
+            pm2 status
+
+      - name: Setup SSL Certificate (if domain provided)
+        if: ${{ github.event.inputs.domain != '' }}
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            DOMAIN="${{ github.event.inputs.domain }}"
+            EMAIL="${{ github.event.inputs.email }}"
+            
+            if [ -z "$EMAIL" ]; then
+                echo "⚠️  Email required for SSL certificate"
+                exit 1
+            fi
+            
+            echo "🔒 Setting up SSL certificate for $DOMAIN..."
+            
+            # Update Nginx config with domain
+            sed -i "s/server_name _;/server_name $DOMAIN www.$DOMAIN;/" /etc/nginx/sites-available/psr-v4
+            nginx -t && systemctl reload nginx
+            
+            # Obtain SSL certificate
+            certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email $EMAIL --redirect
+            
+            # Setup auto-renewal
+            systemctl enable certbot.timer
+            systemctl start certbot.timer
+            
+            echo "✅ SSL certificate installed and auto-renewal enabled"
+
+      - name: Verify Deployment
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            set -e
+            echo "🔍 Verifying deployment..."
+            
+            echo "PM2 Status:"
+            pm2 status
+            
+            echo -e "\nNginx Status:"
+            systemctl status nginx --no-pager | head -20
+            
+            echo -e "\nFirewall Status:"
+            ufw status verbose
+            
+            echo -e "\nApplication Health Check:"
+            sleep 5
+            curl -f http://localhost/health || echo "⚠️  Health check failed"
+            
+            echo -e "\n✅ VPS Setup Complete!"
+
+      - name: Display Access Information
+        run: |
+          echo "═══════════════════════════════════════════════════"
+          echo "VPS SETUP COMPLETED SUCCESSFULLY!"
+          echo "═══════════════════════════════════════════════════"
+          echo ""
+          echo "🌐 Access URLs:"
+          if [ -n "${{ github.event.inputs.domain }}" ]; then
+            echo "   Production: https://${{ github.event.inputs.domain }}"
+            echo "   WWW: https://www.${{ github.event.inputs.domain }}"
+          else
+            echo "   Production: http://${{ secrets.VPS_HOST }}"
+          fi
+          echo ""
+          echo "🔑 Default Credentials:"
+          echo "   Email: admin@poornasreeequipments.com"
+          echo "   Password: psr@2025"
+          echo ""
+          echo "📊 Management Commands:"
+          echo "   View logs: ssh root@${{ secrets.VPS_HOST }} 'pm2 logs psr-v4'"
+          echo "   Status: ssh root@${{ secrets.VPS_HOST }} 'pm2 status'"
+          echo "   Restart: ssh root@${{ secrets.VPS_HOST }} 'pm2 restart psr-v4'"
+          echo ""
+          echo "✅ Future deployments will happen automatically on push to master"
