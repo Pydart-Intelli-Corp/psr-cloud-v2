@@ -9,12 +9,24 @@ A comprehensive, multi-tenant dairy equipment management platform built with mod
 
 **Last Updated**: November 7, 2025
 
+---
+
+## ⚠️ FIRST TIME SETUP? READ THIS!
+
+**If deployment is failing**, you need to add GitHub Secrets first:
+
+👉 **[READ SETUP_FIRST.md](SETUP_FIRST.md)** 👈
+
+This is a one-time setup that takes 2 minutes. After that, everything is automatic!
+
+---
+
 ## 🎯 Quick Deploy (10 Minutes)
 
 Get your production server running with **zero manual configuration**:
 
 ```bash
-1. Add 5 GitHub Secrets → 2. Click "Run Workflow" → 3. Access your app!
+Step 1: Add 5 GitHub Secrets (2 min) → Step 2: Run Setup Workflow (8 min) → Step 3: Access Your App!
 ```
 
 **[📖 See QUICKSTART.md](QUICKSTART.md)** for the complete 3-step guide.
@@ -28,6 +40,12 @@ Get your production server running with **zero manual configuration**:
 - ✅ **Database Migrations** - Automatic on deployment
 
 **Total Time**: ~10 minutes | **Manual Steps**: Add secrets + Click button
+
+### 📚 Setup Documentation
+- 🚨 **[SETUP_FIRST.md](SETUP_FIRST.md)** - Start here if deployment fails!
+- 📖 **[QUICKSTART.md](QUICKSTART.md)** - 3-step deployment guide
+- 📋 **[docs/VPS_AUTO_SETUP.md](docs/VPS_AUTO_SETUP.md)** - Complete reference
+- ✅ **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)** - Verification checklist
 
 ## ✨ Key Highlights
 

@@ -17,6 +17,47 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Verify Required Secrets
+        run: |
+          echo "🔍 Verifying GitHub Secrets..."
+          MISSING=0
+          
+          if [ -z "${{ secrets.VPS_HOST }}" ]; then
+            echo "❌ VPS_HOST is not set"
+            MISSING=1
+          fi
+          
+          if [ -z "${{ secrets.VPS_USERNAME }}" ]; then
+            echo "❌ VPS_USERNAME is not set"
+            MISSING=1
+          fi
+          
+          if [ -z "${{ secrets.VPS_PASSWORD }}" ]; then
+            echo "❌ VPS_PASSWORD is not set"
+            MISSING=1
+          fi
+          
+          if [ -z "${{ secrets.EMAIL_USER }}" ]; then
+            echo "❌ EMAIL_USER is not set"
+            MISSING=1
+          fi
+          
+          if [ -z "${{ secrets.EMAIL_PASSWORD }}" ]; then
+            echo "❌ EMAIL_PASSWORD is not set"
+            MISSING=1
+          fi
+          
+          if [ $MISSING -eq 1 ]; then
+            echo ""
+            echo "Please add all required secrets at:"
+            echo "https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo ""
+            echo "See QUICKSTART.md or docs/GITHUB_SECRETS_SETUP.md for help"
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are configured"
+      
       - name: Checkout code
         uses: actions/checkout@v4
 
