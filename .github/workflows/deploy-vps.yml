@@ -210,7 +210,17 @@ jobs:
             
             # Run database migrations
             echo "🗄️ Running database migrations..."
-            npx sequelize-cli db:migrate --env production
+            
+            # Check if database needs initialization
+            TABLE_COUNT=$(mysql -h ${DB_HOST} -P ${DB_PORT} -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${DB_NAME}';" -ss 2>/dev/null || echo "0")
+            
+            if [ "$TABLE_COUNT" = "0" ]; then
+              echo "📊 Database is empty - running all migrations from scratch..."
+              npx sequelize-cli db:migrate --env production
+            else
+              echo "📊 Database has ${TABLE_COUNT} tables - running pending migrations..."
+              npx sequelize-cli db:migrate --env production
+            fi
             
             # Reload Nginx if configuration changed
             echo "🔄 Reloading Nginx..."
