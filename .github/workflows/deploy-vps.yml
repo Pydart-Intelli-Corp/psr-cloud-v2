@@ -14,7 +14,7 @@ jobs:
       - name: Verify Required Secrets
         run: |
           if [ -z "${{ secrets.VPS_HOST }}" ] || [ -z "${{ secrets.VPS_USERNAME }}" ] || [ -z "${{ secrets.VPS_PASSWORD }}" ]; then
-            echo "❌ ERROR: Required GitHub Secrets are not configured!"
+            echo "❌ ERROR: Required VPS secrets are not configured!"
             echo ""
             echo "Please add the following secrets to your repository:"
             echo "  1. VPS_HOST - Your VPS IP address"
@@ -26,7 +26,13 @@ jobs:
             echo "For help, see: docs/GITHUB_SECRETS_SETUP.md or QUICKSTART.md"
             exit 1
           fi
-          echo "✅ All required secrets are configured"
+          if [ -z "${{ secrets.GH_PAT }}" ]; then
+            echo "⚠️  WARNING: GH_PAT secret not configured!"
+            echo "The built-in GITHUB_TOKEN will be used for git operations."
+            echo "If deployment fails, create a Personal Access Token and add it as GH_PAT secret."
+            echo ""
+          fi
+          echo "✅ Required secrets are configured"
       
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,11 +53,15 @@ jobs:
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          REPO_URL: ${{ github.repository }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
+          envs: GITHUB_TOKEN,REPO_URL
           script: |
             set -e
             
@@ -89,13 +99,18 @@ jobs:
                 cp -r .* /tmp/psr-v4-backup/ 2>/dev/null || true
               fi
               
-              # Initialize git and pull from remote
+              # Initialize git and pull from remote with authentication
               git init
-              git remote add origin https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git
+              git config credential.helper store
+              echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
+              git remote add origin https://github.com/${REPO_URL}.git
               git fetch origin
               git reset --hard origin/master
               
               echo "✅ Repository initialized successfully"
+            else
+              # Update remote URL to use token authentication
+              git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_URL}.git
             fi
             
             # Pull latest changes
