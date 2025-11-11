@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Shield, Eye, EyeOff, AlertCircle, CheckCircle, Settings, Lock, Mail, Milk } from 'lucide-react';
 import Link from 'next/link';
 import { FlowerSpinner } from '@/components';
+import { checkAuthAndRedirect, getDashboardRoute } from '@/lib/clientAuth';
 
 // Custom CSS to force text visibility
 const inputStyle = `
@@ -108,12 +109,8 @@ const AdminLoginPage = () => {
 
   // Check if already logged in as admin
   useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    const userRole = localStorage.getItem('userRole');
-    
-    if (token && (userRole === 'admin' || userRole === 'super_admin')) {
-      router.push('/superadmin/dashboard');
-    }
+    // Check if user has valid session and redirect to dashboard if so
+    checkAuthAndRedirect(router).catch(console.error);
   }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,9 +152,10 @@ const AdminLoginPage = () => {
 
         setIsLoggedIn(true);
         
-        // Redirect to admin dashboard
+        // Redirect to appropriate dashboard based on role
         setTimeout(() => {
-          router.push('/superadmin/dashboard');
+          const dashboardRoute = getDashboardRoute(user.role);
+          router.push(dashboardRoute);
         }, 1000);
 
       } else {

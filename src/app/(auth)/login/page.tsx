@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, AlertCircle, CheckCircle, Mail, Lock } from 'lucide-react';
 import EmailVerificationPrompt from '@/components/auth/EmailVerificationPrompt';
 import { FlowerSpinner } from '@/components';
+import { checkAuthAndRedirect, getDashboardRoute } from '@/lib/clientAuth';
 
 // Custom CSS to force text visibility and styling
 const inputStyle = `
@@ -150,28 +151,20 @@ const LoginPage = () => {
     };
   }, []);
 
-  // Check if already logged in - DISABLED TO PREVENT REDIRECT LOOP
+  // Check if already logged in - Only redirect if user session is valid in database
   useEffect(() => {
-    console.log('🔍 Login useEffect: Checking localStorage state');
-    const token = localStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData');
-    console.log('🔑 Login token check:', token ? 'Token exists' : 'No token found');
-    console.log('👤 Login userData check:', userData ? 'UserData exists' : 'No userData found');
+    console.log('🔍 Login useEffect: Checking user session validity');
     
-    // Note: Auto-redirect disabled to prevent redirect loop with dashboard
-    // User can manually navigate using dashboard button or direct URL access
-    if (token && userData) {
-      try {
-        const user = JSON.parse(userData);
-        console.log('� Login check - User is already logged in:', user.role);
-        console.log('� Login: User can navigate to dashboard manually or via direct URL');
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        // Clear invalid data
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userData');
+    // Check if user has valid session in database and redirect accordingly
+    checkAuthAndRedirect(router).then((redirected) => {
+      if (redirected) {
+        console.log('✅ Login: User has valid session, redirected to dashboard');
+      } else {
+        console.log('ℹ️ Login: No valid session found, staying on login page');
       }
-    }
+    }).catch((error) => {
+      console.error('❌ Login: Session verification failed:', error);
+    });
   }, [router]);
 
   // Check for verification success from URL params
@@ -307,13 +300,10 @@ const LoginPage = () => {
 
         setIsSuccess(true);
         
-        // Redirect based on role
+        // Redirect based on role using utility function
         setTimeout(() => {
-          if (user.role === 'super_admin') {
-            router.push('/superadmin/dashboard');
-          } else {
-            router.push('/admin/dashboard');
-          }
+          const dashboardRoute = getDashboardRoute(user.role);
+          router.push(dashboardRoute);
         }, 1500);
 
       } else {

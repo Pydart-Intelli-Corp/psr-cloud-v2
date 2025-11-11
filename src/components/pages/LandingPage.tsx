@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { checkAuthAndRedirect } from '@/lib/clientAuth';
 import { 
   Milk, 
   Shield, 
@@ -35,30 +36,9 @@ export default function LandingPage() {
   const [activeSection, setActiveSection] = useState('home');
   const router = useRouter();
 
-  // Redirect authenticated users to their dashboard
+  // Check if user is authenticated and redirect to appropriate dashboard
   useEffect(() => {
-    const checkAuthAndRedirect = async () => {
-      const token = localStorage.getItem('authToken');
-      const userData = localStorage.getItem('userData');
-      
-      if (token && userData) {
-        try {
-          const user = JSON.parse(userData);
-          
-          // Redirect based on role
-          if (user.role === 'super_admin') {
-            router.push('/superadmin/dashboard');
-          } else if (user.role === 'admin') {
-            router.push('/admin/dashboard');
-          }
-          // Add more roles as needed
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-        }
-      }
-    };
-
-    checkAuthAndRedirect();
+    checkAuthAndRedirect(router).catch(console.error);
   }, [router]);
 
   useEffect(() => {

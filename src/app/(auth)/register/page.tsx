@@ -7,6 +7,7 @@ import { Eye, EyeOff, Mail, Lock, User, MapPin, AlertCircle, CheckCircle, Buildi
 import Link from 'next/link';
 import { lookupPincode } from '@/lib/pincodeService';
 import { FlowerSpinner } from '@/components';
+import { checkAuthAndRedirect } from '@/lib/clientAuth';
 
 // Custom CSS to force text visibility and styling (matching login form)
 const inputStyle = `
@@ -111,19 +112,9 @@ export default function RegisterPage() {
     };
   }, []);
 
-  // Check if already logged in
+  // Check if already logged in - Only redirect if user session is valid in database
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData');
-    
-    if (token && userData) {
-      const user = JSON.parse(userData);
-      if (user.role === 'super_admin') {
-        router.push('/superadmin/dashboard');
-      } else {
-        router.push('/admin/dashboard');
-      }
-    }
+    checkAuthAndRedirect(router).catch(console.error);
   }, [router]);
 
   // Email validation function
