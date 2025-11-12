@@ -34,15 +34,20 @@ async function handleRequest(
       const { searchParams } = new URL(request.url);
       inputString = searchParams.get('InputString');
       
-      // Also try URL-decoded version in case pipes are encoded as %7C
+      console.log(`   GET Query Params:`, Object.fromEntries(searchParams.entries()));
+      
+      // Handle malformed URLs from ESP32/IoT devices (e.g., "?,InputString=...")
       if (!inputString) {
-        const rawInput = searchParams.get('InputString');
-        if (rawInput) {
-          inputString = decodeURIComponent(rawInput);
+        console.log(`   🔍 Attempting to extract InputString from malformed URL...`);
+        // Check if any param key contains "InputString" (handles ",InputString" case)
+        for (const [key, value] of searchParams.entries()) {
+          if (key.includes('InputString')) {
+            inputString = value;
+            console.log(`   ✅ Found InputString in malformed param key: "${key}" = "${value}"`);
+            break;
+          }
         }
       }
-      
-      console.log(`   GET Query Params:`, Object.fromEntries(searchParams.entries()));
     } else if (request.method === 'POST') {
       // Extract from request body for POST requests
       try {

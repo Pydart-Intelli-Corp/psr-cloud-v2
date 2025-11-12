@@ -23,6 +23,18 @@ async function handleRequest(
       // Extract from query parameters for GET requests
       const { searchParams } = new URL(request.url);
       inputString = searchParams.get('InputString');
+      
+      // Handle malformed URLs from ESP32/IoT devices (e.g., "?,InputString=...")
+      if (!inputString) {
+        // Check if any param key contains "InputString" (handles ",InputString" case)
+        for (const [key, value] of searchParams.entries()) {
+          if (key.includes('InputString')) {
+            inputString = value;
+            console.log(`   ✅ Found InputString in malformed param key: "${key}"`);
+            break;
+          }
+        }
+      }
     } else if (request.method === 'POST') {
       // Extract from request body for POST requests
       try {
@@ -150,8 +162,24 @@ async function handleRequest(
         });
       }
       
-      // Remove 'M' prefix
-      machineIdStr = machineIdStr.substring(1);
+      // Remove first capital 'M' prefix and extract actual machine ID
+      // Format: M + optional_letter + numbers
+      // Examples: Mm00001 -> m1, M00001 -> 1, Ma00005 -> a5
+      const machineIdWithoutPrefix = machineIdStr.substring(1);
+      
+      // Check if the first character after M is a letter or number
+      if (/^[a-zA-Z]/.test(machineIdWithoutPrefix)) {
+        // Has a letter (e.g., m00001, a00005)
+        const letter = machineIdWithoutPrefix.charAt(0).toLowerCase();
+        const numberPart = machineIdWithoutPrefix.substring(1);
+        const cleanedNumber = numberPart.replace(/^0+/, '') || '0';
+        machineIdStr = letter + cleanedNumber;
+      } else {
+        // No letter, just numbers (e.g., 00001)
+        machineIdStr = machineIdWithoutPrefix.replace(/^0+/, '') || '0';
+      }
+      
+      console.log(`🔄 Machine ID conversion: "${machineId}" -> "${machineIdWithoutPrefix}" -> "${machineIdStr}"`);
       
       // Validate that remaining part is alphanumeric
       if (!/^[a-zA-Z0-9]+$/.test(machineIdStr)) {
@@ -163,7 +191,7 @@ async function handleRequest(
       }
       
       // Try to parse as number for numeric IDs
-      const machineIdNum = parseInt(machineIdStr);
+      const machineIdNum = parseInt(machineIdStr.replace(/^m/i, ''));
       if (!isNaN(machineIdNum) && machineIdNum > 0) {
         // Numeric machine ID
         parsedMachineId = machineIdNum;
