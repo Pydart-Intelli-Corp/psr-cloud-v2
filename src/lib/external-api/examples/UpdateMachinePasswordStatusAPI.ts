@@ -139,12 +139,7 @@ export class UpdateMachinePasswordStatusAPI extends BaseExternalAPI<UpdateMachin
       societyValidation.numericId
     );
 
-    const machineFilter = QueryBuilder.buildMachineFilter(
-      input.machineId,
-      machineValidation.numericId!,
-      machineValidation.withoutPrefix!,
-      machineValidation.strippedId!
-    );
+    const machineFilter = QueryBuilder.buildMachineFilter(machineValidation);
 
     // Find the machine to update
     const { query: findQuery, replacements: findReplacements } = QueryBuilder.buildMachinePasswordQuery(

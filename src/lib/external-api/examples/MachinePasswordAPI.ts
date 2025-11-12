@@ -123,12 +123,7 @@ export class MachinePasswordAPI extends BaseExternalAPI<MachinePasswordInput, Ma
       societyValidation.numericId
     );
 
-    const machineFilter = QueryBuilder.buildMachineFilter(
-      input.machineId,
-      machineValidation.numericId!,
-      machineValidation.withoutPrefix!,
-      machineValidation.strippedId!
-    );
+    const machineFilter = QueryBuilder.buildMachineFilter(machineValidation);
 
     // Build and execute query
     const { query, replacements } = QueryBuilder.buildMachinePasswordQuery(

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/database';
+import { ESP32ResponseHelper, InputValidator } from '@/lib/external-api';
 
 /**
  * CloudTest API Endpoint
@@ -19,17 +20,14 @@ async function handleRequest(
     const resolvedParams = await params;
     const dbKey = resolvedParams['db-key'] || resolvedParams.dbKey || resolvedParams['dbkey'];
 
-    console.log(`🔍 CloudTest API Request - Full URL: ${request.url}`);
-    console.log(`🔍 Method: ${request.method}`);
-    console.log(`🔍 DB Key: "${dbKey}"`);
+    // Log request with ESP32ResponseHelper
+    ESP32ResponseHelper.logRequest(request, dbKey, null);
 
-    // Validate DB Key is provided
-    if (!dbKey || dbKey.trim() === '') {
+    // Validate DB Key using InputValidator
+    const dbKeyValidation = InputValidator.validateDbKey(dbKey);
+    if (!dbKeyValidation.isValid) {
       console.log(`❌ DB Key validation failed - dbKey: "${dbKey}"`);
-      return new Response('"DB Key is required"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse(dbKeyValidation.error || 'DB Key is required');
     }
 
     // Connect to database and validate DB Key
@@ -44,26 +42,17 @@ async function handleRequest(
 
     if (!admin || !admin.dbKey) {
       console.log(`❌ Admin not found or missing DB Key for: ${dbKey}`);
-      return new Response('"Invalid DB Key"', { 
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
     console.log(`✅ CloudTest successful for admin: ${admin.fullName} (${admin.dbKey})`);
 
-    // Return success response
-    return new Response('"Cloud test OK"', { 
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    // Return success response using ESP32ResponseHelper
+    return ESP32ResponseHelper.createResponse('Cloud test OK');
 
   } catch (error) {
     console.error('❌ CloudTest API Error:', error);
-    return new Response('"Cloud test failed"', { 
-      status: 500,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    return ESP32ResponseHelper.createErrorResponse('Cloud test failed');
   }
 }
 
@@ -80,4 +69,8 @@ export async function POST(
   context: { params: Promise<Record<string, string>> }
 ) {
   return handleRequest(request, context);
+}
+
+export async function OPTIONS() {
+  return ESP32ResponseHelper.createCORSResponse();
 }

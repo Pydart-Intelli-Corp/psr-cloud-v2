@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/database';
 import { requestLogger, extractRequestMetadata } from '@/lib/monitoring/requestLogger';
+import { 
+  ESP32ResponseHelper, 
+  InputValidator, 
+  QueryBuilder,
+  ResponseFormatter 
+} from '@/lib/external-api';
 
 interface FarmerInfoResult {
   rf_id: string;
@@ -15,85 +21,57 @@ interface SocietyLookupResult {
   id: number;
 }
 
+/**
+ * GetLatestFarmerInfo API Endpoint
+ * 
+ * Purpose: Retrieve farmer information for a society/machine
+ * InputString format: 
+ * - Pagination: societyId|machineType|version|machineId|C00001 (page 1)
+ * - CSV: societyId|machineType|version|machineId|D (download all)
+ * 
+ * Endpoint: GET/POST /api/[db-key]/FarmerInfo/GetLatestFarmerInfo
+ */
+
 async function handleRequest(
   request: NextRequest,
   { params }: { params: Promise<Record<string, string>> }
 ) {
   try {
-    let inputString: string | null = null;
-    
-    // Log request details for debugging Quectel 4G module issues
-    console.log(`📡 External API Request Details:`);
-    console.log(`   Method: ${request.method}`);
-    console.log(`   Full URL: ${request.url}`);
-    console.log(`   Headers:`, Object.fromEntries(request.headers.entries()));
-    
-    // Handle both GET and POST requests
-    if (request.method === 'GET') {
-      // Extract from query parameters for GET requests
-      const { searchParams } = new URL(request.url);
-      inputString = searchParams.get('InputString');
-      
-      console.log(`   GET Query Params:`, Object.fromEntries(searchParams.entries()));
-      
-      // Handle malformed URLs from ESP32/IoT devices (e.g., "?,InputString=...")
-      if (!inputString) {
-        console.log(`   🔍 Attempting to extract InputString from malformed URL...`);
-        // Check if any param key contains "InputString" (handles ",InputString" case)
-        for (const [key, value] of searchParams.entries()) {
-          if (key.includes('InputString')) {
-            inputString = value;
-            console.log(`   ✅ Found InputString in malformed param key: "${key}" = "${value}"`);
-            break;
-          }
-        }
-      }
-    } else if (request.method === 'POST') {
-      // Extract from request body for POST requests
-      try {
-        const body = await request.json();
-        inputString = body.InputString || null;
-        console.log(`   POST JSON Body:`, body);
-      } catch (error) {
-        // If JSON parsing fails, try form data
-        try {
-          const formData = await request.formData();
-          inputString = formData.get('InputString') as string || null;
-          console.log(`   POST Form Data:`, Object.fromEntries(formData.entries()));
-        } catch {
-          console.log(`❌ Failed to parse POST body:`, error);
-        }
-      }
-    }
+    // Extract InputString using helper
+    let inputString = await ESP32ResponseHelper.extractInputString(request);
     
     // Await the params Promise in Next.js 15
     const resolvedParams = await params;
     const dbKey = resolvedParams['db-key'] || resolvedParams.dbKey || resolvedParams['dbkey'];
 
-    console.log(`🔍 Parsed Values:`);
-    console.log(`   DB Key: "${dbKey}" (type: ${typeof dbKey}, length: ${dbKey?.length})`);
-    console.log(`   InputString: "${inputString}"`);
+    // Filter line endings from InputString
+    if (inputString) {
+      inputString = ESP32ResponseHelper.filterLineEndings(inputString);
+    }
+
+    // Log request
+    ESP32ResponseHelper.logRequest(request, dbKey, inputString);
 
     // Validate required parameters
     if (!dbKey || dbKey.trim() === '') {
       console.log(`❌ DB Key validation failed - dbKey: "${dbKey}"`);
-      return new Response('DB Key is required', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('DB Key is required');
     }
 
     if (!inputString) {
-      return new Response('InputString parameter is required', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('InputString parameter is required');
     }
 
     // PRIORITY 1: Connect to database and validate DB Key first
     await connectDB();
     const { getModels } = await import('@/models');
     const { sequelize, User } = getModels();
+
+    // Validate DB key format
+    const dbKeyValidation = InputValidator.validateDbKey(dbKey);
+    if (!dbKeyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse(dbKeyValidation.error || 'Invalid DB Key');
+    }
 
     // Find admin by dbKey to get schema name
     const admin = await User.findOne({ 
@@ -102,10 +80,7 @@ async function handleRequest(
 
     if (!admin || !admin.dbKey) {
       console.log(`❌ Admin not found or missing DB Key for: ${dbKey}`);
-      return new Response('"Invalid DB Key"', { 
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
     // Parse input string format: 333|ECOD|LE2.00|M00000001|C00001 or 333|ECOD|LE2.00|M00000001
@@ -116,10 +91,7 @@ async function handleRequest(
     const isPaginatedRequest = inputParts.length === 5;
     
     if (!isCSVDownload && !isPaginatedRequest) {
-      return new Response('Invalid InputString format. Expected: societyId|machineType|version|machineId or societyId|machineType|version|machineId|pageNumber', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Invalid InputString format. Expected: societyId|machineType|version|machineId or societyId|machineType|version|machineId|pageNumber');
     }
 
     const [societyIdStr, machineType, machineModel, machineId, lengthParam] = inputParts;
@@ -147,9 +119,16 @@ async function handleRequest(
     
     if (!Array.isArray(societyResults) || societyResults.length === 0) {
       console.log(`❌ No society found for society_id: "${societyIdStr}"`);
-      return new Response('"Failed to download farmer. Invalid token."', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
+      const msg = 'Failed to download farmer. Invalid token.';
+      return new Response(msg, { 
+        status: 200,
+        headers: { 
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
+          'Connection': 'close',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*'
+        }
       });
     }
     
@@ -166,9 +145,16 @@ async function handleRequest(
       // Validate machine ID format (must start with M)
       if (!machineIdStr.startsWith('M') || machineIdStr.length < 2) {
         console.log(`❌ Invalid machine ID format: "${machineId}"`);
-        return new Response('"Failed to download farmer. Invalid machine details."', { 
-          status: 400,
-          headers: { 'Content-Type': 'text/plain' }
+        const msg = 'Failed to download farmer. Invalid machine details.';
+        return new Response(msg, { 
+          status: 200,
+          headers: { 
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
+            'Connection': 'close',
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*'
+          }
         });
       }
       
@@ -178,9 +164,16 @@ async function handleRequest(
       // Validate that remaining part is alphanumeric
       if (!/^[a-zA-Z0-9]+$/.test(machineIdStr)) {
         console.log(`❌ Invalid machine ID format: "${machineId}" - contains invalid characters`);
-        return new Response('"Failed to download farmer. Invalid machine details."', { 
-          status: 400,
-          headers: { 'Content-Type': 'text/plain' }
+        const msg = 'Failed to download farmer. Invalid machine details.';
+        return new Response(msg, { 
+          status: 200,
+          headers: { 
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
+            'Connection': 'close',
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*'
+          }
         });
       }
       
@@ -203,9 +196,16 @@ async function handleRequest(
     } else {
       // Machine ID is required
       console.log(`❌ Machine ID is required but not provided`);
-      return new Response('"Failed to download farmer. Invalid machine details."', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
+      const msg = 'Failed to download farmer. Invalid machine details.';
+      return new Response(msg, { 
+        status: 200,
+        headers: { 
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
+          'Connection': 'close',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*'
+        }
       });
     }
     
@@ -291,9 +291,16 @@ async function handleRequest(
 
     if (farmers.length === 0) {
       console.log(`ℹ️ No active farmers found for society ${actualSocietyId} in schema ${schemaName}`);
-      return new Response('"Farmer info not found."', { 
+      const msg = 'Farmer info not found.';
+      return new Response(msg, { 
         status: 200,
-        headers: { 'Content-Type': 'text/plain' }
+        headers: { 
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
+          'Connection': 'close',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*'
+        }
       });
     }
 
@@ -383,12 +390,7 @@ async function handleRequest(
 
   } catch (error) {
     console.error('❌ Error in GetLatestFarmerInfo API:', error);
-    
-    // Return generic error message for external API
-    return new Response('Internal server error', { 
-      status: 500,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    return ESP32ResponseHelper.createErrorResponse('Internal server error');
   }
 }
 
@@ -528,12 +530,5 @@ export async function POST(
 
 // Handle OPTIONS request for CORS
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+  return ESP32ResponseHelper.createCORSResponse();
 }

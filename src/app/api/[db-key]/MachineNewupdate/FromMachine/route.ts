@@ -1,5 +1,10 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/database';
+import { 
+  ESP32ResponseHelper, 
+  InputValidator, 
+  QueryBuilder 
+} from '@/lib/external-api';
 
 /**
  * MachineNewupdate FromMachine API Endpoint
@@ -35,114 +40,33 @@ async function handleRequest(
   { params }: { params: Promise<Record<string, string>> }
 ) {
   try {
-    let inputString: string | null = null;
+    // Extract InputString using ESP32ResponseHelper
+    let inputString = await ESP32ResponseHelper.extractInputString(request);
     
-    // Log request details for debugging
-    console.log(`\n${'='.repeat(80)}`);
-    console.log(`📡 MachineNewupdate FromMachine API Request:`);
-    console.log(`   Timestamp: ${new Date().toISOString()}`);
-    console.log(`   Method: ${request.method}`);
-    console.log(`   Full URL: ${request.url}`);
-    console.log(`   Headers:`, {
-      'user-agent': request.headers.get('user-agent'),
-      'content-type': request.headers.get('content-type'),
-      'connection': request.headers.get('connection'),
-      'host': request.headers.get('host')
-    });
-    
-    // Handle both GET and POST requests
-    if (request.method === 'GET') {
-      // Extract from query parameters for GET requests
-      const { searchParams } = new URL(request.url);
-      inputString = searchParams.get('InputString');
-      console.log(`   GET Query Params:`, Object.fromEntries(searchParams.entries()));
-      
-      // Fallback: If InputString is null, try parsing from raw URL (handles malformed URLs from ESP32)
-      if (!inputString) {
-        const url = request.url;
-        console.log(`   🔍 Attempting to extract InputString from raw URL...`);
-        
-        // First, check if searchParams has a key that includes "InputString" (e.g., ",InputString")
-        for (const [key, value] of searchParams.entries()) {
-          if (key.includes('InputString')) {
-            inputString = value;
-            console.log(`   ✅ Found InputString in malformed param key: "${key}" = "${inputString}"`);
-            break;
-          }
-        }
-        
-        // If still not found, try regex patterns
-        if (!inputString) {
-          // Handle various malformed URL formats from ESP32:
-          // ?%2CInputString= (URL-encoded comma)
-          // ?,InputString= (comma before param)
-          // ?InputString= (correct format)
-          const inputStringMatch = url.match(/\?(?:%2C|,)?InputString=([^&]*)/i);
-          if (inputStringMatch) {
-            inputString = decodeURIComponent(inputStringMatch[1]);
-            console.log(`   ✅ Extracted InputString from malformed URL: "${inputString}"`);
-          } else {
-            console.log(`   ❌ Could not extract InputString from URL`);
-          }
-        }
-      }
-    } else if (request.method === 'POST') {
-      // Extract from request body for POST requests
-      try {
-        const body = await request.json();
-        inputString = body.InputString || null;
-        console.log(`   POST JSON Body:`, body);
-      } catch (error) {
-        // If JSON parsing fails, try form data
-        try {
-          const formData = await request.formData();
-          inputString = formData.get('InputString') as string || null;
-          console.log(`   POST Form Data:`, Object.fromEntries(formData.entries()));
-        } catch {
-          console.log(`❌ Failed to parse POST body:`, error);
-        }
-      }
-    }
-    
-    // Await the params Promise in Next.js 15
+    // Get DB Key from params
     const resolvedParams = await params;
     const dbKey = resolvedParams['db-key'] || resolvedParams.dbKey || resolvedParams['dbkey'];
 
-    console.log(`🔍 Parsed Values:`);
-    console.log(`   DB Key: "${dbKey}"`);
-    console.log(`   InputString (raw): "${inputString}"`);
-
-    // Filter out line ending characters from InputString if present
+    // Filter line endings from InputString
     if (inputString) {
-      const originalInputString = inputString;
-      // Remove common line ending patterns: $0D (CR), $0A (LF), $0D$0A (CRLF)
-      inputString = inputString
-        .replace(/\$0D\$0A/g, '')  // Remove $0D$0A (CRLF)
-        .replace(/\$0D/g, '')      // Remove $0D (CR) 
-        .replace(/\$0A/g, '')      // Remove $0A (LF)
-        .replace(/\r\n/g, '')      // Remove actual CRLF characters
-        .replace(/\r/g, '')        // Remove actual CR characters
-        .replace(/\n/g, '');       // Remove actual LF characters
-      
-      if (originalInputString !== inputString) {
-        console.log(`🧹 Filtered line endings: "${originalInputString}" -> "${inputString}"`);
-      }
+      inputString = ESP32ResponseHelper.filterLineEndings(inputString);
     }
 
-    // Validate required parameters
-    if (!dbKey || dbKey.trim() === '') {
-      console.log(`❌ DB Key validation failed`);
-      return new Response('"DB Key is required"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+    // Log request
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`📡 MachineNewupdate FromMachine API Request:`);
+    console.log(`   Timestamp: ${new Date().toISOString()}`);
+    ESP32ResponseHelper.logRequest(request, dbKey, inputString);
+
+    // Validate DB Key
+    const dbKeyValidation = InputValidator.validateDbKey(dbKey);
+    if (!dbKeyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse(dbKeyValidation.error || 'DB Key is required');
     }
 
+    // Validate InputString is provided
     if (!inputString) {
-      return new Response('"InputString parameter is required"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('InputString parameter is required');
     }
 
     // Connect to database and validate DB Key
@@ -157,10 +81,7 @@ async function handleRequest(
 
     if (!admin || !admin.dbKey) {
       console.log(`❌ Admin not found for DB Key: ${dbKey}`);
-      return new Response('"Invalid DB Key"', { 
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
     // Parse input string format: S-1|LSE-SVPWTBQ-12AH|LE3.36|Mm00001|D2025-11-12_10:59:09
@@ -168,10 +89,7 @@ async function handleRequest(
     
     if (inputParts.length !== 5) {
       console.log(`❌ Invalid InputString format. Expected 5 parts, got ${inputParts.length}`);
-      return new Response('"Invalid InputString format. Expected: societyId|machineType|version|machineId|datetime"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Invalid InputString format');
     }
 
     const [societyIdStr, machineType, machineModel, machineId, datetime] = inputParts;
@@ -183,75 +101,43 @@ async function handleRequest(
       machineId, 
       datetime 
     });
+
+    // Validate components using InputValidator
+    const societyValidation = InputValidator.validateSocietyId(societyIdStr);
+    if (!societyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+    }
+
+    const machineValidation = InputValidator.validateMachineId(machineId);
+    if (!machineValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Invalid machine ID format');
+    }
     
     // Validate Society ID and find actual database ID
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
     
-    // Look up society by society_id field to get the actual database ID
-    const societyQuery = `
-      SELECT id FROM \`${schemaName}\`.societies 
-      WHERE society_id = ? OR society_id = ?
-      LIMIT 1
-    `;
+    // Look up society using QueryBuilder
+    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+      schemaName,
+      societyValidation.id
+    );
     
-    // Try both with and without S- prefix
-    const societyLookupParams = societyIdStr.startsWith('S-') 
-      ? [societyIdStr, societyIdStr.substring(2)]
-      : [`S-${societyIdStr}`, societyIdStr];
-    
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyLookupParams });
+    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
     
     if (!Array.isArray(societyResults) || societyResults.length === 0) {
       console.log(`❌ Society not found: "${societyIdStr}"`);
-      return new Response('"Invalid society ID"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
     }
     
     const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
     console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
-    // Validate Machine ID
-    if (!machineId || !machineId.startsWith('M')) {
-      console.log(`❌ Invalid machine ID format: "${machineId}"`);
-      return new Response('"Invalid machine ID format"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
-    }
-
-    // Remove first capital 'M' prefix and extract the actual machine ID
-    // Format: M + optional_letter + numbers
-    // Examples: Mm00001 -> m1, M00001 -> 1, Ma00005 -> a5
-    const machineIdWithoutPrefix = machineId.substring(1); // Remove first 'M'
+    // Try to find the machine in the database
+    const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
     
-    // Check if the first character after M is a letter or number
-    let machineIdCleaned: string;
-    if (/^[a-zA-Z]/.test(machineIdWithoutPrefix)) {
-      // Has a letter (e.g., m00001, a00005)
-      const letter = machineIdWithoutPrefix.charAt(0).toLowerCase();
-      const numberPart = machineIdWithoutPrefix.substring(1);
-      const cleanedNumber = numberPart.replace(/^0+/, '') || '0';
-      machineIdCleaned = letter + cleanedNumber;
-    } else {
-      // No letter, just numbers (e.g., 00001)
-      machineIdCleaned = machineIdWithoutPrefix.replace(/^0+/, '') || '0';
-    }
+    console.log(`🔄 Machine ID conversion: "${machineId}" -> "${machineIdCleaned}"`);
     
-    console.log(`🔄 Machine ID conversion: "${machineId}" -> "${machineIdWithoutPrefix}" -> "${machineIdCleaned}"`);
-    
-    // Validate that remaining part is alphanumeric
-    if (!/^[a-zA-Z0-9]+$/.test(machineIdCleaned)) {
-      console.log(`❌ Invalid machine ID: "${machineId}" - contains invalid characters`);
-      return new Response('"Invalid machine ID format"', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
-    }
-
-    // Try to find the machine in the database (case-insensitive)
     const machineQuery = `
       SELECT id, machine_id, society_id 
       FROM \`${schemaName}\`.machines 
@@ -325,16 +211,7 @@ async function handleRequest(
 
     console.log(`✅ Response: "${responseText}"`);
 
-    return new Response(responseText, { 
-      status: 200,
-      headers: { 
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Content-Length': String(responseText.length),
-        'Connection': 'close',
-        'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
+    return ESP32ResponseHelper.createDataResponse(responseText);
 
   } catch (error) {
     console.error('❌ MachineNewupdate FromMachine API Error:', error);
@@ -357,14 +234,7 @@ async function handleRequest(
     const formattedTimestamp = `${day}-${month}-${year} ${hoursStr}:${minutes}:${seconds} ${ampm}`;
     const errorResponse = `${formattedTimestamp}|Error`;
     
-    return new Response(errorResponse, { 
-      status: 200, // Always return 200 so ESP32 can parse response
-      headers: { 
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Content-Length': String(errorResponse.length),
-        'Connection': 'close'
-      }
-    });
+    return ESP32ResponseHelper.createDataResponse(errorResponse);
   }
 }
 
@@ -381,4 +251,8 @@ export async function POST(
   context: { params: Promise<Record<string, string>> }
 ) {
   return handleRequest(request, context);
+}
+
+export async function OPTIONS() {
+  return ESP32ResponseHelper.createCORSResponse();
 }

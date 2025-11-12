@@ -113,12 +113,7 @@ export class FarmerInfoAPI extends BaseExternalAPI<FarmerInfoInput, FarmerResult
       societyValidation.numericId
     );
 
-    const machineFilter = QueryBuilder.buildMachineFilter(
-      input.machineId,
-      machineValidation.numericId!,
-      machineValidation.withoutPrefix!,
-      machineValidation.strippedId!
-    );
+    const machineFilter = QueryBuilder.buildMachineFilter(machineValidation);
 
     // Handle pagination
     let pagination: { limit: number; offset: number } | undefined;

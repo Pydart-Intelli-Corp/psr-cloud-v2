@@ -29,28 +29,53 @@ export class QueryBuilder {
 
   /**
    * Build machine filter conditions for WHERE clause
+   * Supports both numeric and alphanumeric machine IDs
+   * 
+   * @param machineValidation - Result from InputValidator.validateMachineId()
+   * @param useNumericId - Whether to use numeric ID (m.id) or string ID (m.machine_id)
    */
   static buildMachineFilter(
-    machineId: string,
-    numericId: number,
-    withoutPrefix: string,
-    strippedId: string
+    machineValidation: {
+      numericId?: number;
+      alphanumericId?: string;
+      variants?: (string | number)[];
+      isNumeric?: boolean;
+    },
+    useNumericId: boolean = true
   ): {
     condition: string;
     replacements: (string | number)[];
   } {
-    // Support multiple machine ID formats:
-    // 1. Numeric ID matching (m.id = 1)
-    // 2. Full machine ID (m.machine_id = 'M00001')
-    // 3. Without M prefix (m.machine_id = '00001')
-    // 4. Stripped version (m.machine_id = '1')
+    // For numeric machine IDs (backward compatibility)
+    if (machineValidation.isNumeric && machineValidation.numericId && useNumericId) {
+      // Direct numeric ID matching: m.id = 1
+      return {
+        condition: 'm.id = ?',
+        replacements: [machineValidation.numericId]
+      };
+    }
     
-    const condition = '(m.id = ? OR m.machine_id = ? OR m.machine_id = ? OR m.machine_id = ?)';
-    
-    return {
-      condition,
-      replacements: [numericId, machineId, withoutPrefix, strippedId]
-    };
+    // For alphanumeric machine IDs or string-based matching
+    if (machineValidation.variants && machineValidation.variants.length > 0) {
+      // Use IN clause with all variants
+      const placeholders = machineValidation.variants.map(() => '?').join(', ');
+      
+      return {
+        condition: `m.machine_id IN (${placeholders})`,
+        replacements: machineValidation.variants
+      };
+    }
+
+    // Fallback to direct alphanumeric matching
+    if (machineValidation.alphanumericId) {
+      return {
+        condition: 'm.machine_id = ?',
+        replacements: [machineValidation.alphanumericId]
+      };
+    }
+
+    // Final fallback - should not reach here if validation passed
+    throw new Error('Invalid machine validation result for query building');
   }
 
   /**
@@ -92,7 +117,8 @@ export class QueryBuilder {
     let query = `
       SELECT 
         f.id, 
-        f.farmer_id, 
+        f.farmer_id,
+        f.rf_id, 
         f.name, 
         f.phone, 
         f.sms_enabled, 
@@ -151,6 +177,35 @@ export class QueryBuilder {
     ];
 
     return { query, replacements };
+  }
+
+  /**
+   * Build society lookup query to get database ID from society_id string
+   */
+  static buildSocietyLookupQuery(
+    schemaName: string,
+    societyIdStr: string
+  ): {
+    query: string;
+    replacements: string[];
+  } {
+    const escapedSchema = QueryBuilder.escapeIdentifier(schemaName);
+    
+    // Try both with and without S- prefix
+    const lookupParams = societyIdStr.startsWith('S-') 
+      ? [societyIdStr, societyIdStr.substring(2)]
+      : [`S-${societyIdStr}`, societyIdStr];
+    
+    const query = `
+      SELECT id FROM ${escapedSchema}.societies 
+      WHERE society_id = ? OR society_id = ?
+      LIMIT 1
+    `;
+
+    return {
+      query,
+      replacements: lookupParams
+    };
   }
 
   /**

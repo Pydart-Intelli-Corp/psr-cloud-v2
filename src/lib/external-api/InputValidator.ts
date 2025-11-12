@@ -46,13 +46,25 @@ export class InputValidator {
   }
 
   /**
-   * Validate and parse machine ID (handles M prefix format)
+   * Validate and parse machine ID (handles M prefix format with optional letter)
+   * 
+   * Supports multiple formats:
+   * - M00001 -> 1 (numeric)
+   * - Mm00001 -> m1 (alphanumeric with letter)
+   * - Ma00005 -> a5 (alphanumeric with letter)
+   * - M0000df -> df (fully alphanumeric)
+   * 
+   * @param machineId - Machine ID with M prefix
+   * @returns Validation result with parsed IDs and variants
    */
   static validateMachineId(machineId: string): {
     isValid: boolean;
     numericId?: number;
+    alphanumericId?: string;
     withoutPrefix?: string;
     strippedId?: string;
+    variants?: (string | number)[];
+    isNumeric?: boolean;
     error?: string;
   } {
     if (!machineId || machineId.trim() === '') {
@@ -62,7 +74,7 @@ export class InputValidator {
       };
     }
 
-    // Validate machine ID format (must start with M followed by digits)
+    // Validate machine ID format (must start with M)
     if (!machineId.startsWith('M') || machineId.length < 2) {
       return {
         isValid: false,
@@ -70,34 +82,89 @@ export class InputValidator {
       };
     }
 
-    // Remove 'M' prefix
+    // Remove first 'M' prefix and extract actual machine ID
+    // Format: M + optional_letter + numbers
+    // Examples: Mm00001 -> m00001, M00001 -> 00001, Ma00005 -> a00005
     const withoutPrefix = machineId.substring(1);
     
-    // Extract numeric part and remove leading zeros
-    const machineNumericMatch = withoutPrefix.match(/\d+/);
-    let numericId: number;
-    
-    if (machineNumericMatch) {
-      numericId = parseInt(machineNumericMatch[0]);
-    } else {
-      // Fallback to original parsing if no numeric match
-      numericId = parseInt(withoutPrefix);
-    }
-    
-    if (isNaN(numericId) || numericId <= 0) {
+    // Validate that remaining part is alphanumeric
+    if (!/^[a-zA-Z0-9]+$/.test(withoutPrefix)) {
       return {
         isValid: false,
-        error: `Invalid machine ID: "${machineId}" - must be a positive number`
+        error: `Invalid machine ID format: "${machineId}" - contains invalid characters`
       };
     }
+    
+    let processedId: string;
+    let isNumeric = false;
+    let numericId: number | undefined;
+    let alphanumericId: string | undefined;
+    
+    // Check if the first character after M is a letter or number
+    if (/^[a-zA-Z]/.test(withoutPrefix)) {
+      // Has a letter (e.g., m00001, a00005, df)
+      const letter = withoutPrefix.charAt(0).toLowerCase();
+      const remainingPart = withoutPrefix.substring(1);
+      
+      // Check if remaining part is numeric or alphanumeric
+      if (/^\d+$/.test(remainingPart)) {
+        // Numeric part after letter: m00001 -> m1
+        const cleanedNumber = remainingPart.replace(/^0+/, '') || '0';
+        processedId = letter + cleanedNumber;
+        alphanumericId = processedId;
+      } else {
+        // Fully alphanumeric: 0000df -> df (after removing leading zeros)
+        processedId = withoutPrefix.replace(/^0+/, '') || withoutPrefix;
+        alphanumericId = processedId;
+      }
+    } else {
+      // No letter, just numbers (e.g., 00001 -> 1)
+      processedId = withoutPrefix.replace(/^0+/, '') || '0';
+      const parsed = parseInt(processedId);
+      
+      if (!isNaN(parsed) && parsed > 0) {
+        isNumeric = true;
+        numericId = parsed;
+      } else {
+        return {
+          isValid: false,
+          error: `Invalid machine ID: "${machineId}" - invalid numeric format`
+        };
+      }
+    }
 
-    const strippedId = numericId.toString();
+    console.log(`🔄 Machine ID conversion: "${machineId}" -> "${withoutPrefix}" -> "${processedId}"`);
+
+    // Create variants for flexible database matching
+    const variants: (string | number)[] = [];
+    
+    if (isNumeric && numericId) {
+      // Numeric ID variants
+      variants.push(numericId);           // Numeric: 1
+      variants.push(machineId);           // Original: M00001
+      variants.push(withoutPrefix);       // Without M: 00001
+      variants.push(processedId);         // Stripped: 1
+      variants.push(String(numericId));   // String numeric: "1"
+    } else if (alphanumericId) {
+      // Alphanumeric ID variants
+      variants.push(alphanumericId);      // Processed: m1, df
+      variants.push(withoutPrefix);       // Without M: m00001, 0000df
+      
+      // Add stripped version if different
+      const strippedVersion = withoutPrefix.replace(/^0+/, '');
+      if (strippedVersion && strippedVersion !== alphanumericId && strippedVersion !== withoutPrefix) {
+        variants.push(strippedVersion);
+      }
+    }
 
     return {
       isValid: true,
       numericId,
+      alphanumericId,
       withoutPrefix,
-      strippedId
+      strippedId: processedId,
+      variants,
+      isNumeric
     };
   }
 

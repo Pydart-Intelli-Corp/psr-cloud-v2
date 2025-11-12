@@ -1,5 +1,10 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/database';
+import { 
+  ESP32ResponseHelper, 
+  InputValidator, 
+  QueryBuilder 
+} from '@/lib/external-api';
 
 interface MachinePasswordResult {
   id: number;
@@ -11,391 +16,177 @@ interface MachinePasswordResult {
   society_string_id?: string;
 }
 
+/**
+ * GetLatestMachinePassword API Endpoint
+ * 
+ * Purpose: Retrieve machine user/supervisor password
+ * InputString format: societyId|machineType|version|machineId|passwordType
+ * Example: 333|ECOD|LE3.34|M00001|U or S-s12|DPST-G|LE2.00|Mm00005|S
+ * 
+ * Endpoint: GET/POST /api/[db-key]/MachinePassword/GetLatestMachinePassword
+ */
+
 async function handleRequest(
   request: NextRequest,
   { params }: { params: Promise<Record<string, string>> }
 ) {
   try {
-    let inputString: string | null = null;
+    // Extract InputString using ESP32ResponseHelper
+    let inputString = await ESP32ResponseHelper.extractInputString(request);
     
-    // Handle both GET and POST requests
-    if (request.method === 'GET') {
-      // Extract from query parameters for GET requests
-      const { searchParams } = new URL(request.url);
-      inputString = searchParams.get('InputString');
-      
-      // Handle malformed URLs from ESP32/IoT devices (e.g., "?,InputString=...")
-      if (!inputString) {
-        // Check if any param key contains "InputString" (handles ",InputString" case)
-        for (const [key, value] of searchParams.entries()) {
-          if (key.includes('InputString')) {
-            inputString = value;
-            console.log(`   ✅ Found InputString in malformed param key: "${key}"`);
-            break;
-          }
-        }
-      }
-    } else if (request.method === 'POST') {
-      // Extract from request body for POST requests
-      try {
-        const body = await request.json();
-        inputString = body.InputString || null;
-      } catch (error) {
-        // If JSON parsing fails, try form data
-        try {
-          const formData = await request.formData();
-          inputString = formData.get('InputString') as string || null;
-        } catch {
-          console.log(`❌ Failed to parse POST body:`, error);
-        }
-      }
-    }
-    
-    // Await the params Promise in Next.js 15
+    // Get DB Key from params
     const resolvedParams = await params;
     const dbKey = resolvedParams['db-key'] || resolvedParams.dbKey || resolvedParams['dbkey'];
 
-    console.log(`🔍 External Machine Password API Request - Full URL: ${request.url}`);
-    console.log(`🔍 Resolved Params:`, resolvedParams);
-    console.log(`🔍 DB Key: "${dbKey}", InputString: "${inputString}"`);
-    console.log(`🔍 DB Key type: ${typeof dbKey}, length: ${dbKey?.length}`);
-
-    // Filter out line ending characters from InputString if present
+    // Filter line endings from InputString
     if (inputString) {
-      const originalInputString = inputString;
-      // Remove common line ending patterns: $0D (CR), $0A (LF), $0D$0A (CRLF)
-      inputString = inputString
-        .replace(/\$0D\$0A/g, '')  // Remove $0D$0A (CRLF)
-        .replace(/\$0D/g, '')      // Remove $0D (CR) 
-        .replace(/\$0A/g, '')      // Remove $0A (LF)
-        .replace(/\r\n/g, '')      // Remove actual CRLF characters
-        .replace(/\r/g, '')        // Remove actual CR characters
-        .replace(/\n/g, '');       // Remove actual LF characters
-      
-      if (originalInputString !== inputString) {
-        console.log(`🧹 Filtered line endings from InputString: "${originalInputString}" -> "${inputString}"`);
-      }
+      inputString = ESP32ResponseHelper.filterLineEndings(inputString);
     }
 
-    // Validate required parameters
-    if (!dbKey || dbKey.trim() === '') {
-      console.log(`❌ DB Key validation failed - dbKey: "${dbKey}"`);
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+    // Log request
+    ESP32ResponseHelper.logRequest(request, dbKey, inputString);
+
+    // Validate DB Key
+    const dbKeyValidation = InputValidator.validateDbKey(dbKey);
+    if (!dbKeyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
     }
 
+    // Validate InputString is provided
     if (!inputString) {
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
     }
 
-    // PRIORITY 1: Connect to database and validate DB Key first
+    // Connect to database
     await connectDB();
     const { getModels } = await import('@/models');
     const { sequelize, User } = getModels();
 
-    // Find admin by dbKey to get schema name
+    // Find admin by dbKey
     const admin = await User.findOne({ 
       where: { dbKey: dbKey.toUpperCase() } 
     });
 
     if (!admin || !admin.dbKey) {
       console.log(`❌ Admin not found or missing DB Key for: ${dbKey}`);
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
     }
 
-    // Parse input string format: 333|ECOD|LE3.34|M00001|U$0D or 333|ECOD|LE3.34|M00001|S$0D
+    // Parse InputString (5 parts)
     const inputParts = inputString.split('|');
-    
-    // Check if it's the correct format (5 parts)
     if (inputParts.length !== 5) {
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
     }
 
     const [societyIdStr, machineType, machineModel, machineId, passwordType] = inputParts;
     
-    console.log(`🔍 Parsed InputString parts:`, { societyIdStr, machineType, machineModel, machineId, passwordType });
-    
-    // PRIORITY 2: Validate Society ID (preserve original format for database lookup)
-    const societyId = societyIdStr;
-    
-    // Also try extracting just the ID part for fallback numeric matching
-    let societyIdFallback = societyIdStr;
-    if (societyIdStr.startsWith('S-')) {
-      societyIdFallback = societyIdStr.substring(2);
-    }
-    
-    // Validate that society ID is not empty
-    if (!societyId || (typeof societyId === 'string' && societyId.trim() === '')) {
-      console.log(`❌ Invalid society ID: "${societyIdStr}" - empty or invalid`);
-      return new Response('"Failed to get password. Invalid token."', { 
-        status: 400,
-        headers: { 'Content-Type': 'text/plain' }
-      });
-    }
-    
-    console.log(`✅ Parsed society ID: "${societyIdStr}" -> primary: "${societyId}", fallback: "${societyIdFallback}"`);
+    console.log(`🔍 Parsed InputString:`, { societyIdStr, machineType, machineModel, machineId, passwordType });
 
-    // PRIORITY 3: Validate Machine ID
-    let parsedMachineId: number | null = null;
-    let machineIdVariants: (string | number)[] = [];
-    
-    if (machineId && machineId.trim()) {
-      let machineIdStr = machineId;
-      
-      // Validate machine ID format (must start with M)
-      if (!machineIdStr.startsWith('M') || machineIdStr.length < 2) {
-        console.log(`❌ Invalid machine ID format: "${machineId}"`);
-        return new Response('"Failed to get password. Invalid machine details."', { 
-          status: 400,
-          headers: { 'Content-Type': 'text/plain' }
-        });
-      }
-      
-      // Remove first capital 'M' prefix and extract actual machine ID
-      // Format: M + optional_letter + numbers
-      // Examples: Mm00001 -> m1, M00001 -> 1, Ma00005 -> a5
-      const machineIdWithoutPrefix = machineIdStr.substring(1);
-      
-      // Check if the first character after M is a letter or number
-      if (/^[a-zA-Z]/.test(machineIdWithoutPrefix)) {
-        // Has a letter (e.g., m00001, a00005)
-        const letter = machineIdWithoutPrefix.charAt(0).toLowerCase();
-        const numberPart = machineIdWithoutPrefix.substring(1);
-        const cleanedNumber = numberPart.replace(/^0+/, '') || '0';
-        machineIdStr = letter + cleanedNumber;
-      } else {
-        // No letter, just numbers (e.g., 00001)
-        machineIdStr = machineIdWithoutPrefix.replace(/^0+/, '') || '0';
-      }
-      
-      console.log(`🔄 Machine ID conversion: "${machineId}" -> "${machineIdWithoutPrefix}" -> "${machineIdStr}"`);
-      
-      // Validate that remaining part is alphanumeric
-      if (!/^[a-zA-Z0-9]+$/.test(machineIdStr)) {
-        console.log(`❌ Invalid machine ID format: "${machineId}" - contains invalid characters`);
-        return new Response('"Machine password not found."', { 
-          status: 200,
-          headers: { 'Content-Type': 'text/plain' }
-        });
-      }
-      
-      // Try to parse as number for numeric IDs
-      const machineIdNum = parseInt(machineIdStr.replace(/^m/i, ''));
-      if (!isNaN(machineIdNum) && machineIdNum > 0) {
-        // Numeric machine ID
-        parsedMachineId = machineIdNum;
-        // Add both numeric and string variants
-        machineIdVariants = [machineIdNum, machineId, machineIdStr, String(machineIdNum)];
-      } else {
-        // Alphanumeric machine ID
-        parsedMachineId = null;
-        machineIdVariants = [machineIdStr, machineId];
-        // Add trimmed version without leading zeros
-        const trimmedMachineId = machineIdStr.replace(/^0+/, '');
-        if (trimmedMachineId && trimmedMachineId !== machineIdStr) {
-          machineIdVariants.push(trimmedMachineId);
-        }
-      }
-    } else {
-      // Machine ID is required
-      console.log(`❌ Machine ID is required but not provided`);
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+    // Validate Society ID
+    const societyValidation = InputValidator.validateSocietyId(societyIdStr);
+    if (!societyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Failed to get password. Invalid token.');
     }
-    
-    console.log(`🔍 Machine ID parsing: "${machineId}" -> Variants: ${JSON.stringify(machineIdVariants)}`);
 
-    // PRIORITY 4: Validate Password Type (accept both full and short formats)
-    if (!passwordType || (!passwordType.startsWith('U') && !passwordType.startsWith('S'))) {
-      console.log(`❌ Invalid password type: "${passwordType}"`);
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+    // Validate Machine ID
+    const machineValidation = InputValidator.validateMachineId(machineId);
+    if (!machineValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Failed to get password. Invalid machine details.');
     }
-    
-    // Accept both full formats (U$0D, S$0D) and short formats (U, S)
-    const isUserPassword = passwordType.startsWith('U');
-    const isSupervisorPassword = passwordType.startsWith('S');
-    
-    console.log(`🔍 Password type: ${isUserPassword ? 'User' : 'Supervisor'} (${passwordType})`);
 
-    // PRIORITY 5: Validate Machine Model (if needed for future validations)
+    // Validate Password Type
+    const passwordValidation = InputValidator.validatePasswordType(passwordType);
+    if (!passwordValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
+    }
+
+    // Validate Machine Model (log warning only)
     if (!machineModel || machineModel.trim() === '') {
       console.log(`⚠️ Machine model is empty: "${machineModel}"`);
-      // Currently not blocking execution for machine model, but logging for future use
     }
-    
-    console.log(`🔍 Machine model: "${machineModel}"`);
 
-    // Generate admin-specific schema name
+    // Generate schema name
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    console.log(`🔍 Using schema: ${schemaName} for society: ${societyId}, machine: ${machineId}`);
+    console.log(`🔍 Using schema: ${schemaName} for society: ${societyIdStr}, machine: ${machineId}`);
 
-    // Build query to fetch machine password - join with societies table for string society_id matching
-    let query: string;
-    let replacements: (string | number)[];
+    // Build query filters
+    const societyFilter = QueryBuilder.buildSocietyFilter(
+      societyValidation.id,
+      societyValidation.fallback,
+      societyValidation.numericId
+    );
 
-    // Try to parse fallback as number for numeric society ID matching
-    const numericSocietyId = parseInt(societyIdFallback);
-    const societyIdNumeric = !isNaN(numericSocietyId) ? numericSocietyId : societyIdFallback;
+    const machineFilter = QueryBuilder.buildMachineFilter(machineValidation);
 
-    if (parsedMachineId !== null) {
-      // Numeric machine ID - use direct matching
-      console.log(`🔍 Using numeric machine ID: ${parsedMachineId}`);
-      
-      query = `
-        SELECT 
-          m.id, 
-          m.machine_id, 
-          m.user_password, 
-          m.supervisor_password, 
-          m.statusU, 
-          m.statusS,
-          s.society_id as society_string_id
-        FROM \`${schemaName}\`.machines m
-        LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
-        WHERE (s.society_id = ? OR s.society_id = ? OR m.society_id = ?)
-          AND m.id = ?
-          AND m.status = 'active'
-      `;
-
-      replacements = [societyId, societyIdFallback, societyIdNumeric, parsedMachineId];
-    } else {
-      // Alphanumeric machine ID - use variant matching
-      console.log(`🔍 Using alphanumeric machine ID variants:`, machineIdVariants);
-      
-      const placeholders = machineIdVariants.map(() => '?').join(', ');
-      
-      query = `
-        SELECT 
-          m.id, 
-          m.machine_id, 
-          m.user_password, 
-          m.supervisor_password, 
-          m.statusU, 
-          m.statusS,
-          s.society_id as society_string_id
-        FROM \`${schemaName}\`.machines m
-        LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
-        WHERE (s.society_id = ? OR s.society_id = ? OR m.society_id = ?)
-          AND m.machine_id IN (${placeholders})
-          AND m.status = 'active'
-      `;
-
-      replacements = [societyId, societyIdFallback, societyIdNumeric, ...machineIdVariants];
-    }
+    // Build complete password query
+    const { query, replacements } = QueryBuilder.buildMachinePasswordQuery(
+      schemaName,
+      societyFilter,
+      machineFilter
+    );
 
     console.log(`🔍 Executing query with replacements:`, replacements);
 
+    // Execute query
     const [results] = await sequelize.query(query, { replacements });
     const machines = results as MachinePasswordResult[];
 
     console.log(`✅ Found ${machines.length} machines in schema: ${schemaName}`);
+    
     if (machines.length > 0) {
-      console.log(`🔍 First machine result:`, {
+      console.log(`🔍 Machine result:`, {
         id: machines[0].id,
         machine_id: machines[0].machine_id,
         society_string_id: machines[0].society_string_id,
         statusU: machines[0].statusU,
-        statusS: machines[0].statusS,
-        user_password: machines[0].user_password ? '***' : null,
-        supervisor_password: machines[0].supervisor_password ? '***' : null
+        statusS: machines[0].statusS
       });
     }
 
+    // Check if machine found
     if (machines.length === 0) {
-      console.log(`ℹ️ No active machine found for society ${societyId}, machine ${machineId} in schema ${schemaName}`);
-      return new Response('"Machine password not found."', { 
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' }
-      });
+      console.log(`ℹ️ No active machine found for society ${societyIdStr}, machine ${machineId}`);
+      return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
     }
 
     const machine = machines[0];
-    
-    // Check password status and return appropriate response
-    if (isUserPassword) {
-      // Check if user password is set (statusU = 1)
+
+    // Return appropriate password based on type
+    if (passwordValidation.isUser) {
+      // Check if user password is set
       if (machine.statusU !== 1) {
         console.log(`ℹ️ User password not set for machine ${machineId} (statusU: ${machine.statusU})`);
-        return new Response('"Machine password not found."', { 
-          status: 200,
-          headers: { 'Content-Type': 'text/plain' }
-        });
+        return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
       }
       
-      // Return user password in format PU|password
       const password = machine.user_password || '';
       const response = `PU|${password}`;
+      console.log(`📤 Returning user password for machine ${machineId}`);
       
-      console.log(`📤 Returning user password for machine ${machineId}: PU|${password}`);
+      return ESP32ResponseHelper.createDataResponse(response);
       
-      return new Response(`"${response}"`, {
-        status: 200,
-        headers: { 
-          'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        }
-      });
-    } else if (isSupervisorPassword) {
-      // Check if supervisor password is set (statusS = 1)
+    } else if (passwordValidation.isSupervisor) {
+      // Check if supervisor password is set
       if (machine.statusS !== 1) {
         console.log(`ℹ️ Supervisor password not set for machine ${machineId} (statusS: ${machine.statusS})`);
-        return new Response('"Machine password not found."', { 
-          status: 200,
-          headers: { 'Content-Type': 'text/plain' }
-        });
+        return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
       }
       
-      // Return supervisor password in format PS|password
       const password = machine.supervisor_password || '';
       const response = `PS|${password}`;
+      console.log(`📤 Returning supervisor password for machine ${machineId}`);
       
-      console.log(`📤 Returning supervisor password for machine ${machineId}: PS|${password}`);
-      
-      return new Response(`"${response}"`, {
-        status: 200,
-        headers: { 
-          'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        }
-      });
+      return ESP32ResponseHelper.createDataResponse(response);
     }
 
-    // Should never reach here due to earlier validation, but just in case
-    return new Response('"Machine password not found."', { 
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    // Should never reach here
+    return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
 
   } catch (error) {
     console.error('❌ Error in GetLatestMachinePassword API:', error);
-    
-    // Return consistent error message for external API
-    return new Response('"Machine password not found."', { 
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    return ESP32ResponseHelper.createErrorResponse('Machine password not found.');
   }
 }
 
@@ -417,12 +208,5 @@ export async function POST(
 
 // Handle OPTIONS request for CORS
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+  return ESP32ResponseHelper.createCORSResponse();
 }
