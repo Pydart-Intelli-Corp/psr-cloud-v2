@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   description: "Advanced dairy equipment management and cloud solutions for farmers, societies, BMCs, and dairy operators. Smart tracking, analytics, and comprehensive dairy operations platform.",
   keywords: "dairy equipment, milk analyzer, farm management, dairy cloud, Poornasree, Lactosure",
   authors: [{ name: "Poornasree Equipments" }],
+  icons: {
+    icon: [
+      { url: '/flower.png' },
+      { url: '/favicon.ico' },
+    ],
+    apple: '/flower.png',
+  },
   openGraph: {
     title: "Poornasree Equipments Cloud",
     description: "Advanced dairy equipment management platform",

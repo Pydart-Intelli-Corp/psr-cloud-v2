@@ -188,7 +188,12 @@ jobs:
             SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
             SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
             
-            # Email Configuration
+            # Email Configuration (Support both SMTP_* and EMAIL_* naming)
+            SMTP_HOST=smtp.gmail.com
+            SMTP_PORT=587
+            SMTP_SECURE=false
+            SMTP_USERNAME=${EMAIL_USER}
+            SMTP_PASSWORD=${EMAIL_PASSWORD}
             EMAIL_HOST=smtp.gmail.com
             EMAIL_PORT=587
             EMAIL_SECURE=false

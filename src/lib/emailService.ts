@@ -1,13 +1,14 @@
 import nodemailer from 'nodemailer';
 
 // Email configuration
+// Support both SMTP_* (local) and EMAIL_* (production) environment variables
 const emailConfig = {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  host: process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || process.env.EMAIL_PORT || '587'),
+  secure: (process.env.SMTP_SECURE || process.env.EMAIL_SECURE) === 'true', // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USERNAME,
-    pass: process.env.SMTP_PASSWORD,
+    user: process.env.SMTP_USERNAME || process.env.EMAIL_USER,
+    pass: process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD,
   },
 };
 
@@ -28,14 +29,15 @@ export const sendOTPEmail = async (
   // Debug logging
   console.log('Email config debug:', {
     to: email,
-    from: process.env.SMTP_USERNAME,
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    hasPassword: !!process.env.SMTP_PASSWORD
+    from: process.env.SMTP_USERNAME || process.env.EMAIL_USER,
+    host: process.env.SMTP_HOST || process.env.EMAIL_HOST,
+    port: process.env.SMTP_PORT || process.env.EMAIL_PORT,
+    hasPassword: !!(process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD),
+    secure: (process.env.SMTP_SECURE || process.env.EMAIL_SECURE) === 'true'
   });
 
   const mailOptions = {
-    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME}>`,
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
     to: email,
     subject: 'Email Verification - Poornasree Equipments Cloud',
     html: `
@@ -79,7 +81,7 @@ export const sendWelcomeEmail = async (
   role: string
 ): Promise<void> => {
   const mailOptions = {
-    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME}>`,
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
     to: email,
     subject: 'Welcome to Poornasree Equipments Cloud',
     html: `
@@ -121,7 +123,7 @@ export const sendAdminWelcomeEmail = async (
   const apiUrl = `http://lactosure.azurewebsites.net/api/${dbKey}`;
   
   const mailOptions = {
-    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME}>`,
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
     to: email,
     subject: '🎉 Admin Account Approved - Your Personal Database Access',
     html: `
@@ -197,7 +199,7 @@ export const sendPasswordResetEmail = async (
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
   
   const mailOptions = {
-    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME}>`,
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
     to: email,
     subject: 'Password Reset - Poornasree Equipments Cloud',
     html: `
@@ -243,7 +245,7 @@ export const sendAdminApprovalRequest = async (
   const approvalUrl = `${process.env.CLIENT_URL}/adminpanel/dashboard#pending-approvals`;
   
   const mailOptions = {
-    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME}>`,
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
     to: process.env.SUPER_ADMIN_EMAIL || 'admin@poornasreeequipments.com',
     subject: 'New Admin Registration - Approval Required',
     html: `
@@ -298,7 +300,7 @@ export const sendAdminRejectionEmail = async (
   const supportEmail = 'support@poornasreeequipments.com';
   
   const mailOptions = {
-    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME}>`,
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
     to: adminEmail,
     subject: 'Admin Application Status - Poornasree Equipments Cloud',
     html: `
