@@ -20,7 +20,8 @@ import {
   BarChart3,
   FileText,
   Bell,
-  Cog
+  Cog,
+  Receipt
 } from 'lucide-react';
 import { UserRole } from '@/types/user';
 
@@ -80,6 +81,12 @@ const navigationItems: NavItem[] = [
     icon: Cog,
     labelKey: 'machineManagement',
     href: '/admin/machine',
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+  },
+  {
+    icon: Receipt,
+    labelKey: 'ratechartManagement',
+    href: '/admin/ratechart',
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
   },
   {

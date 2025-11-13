@@ -33,6 +33,7 @@ export const en = {
     bmcManagement: 'BMC Management',
     societyManagement: 'Society Management',
     machineManagement: 'Machine Management',
+    ratechartManagement: 'Ratechart Management',
     farmerManagement: 'Farmer Management',
     farmerPortal: 'Farmer Portal',
     reports: 'Reports',

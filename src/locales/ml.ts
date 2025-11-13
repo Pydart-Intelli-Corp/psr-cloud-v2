@@ -35,6 +35,7 @@ export const ml: TranslationKeys = {
     bmcManagement: 'ബിഎംസി മാനേജ്‌മെന്റ്',
     societyManagement: 'സൊസൈറ്റി മാനേജ്‌മെന്റ്',
     machineManagement: 'മെഷീൻ മാനേജ്‌മെന്റ്',
+    ratechartManagement: 'നിരക്ക് ചാർട്ട് മാനേജ്‌മെന്റ്',
     farmerManagement: 'കർഷക മാനേജ്‌മെന്റ്',
     farmerPortal: 'കർഷക പോർട്ടൽ',
     reports: 'റിപ്പോർട്ടുകൾ',

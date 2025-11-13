@@ -127,13 +127,26 @@ async function handleRequest(
     console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
     // PRIORITY 3: Get machine ID variants for matching
-    const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
-    const machineIdVariants = [machineIdCleaned];
+    // Use the comprehensive variants from InputValidator which includes all possible formats
+    const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
     
-    // Add trimmed version if it starts with zeros
-    const trimmedMachineId = machineIdCleaned.replace(/^0+/, '');
-    if (trimmedMachineId && trimmedMachineId !== machineIdCleaned) {
-      machineIdVariants.push(trimmedMachineId);
+    console.log(`🔍 Machine ID validation result:`, {
+      numericId: machineValidation.numericId,
+      alphanumericId: machineValidation.alphanumericId,
+      variants: machineValidation.variants,
+      isNumeric: machineValidation.isNumeric
+    });
+    
+    // Fallback: if variants is empty, create basic variants
+    if (machineIdVariants.length === 0) {
+      const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
+      machineIdVariants.push(machineIdCleaned);
+      
+      // Add trimmed version if it starts with zeros
+      const trimmedMachineId = machineIdCleaned.replace(/^0+/, '');
+      if (trimmedMachineId && trimmedMachineId !== machineIdCleaned) {
+        machineIdVariants.push(trimmedMachineId);
+      }
     }
     
     console.log(`🔍 Machine ID conversion: "${machineId}" -> Variants: ${JSON.stringify(machineIdVariants)}`);
@@ -179,6 +192,8 @@ async function handleRequest(
     const replacements: (string | number)[] = [actualSocietyId, ...machineIdVariants];
 
     console.log(`🔍 Executing query with replacements:`, replacements);
+    console.log(`🔍 Machine ID variants for search:`, machineIdVariants);
+    console.log(`🔍 Full query:`, query);
 
     const [results] = await sequelize.query(query, { replacements });
     const corrections = results as MachineCorrectionResult[];
@@ -186,7 +201,7 @@ async function handleRequest(
     console.log(`✅ Found ${corrections.length} active correction records in schema: ${schemaName}`);
 
     if (corrections.length === 0) {
-      console.log(`ℹ️ No active correction found for machine ${machineIdCleaned} in schema ${schemaName}`);
+      console.log(`ℹ️ No active correction found for machine ${machineId} (variants: ${JSON.stringify(machineIdVariants)}) in schema ${schemaName}`);
       return ESP32ResponseHelper.createErrorResponse('Machine correction not found.');
     }
 

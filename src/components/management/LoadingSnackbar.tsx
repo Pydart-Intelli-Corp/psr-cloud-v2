@@ -25,7 +25,7 @@ const LoadingSnackbar: React.FC<LoadingSnackbarProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div className="fixed top-6 right-6 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 p-4 min-w-[320px] max-w-sm animate-slide-down">
+    <div className="fixed top-6 right-6 z-[99999] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 p-4 min-w-[320px] max-w-sm animate-slide-down">
       <div className="flex items-start space-x-3">
         <div className="flex-shrink-0">
           <FlowerSpinner size={24} />

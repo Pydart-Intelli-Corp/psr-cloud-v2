@@ -35,6 +35,7 @@ export const hi: TranslationKeys = {
     bmcManagement: 'बीएमसी प्रबंधन',
     societyManagement: 'सोसायटी प्रबंधन',
     machineManagement: 'मशीन प्रबंधन',
+    ratechartManagement: 'दर चार्ट प्रबंधन',
     farmerManagement: 'किसान प्रबंधन',
     farmerPortal: 'किसान पोर्टल',
     reports: 'रिपोर्ट',

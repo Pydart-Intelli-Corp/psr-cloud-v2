@@ -93,6 +93,17 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
+    // Get machine_type from machines table
+    const [machineResult] = await sequelize.query<{ machine_type: string }>(
+      `SELECT machine_type FROM \`${schemaName}\`.\`machines\` WHERE id = :machineId LIMIT 1`,
+      {
+        replacements: { machineId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    const machineType = machineResult?.machine_type || null;
+
     // Convert empty strings to null or 0.00
     const convertValue = (val: string) => {
       if (!val || val === '') return 0.00;
@@ -121,6 +132,7 @@ export async function POST(request: NextRequest) {
         `INSERT INTO \`${schemaName}\`.\`machine_corrections\` (
           machine_id,
           society_id,
+          machine_type,
           channel1_fat,
           channel1_snf,
           channel1_clr,
@@ -145,6 +157,7 @@ export async function POST(request: NextRequest) {
         ) VALUES (
           :machineId,
           :societyId,
+          :machineType,
           :channel1_fat,
           :channel1_snf,
           :channel1_clr,
@@ -171,6 +184,7 @@ export async function POST(request: NextRequest) {
           replacements: {
             machineId,
             societyId,
+            machineType,
             channel1_fat: convertValue(channel1_fat),
             channel1_snf: convertValue(channel1_snf),
             channel1_clr: convertValue(channel1_clr),

@@ -41,6 +41,7 @@ export { default as ColumnSelectionModal } from './forms/ColumnSelectionModal';
 // Management Components
 export { default as EntityManager } from './management/EntityManager';
 export { default as MachineManager } from './management/MachineManager';
+export { default as LoadingSnackbar } from './management/LoadingSnackbar';
 export { 
   PageHeader, 
   StatusMessage, 

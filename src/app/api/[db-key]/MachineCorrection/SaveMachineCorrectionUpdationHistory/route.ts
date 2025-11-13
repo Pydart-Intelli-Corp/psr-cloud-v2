@@ -101,13 +101,19 @@ async function handleRequest(
     console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
     // PRIORITY 3: Get machine ID variants for matching
-    const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
-    const machineIdVariants = [machineIdCleaned];
+    // Use the comprehensive variants from InputValidator which includes all possible formats
+    const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
     
-    // Add trimmed version if it starts with zeros
-    const trimmedMachineId = machineIdCleaned.replace(/^0+/, '');
-    if (trimmedMachineId && trimmedMachineId !== machineIdCleaned) {
-      machineIdVariants.push(trimmedMachineId);
+    // Fallback: if variants is empty, create basic variants
+    if (machineIdVariants.length === 0) {
+      const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
+      machineIdVariants.push(machineIdCleaned);
+      
+      // Add trimmed version if it starts with zeros
+      const trimmedMachineId = machineIdCleaned.replace(/^0+/, '');
+      if (trimmedMachineId && trimmedMachineId !== machineIdCleaned) {
+        machineIdVariants.push(trimmedMachineId);
+      }
     }
     
     console.log(`🔍 Machine ID conversion: "${machineId}" -> Variants: ${JSON.stringify(machineIdVariants)}`);

@@ -135,66 +135,8 @@ async function handleRequest(
     const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
     console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
-    // PRIORITY 3: Validate Machine ID
-    let parsedMachineId: number | null = null;
-    let machineIdVariants: (string | number)[] = [];
-    
-    if (machineId && machineId.trim()) {
-      let machineIdStr = machineId;
-      
-      // Validate machine ID format (must start with M)
-      if (!machineIdStr.startsWith('M') || machineIdStr.length < 2) {
-        console.log(`❌ Invalid machine ID format: "${machineId}"`);
-        const msg = 'Failed to download farmer. Invalid machine details.';
-        return new Response(msg, { 
-          status: 200,
-          headers: { 
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
-            'Connection': 'close',
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
-      }
-      
-      // Remove 'M' prefix
-      machineIdStr = machineIdStr.substring(1);
-      
-      // Validate that remaining part is alphanumeric
-      if (!/^[a-zA-Z0-9]+$/.test(machineIdStr)) {
-        console.log(`❌ Invalid machine ID format: "${machineId}" - contains invalid characters`);
-        const msg = 'Failed to download farmer. Invalid machine details.';
-        return new Response(msg, { 
-          status: 200,
-          headers: { 
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
-            'Connection': 'close',
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
-      }
-      
-      // Try to parse as number for numeric IDs
-      const machineIdNum = parseInt(machineIdStr);
-      if (!isNaN(machineIdNum) && machineIdNum > 0) {
-        // Numeric machine ID
-        parsedMachineId = machineIdNum;
-        machineIdVariants = [machineIdNum];
-      } else {
-        // Alphanumeric machine ID - use null for parsedMachineId
-        parsedMachineId = null;
-        // Create variants with and without leading zeros
-        machineIdVariants = [machineIdStr];
-        const trimmedMachineId = machineIdStr.replace(/^0+/, '');
-        if (trimmedMachineId && trimmedMachineId !== machineIdStr) {
-          machineIdVariants.push(trimmedMachineId);
-        }
-      }
-    } else {
-      // Machine ID is required
+    // PRIORITY 3: Validate Machine ID using InputValidator
+    if (!machineId || !machineId.trim()) {
       console.log(`❌ Machine ID is required but not provided`);
       const msg = 'Failed to download farmer. Invalid machine details.';
       return new Response(msg, { 
@@ -208,6 +150,25 @@ async function handleRequest(
         }
       });
     }
+    
+    const machineValidation = InputValidator.validateMachineId(machineId);
+    if (!machineValidation.isValid) {
+      console.log(`❌ Invalid machine ID: "${machineId}" - ${machineValidation.error}`);
+      const msg = 'Failed to download farmer. Invalid machine details.';
+      return new Response(msg, { 
+        status: 200,
+        headers: { 
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Length': Buffer.byteLength(msg, 'utf8').toString(),
+          'Connection': 'close',
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+    
+    const parsedMachineId = machineValidation.numericId || null;
+    const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
     
     console.log(`🔍 Machine ID parsing: "${machineId}" -> ${parsedMachineId !== null ? parsedMachineId : JSON.stringify(machineIdVariants)}`);
 
@@ -306,7 +267,7 @@ async function handleRequest(
 
     if (isCSVDownload) {
       // Generate CSV format response with matching header format
-      const csvHeader = 'RF-ID,ID,NAME,MOBILE,SMS,BONUS\n';
+      const csvHeader = 'ID,RF-ID,NAME,MOBILE,SMS,BONUS\n';
       const csvData = farmers.map(farmer => {
         // Handle null/missing values - show as '0' for all fields
         const farmerId = farmer.farmer_id || '0';

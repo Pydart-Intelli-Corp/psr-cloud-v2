@@ -245,6 +245,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`id\` INT PRIMARY KEY AUTO_INCREMENT,
         \`machine_id\` INT NOT NULL COMMENT 'Reference to machines table',
         \`society_id\` INT NOT NULL COMMENT 'Reference to societies table',
+        \`machine_type\` VARCHAR(100) COMMENT 'Machine type/model for reference',
         \`channel1_fat\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Channel 1 Fat value',
         \`channel1_snf\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Channel 1 SNF (Solid Not Fat) value',
         \`channel1_clr\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Channel 1 CLR value',
@@ -268,8 +269,39 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX \`idx_machine_id\` (\`machine_id\`),
         INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_machine_type\` (\`machine_type\`),
         INDEX \`idx_status\` (\`status\`),
         INDEX \`idx_created_at\` (\`created_at\`)
+      )`,
+
+      // Rate Charts table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`rate_charts\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`society_id\` INT NOT NULL COMMENT 'Reference to societies table',
+        \`channel\` ENUM('COW', 'BUF', 'MIX') NOT NULL COMMENT 'Milk channel type',
+        \`uploaded_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`uploaded_by\` VARCHAR(255) NOT NULL COMMENT 'Admin user who uploaded',
+        \`file_name\` VARCHAR(255) NOT NULL COMMENT 'Original CSV file name',
+        \`record_count\` INT NOT NULL DEFAULT 0 COMMENT 'Number of rate records',
+        FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        UNIQUE KEY \`unique_society_channel\` (\`society_id\`, \`channel\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_channel\` (\`channel\`),
+        INDEX \`idx_uploaded_at\` (\`uploaded_at\`)
+      )`,
+
+      // Rate Chart Data table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`rate_chart_data\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`rate_chart_id\` INT NOT NULL COMMENT 'Reference to rate_charts table',
+        \`clr\` DECIMAL(5,2) NOT NULL COMMENT 'Color/Degree value',
+        \`fat\` DECIMAL(5,2) NOT NULL COMMENT 'Fat percentage',
+        \`snf\` DECIMAL(5,2) NOT NULL COMMENT 'Solids-Not-Fat percentage',
+        \`rate\` DECIMAL(10,2) NOT NULL COMMENT 'Rate per liter',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`rate_chart_id\`) REFERENCES \`${schemaName}\`.\`rate_charts\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        INDEX \`idx_rate_chart_id\` (\`rate_chart_id\`),
+        INDEX \`idx_clr_fat_snf\` (\`clr\`, \`fat\`, \`snf\`)
       )`
     ];
     

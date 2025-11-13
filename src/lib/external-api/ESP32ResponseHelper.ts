@@ -13,7 +13,7 @@
 export class ESP32ResponseHelper {
   /**
    * Create ESP32-friendly success response
-   * @param data - Response data (will NOT be quoted)
+   * @param data - Response data (will be quoted by default)
    * @param options - Additional options
    */
   static createResponse(
@@ -26,12 +26,12 @@ export class ESP32ResponseHelper {
   ): Response {
     const { 
       contentType = 'text/plain; charset=utf-8',
-      addQuotes = false,
+      addQuotes = true, // Changed default to true
       additionalHeaders = {}
     } = options || {};
 
-    // ESP32 expects plain text without quotes for simple messages
-    const responseBody = addQuotes ? data : data;
+    // Wrap response in double quotes by default for ESP32 compatibility
+    const responseBody = addQuotes ? `"${data}"` : data;
     const contentLength = Buffer.byteLength(responseBody, 'utf8');
 
     return new Response(responseBody, {

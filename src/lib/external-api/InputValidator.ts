@@ -100,21 +100,33 @@ export class InputValidator {
     let numericId: number | undefined;
     let alphanumericId: string | undefined;
     
-    // Check if the first character after M is a letter or number
-    if (/^[a-zA-Z]/.test(withoutPrefix)) {
-      // Has a letter (e.g., m00001, a00005, df)
-      const letter = withoutPrefix.charAt(0).toLowerCase();
-      const remainingPart = withoutPrefix.substring(1);
+    // Check if withoutPrefix contains any letters
+    const hasLetters = /[a-zA-Z]/.test(withoutPrefix);
+    
+    if (hasLetters) {
+      // Contains letters - treat as alphanumeric
+      // Examples: m00001, 000m1, 0000df, abc123
+      const strippedId = withoutPrefix.replace(/^0+/, '') || withoutPrefix;
       
-      // Check if remaining part is numeric or alphanumeric
-      if (/^\d+$/.test(remainingPart)) {
-        // Numeric part after letter: m00001 -> m1
-        const cleanedNumber = remainingPart.replace(/^0+/, '') || '0';
-        processedId = letter + cleanedNumber;
-        alphanumericId = processedId;
+      // Check if it starts with a letter after removing zeros
+      if (/^[a-zA-Z]/.test(strippedId)) {
+        const letter = strippedId.charAt(0).toLowerCase();
+        const remainingPart = strippedId.substring(1);
+        
+        // Check if remaining part is numeric
+        if (/^\d+$/.test(remainingPart)) {
+          // Letter + numbers: m00001 -> m1, 000m1 -> m1
+          const cleanedNumber = remainingPart.replace(/^0+/, '') || '0';
+          processedId = letter + cleanedNumber;
+          alphanumericId = processedId;
+        } else {
+          // Mixed alphanumeric: df, abc123
+          processedId = strippedId;
+          alphanumericId = processedId;
+        }
       } else {
-        // Fully alphanumeric: 0000df -> df (after removing leading zeros)
-        processedId = withoutPrefix.replace(/^0+/, '') || withoutPrefix;
+        // Starts with number but has letters: should not happen after strip
+        processedId = strippedId;
         alphanumericId = processedId;
       }
     } else {

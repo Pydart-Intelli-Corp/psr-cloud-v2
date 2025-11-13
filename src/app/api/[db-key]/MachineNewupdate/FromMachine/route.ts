@@ -133,20 +133,27 @@ async function handleRequest(
     const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
     console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
-    // Try to find the machine in the database
-    const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
+    // Get machine ID variants for matching
+    const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
     
-    console.log(`🔄 Machine ID conversion: "${machineId}" -> "${machineIdCleaned}"`);
+    // Fallback: if variants is empty, create basic variants
+    if (machineIdVariants.length === 0) {
+      const machineIdCleaned = machineValidation.alphanumericId || machineValidation.numericId?.toString() || machineValidation.strippedId || '';
+      machineIdVariants.push(machineIdCleaned);
+    }
     
+    console.log(`🔄 Machine ID conversion: "${machineId}" -> Variants: ${JSON.stringify(machineIdVariants)}`);
+    
+    const placeholders = machineIdVariants.map(() => '?').join(', ');
     const machineQuery = `
       SELECT id, machine_id, society_id 
       FROM \`${schemaName}\`.machines 
-      WHERE LOWER(machine_id) = LOWER(?) AND society_id = ?
+      WHERE machine_id IN (${placeholders}) AND society_id = ?
       LIMIT 1
     `;
     
     const [machineResults] = await sequelize.query(machineQuery, { 
-      replacements: [machineIdCleaned, actualSocietyId] 
+      replacements: [...machineIdVariants, actualSocietyId] 
     });
     
     if (!Array.isArray(machineResults) || machineResults.length === 0) {
