@@ -565,8 +565,10 @@ export default function RatechartManagement() {
       const data = await response.json();
       
       if (data.success) {
-        setSuccess(data.message || `Reset download history for ${machineIds.length} machine(s)`);
-        setTimeout(() => setSuccess(''), 5000);
+        const machineCount = machineIds.length;
+        const chartName = selectedChartForReset.fileName;
+        setSuccess(`✅ Successfully reset download status for ${machineCount} machine${machineCount > 1 ? 's' : ''}. Chart "${chartName}" can now be re-downloaded by selected machines.`);
+        setTimeout(() => setSuccess(''), 6000);
         setShowResetDownloadModal(false);
         setSelectedChartForReset(null);
       } else {
@@ -575,7 +577,7 @@ export default function RatechartManagement() {
       }
     } catch (error) {
       console.error('Error resetting download history:', error);
-      setError('Error resetting download history');
+      setError('❌ Error resetting download history. Please try again.');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -731,7 +733,7 @@ export default function RatechartManagement() {
             showAction={true}
           />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
             {Object.values(groupedCharts).map(group => {
               // Check if all chart records in this group are selected
               const isGroupSelected = group.chartRecordIds.every(id => selectedCharts.has(id));

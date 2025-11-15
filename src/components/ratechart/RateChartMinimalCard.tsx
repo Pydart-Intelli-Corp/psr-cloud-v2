@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw } from 'lucide-react';
+import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText } from 'lucide-react';
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -64,112 +64,124 @@ export default function RateChartMinimalCard({
 }: RateChartMinimalCardProps) {
   return (
     <div
-      className={`border rounded-lg p-2 transition-all duration-200 ${
+      className={`relative border rounded-xl p-4 transition-all duration-300 hover:shadow-lg group ${
         isSelected
-          ? 'border-green-500 bg-green-50 shadow-md'
-          : 'border-gray-200 bg-white hover:border-green-300 hover:shadow-sm'
+          ? 'border-green-500 dark:border-green-400 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 shadow-md ring-2 ring-green-200 dark:ring-green-700'
+          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-300 dark:hover:border-green-600'
       }`}
     >
-      {/* Header with Checkbox and Actions */}
-      <div className="flex items-start justify-between gap-1 mb-2">
+      {/* Selection Checkbox - Top Left */}
+      <div className="absolute top-3 left-3 z-10">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={onToggleSelection}
-          className="mt-0.5 w-3.5 h-3.5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-1 cursor-pointer flex-shrink-0"
+          className="w-4 h-4 text-green-600 dark:text-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500 dark:focus:ring-green-400 focus:ring-2 cursor-pointer transition-transform hover:scale-110"
         />
-        <div className="flex gap-0.5">
-          <button
-            onClick={() => onToggleStatus(chartId, status)}
-            className={`p-1 rounded transition-colors flex-shrink-0 ${
-              status === 1 
-                ? 'text-green-600 hover:bg-green-50' 
-                : 'text-gray-400 hover:bg-gray-50'
-            }`}
-            title={status === 1 ? 'Active - Click to Deactivate' : 'Inactive - Click to Activate'}
-          >
-            {status === 1 ? <Power className="w-3.5 h-3.5" /> : <PowerOff className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            onClick={onView}
-            className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
-            title="View Chart Data"
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onResetDownload}
-            className="p-1 text-purple-600 hover:bg-purple-50 rounded transition-colors flex-shrink-0"
-            title="Reset Download for Machines"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onAssignSociety}
-            className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors flex-shrink-0"
-            title="Assign to More Societies"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
-            title="Delete Chart"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
       </div>
 
-      {/* Chart Icon */}
-      <div className="flex items-center justify-center mb-2">
-        <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-blue-100">
-          <Receipt className="w-6 h-6 text-blue-600" />
-        </div>
-      </div>
-
-      {/* Filename */}
-      <h3 className="text-xs font-semibold text-gray-900 truncate mb-1 text-center px-1" title={fileName}>
-        {fileName.length > 20 ? highlightText(`${fileName.substring(0, 20)}...`, searchQuery) : highlightText(fileName, searchQuery)}
-      </h3>
-
-      {/* Channel Badge */}
-      <div className="flex justify-center gap-1 mb-2">
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-          {highlightText(channel, searchQuery)}
-        </span>
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+      {/* Status Badge - Top Right */}
+      <div className="absolute top-3 right-3 z-10">
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${
           status === 1 
-            ? 'bg-green-100 text-green-800' 
-            : 'bg-gray-100 text-gray-600'
+            ? 'bg-green-500 dark:bg-green-600 text-white' 
+            : 'bg-gray-400 dark:bg-gray-600 text-white'
         }`}>
           {status === 1 ? 'Active' : 'Inactive'}
         </span>
       </div>
 
-      {/* Societies */}
-      <div className="mb-2">
-        <p className="text-xs font-medium text-gray-700 text-center mb-1.5">
-          {societies.length} {societies.length === 1 ? 'Society' : 'Societies'}
-        </p>
-        <div className="flex flex-wrap gap-0.5 justify-center">
-          {societies.map((society) => (
-            <span
-              key={society.societyId}
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-50 text-green-700 border border-green-200"
-              title={`${society.societyName} ${society.societyIdentifier ? `(${society.societyIdentifier})` : ''}`}
-            >
-              {highlightText(society.societyName.length > 10 ? `${society.societyName.substring(0, 10)}...` : society.societyName, searchQuery)}
+      {/* Main Content Area */}
+      <div className="mt-6">
+        {/* Details Section */}
+        <div className="flex-1 min-w-0">
+          {/* File Name */}
+          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 truncate" title={fileName}>
+            {highlightText(fileName, searchQuery)}
+          </h3>
+
+          {/* Channel Badge */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-600 dark:to-indigo-600 text-white shadow-sm">
+              {highlightText(channel, searchQuery)}
             </span>
-          ))}
+          </div>
+
+          {/* Societies Section */}
+          <div className="mb-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
+              📍 {societies.length} {societies.length === 1 ? 'Society' : 'Societies'}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {societies.slice(0, 3).map((society) => (
+                <span
+                  key={society.societyId}
+                  className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 shadow-sm"
+                  title={`${society.societyName} ${society.societyIdentifier ? `(${society.societyIdentifier})` : ''}`}
+                >
+                  {highlightText(society.societyName.length > 12 ? `${society.societyName.substring(0, 12)}...` : society.societyName, searchQuery)}
+                </span>
+              ))}
+              {societies.length > 3 && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                  +{societies.length - 3} more
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Date */}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            📅 {new Date(createdAt).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: 'numeric'
+            })}
+          </p>
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="pt-1.5 border-t border-gray-100">
-        <p className="text-xs text-gray-400 text-center">
-          {new Date(createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-        </p>
+      {/* Action Buttons - Bottom */}
+      <div className="flex items-center justify-end gap-1.5 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <button
+          onClick={() => onToggleStatus(chartId, status)}
+          className={`p-2 rounded-lg transition-all duration-200 ${
+            status === 1 
+              ? 'text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:shadow-sm' 
+              : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-sm'
+          }`}
+          title={status === 1 ? 'Active - Click to Deactivate' : 'Inactive - Click to Activate'}
+        >
+          {status === 1 ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={onView}
+          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
+          title="View Chart Data"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onResetDownload}
+          className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
+          title="Reset Download for Machines"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onAssignSociety}
+          className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
+          title="Assign to More Societies"
+        >
+          <UserPlus className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
+          title="Delete Chart"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );
