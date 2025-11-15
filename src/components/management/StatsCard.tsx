@@ -8,6 +8,8 @@ interface StatsCardProps {
   icon: React.ReactNode;
   color?: 'green' | 'red' | 'yellow' | 'blue' | 'gray';
   className?: string;
+  onClick?: () => void;
+  clickable?: boolean;
 }
 
 /**
@@ -19,7 +21,9 @@ const StatsCard: React.FC<StatsCardProps> = ({
   value,
   icon,
   color = 'green',
-  className = ''
+  className = '',
+  onClick,
+  clickable = false
 }) => {
   const getColorClasses = (color: string) => {
     switch (color) {
@@ -59,7 +63,13 @@ const StatsCard: React.FC<StatsCardProps> = ({
   const colorClasses = getColorClasses(color);
 
   return (
-    <div className={`bg-white dark:bg-gray-800 p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow ${className}`}>
+    <div 
+      className={`bg-white dark:bg-gray-800 p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow ${clickable ? 'cursor-pointer hover:border-green-500' : ''} ${className}`}
+      onClick={clickable ? onClick : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => e.key === 'Enter' && onClick?.() : undefined}
+    >
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 truncate">

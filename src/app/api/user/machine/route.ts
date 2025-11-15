@@ -34,6 +34,8 @@ interface MachineQueryResult {
   statusS: number;
   created_at: string;
   updated_at?: string;
+  active_charts_count?: number;
+  chart_details?: string;
 }
 
 // POST - Create new machine
@@ -164,28 +166,48 @@ export async function GET(request: NextRequest) {
     let replacements: (string | number)[] = [];
 
     if (id) {
-      // Query single machine
+      // Query single machine with rate chart information
       query = `
         SELECT 
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
           m.created_at, m.updated_at,
-          s.name as society_name, s.society_id as society_identifier
+          s.name as society_name, s.society_id as society_identifier,
+          (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
+          (SELECT GROUP_CONCAT(DISTINCT 
+            CONCAT(rc.channel, ':', rc.file_name, ':', 
+              CASE WHEN dh.id IS NOT NULL THEN 'downloaded' ELSE 'pending' END)
+            SEPARATOR '|||')
+           FROM \`${schemaName}\`.rate_charts rc
+           LEFT JOIN \`${schemaName}\`.rate_chart_download_history dh 
+             ON dh.rate_chart_id = rc.id AND dh.machine_id = m.id
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
         WHERE m.id = ?
       `;
       replacements = [id];
     } else {
-      // Query all machines
+      // Query all machines with rate chart information
       query = `
         SELECT 
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
           m.created_at,
-          s.name as society_name, s.society_id as society_identifier
+          s.name as society_name, s.society_id as society_identifier,
+          (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
+          (SELECT GROUP_CONCAT(DISTINCT 
+            CONCAT(rc.channel, ':', rc.file_name, ':', 
+              CASE WHEN dh.id IS NOT NULL THEN 'downloaded' ELSE 'pending' END)
+            SEPARATOR '|||')
+           FROM \`${schemaName}\`.rate_charts rc
+           LEFT JOIN \`${schemaName}\`.rate_chart_download_history dh 
+             ON dh.rate_chart_id = rc.id AND dh.machine_id = m.id
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
         ORDER BY m.created_at DESC
@@ -211,7 +233,10 @@ export async function GET(request: NextRequest) {
       statusU: machine.statusU,
       statusS: machine.statusS,
       createdAt: machine.created_at,
-      updatedAt: machine.updated_at
+      updatedAt: machine.updated_at,
+      // Rate chart information
+      activeChartsCount: machine.active_charts_count,
+      chartDetails: machine.chart_details
     }));
 
     if (id) {

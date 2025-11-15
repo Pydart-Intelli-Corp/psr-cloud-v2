@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Receipt, Trash2 } from 'lucide-react';
+import { Receipt, Trash2, Eye, FileText } from 'lucide-react';
 import { 
   FlowerSpinner,
   StatusMessage,
@@ -15,6 +15,8 @@ import {
 import BulkDeleteConfirmModal from '@/components/management/BulkDeleteConfirmModal';
 import RateChartUploadModal from '@/components/ratechart/RateChartUploadModal';
 import RateChartMinimalCard from '@/components/ratechart/RateChartMinimalCard';
+import AssignSocietyModal from '@/components/ratechart/AssignSocietyModal';
+import TotalAssignmentsModal from '@/components/ratechart/TotalAssignmentsModal';
 import ManagementPageHeader from '@/components/management/ManagementPageHeader';
 import FilterDropdown from '@/components/management/FilterDropdown';
 
@@ -35,6 +37,7 @@ interface RateChart {
   fileName: string;
   recordCount: number;
   shared_chart_id: number | null;
+  status: number;
 }
 
 export default function RatechartManagement() {
@@ -62,6 +65,30 @@ export default function RatechartManagement() {
   const [selectAll, setSelectAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+
+  // Single delete confirmation
+  const [showSingleDeleteConfirm, setShowSingleDeleteConfirm] = useState(false);
+  const [chartToDelete, setChartToDelete] = useState<number | null>(null);
+
+  // Assign society modal
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedChartForAssign, setSelectedChartForAssign] = useState<{
+    chartId: number;
+    fileName: string;
+    societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>;
+  } | null>(null);
+
+  // Total assignments modal
+  const [showAssignmentsModal, setShowAssignmentsModal] = useState(false);
+
+  // Rate chart view modal
+  const [showRateChartModal, setShowRateChartModal] = useState(false);
+  const [selectedRateChart, setSelectedRateChart] = useState<{ fileName: string; channel: string; societyId: number } | null>(null);
+  const [rateChartData, setRateChartData] = useState<Array<{ fat: string; snf: string; clr: string; rate: string }>>([]);
+  const [loadingChartData, setLoadingChartData] = useState(false);
+  const [searchFat, setSearchFat] = useState('');
+  const [searchSnf, setSearchSnf] = useState('');
+  const [searchClr, setSearchClr] = useState('');
 
   // Redirect if not admin
   useEffect(() => {
@@ -140,13 +167,63 @@ export default function RatechartManagement() {
     };
   }, []);
 
-  // Handle delete
+  // Fetch rate chart data
+  const fetchRateChartData = async (fileName: string, channel: string, societyId: number) => {
+    try {
+      setLoadingChartData(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(`/api/user/ratechart/data?fileName=${encodeURIComponent(fileName)}&channel=${channel}&societyId=${societyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setRateChartData(data.data || []);
+      } else {
+        setError(typeof data.error === 'string' ? data.error : data.error?.message || 'Failed to fetch rate chart data');
+      }
+    } catch (error) {
+      console.error('Error fetching rate chart data:', error);
+      setError('Failed to fetch rate chart data');
+    } finally {
+      setLoadingChartData(false);
+    }
+  };
+
+  // Handle view rate chart
+  const handleViewRateChart = (fileName: string, channel: string, societyId: number) => {
+    setSelectedRateChart({ fileName, channel, societyId });
+    setShowRateChartModal(true);
+    fetchRateChartData(fileName, channel, societyId);
+  };
+
+  // Close rate chart modal
+  const closeRateChartModal = () => {
+    setShowRateChartModal(false);
+    setSelectedRateChart(null);
+    setRateChartData([]);
+    setSearchFat('');
+    setSearchSnf('');
+    setSearchClr('');
+  };
+
+  // Handle delete - open confirmation modal
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this rate chart?')) return;
+    setChartToDelete(id);
+    setShowSingleDeleteConfirm(true);
+  };
+
+  // Confirm single delete
+  const confirmSingleDelete = async () => {
+    if (!chartToDelete) return;
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/ratechart/${id}`, {
+      const response = await fetch(`/api/user/ratechart/${chartToDelete}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -176,6 +253,9 @@ export default function RatechartManagement() {
       setTimeout(() => {
         setError('');
       }, 5000);
+    } finally {
+      setShowSingleDeleteConfirm(false);
+      setChartToDelete(null);
     }
   };
 
@@ -195,6 +275,49 @@ export default function RatechartManagement() {
     setTimeout(() => {
       setError('');
     }, 5000);
+  };
+
+  // Toggle status (active/inactive)
+  const handleToggleStatus = async (chartId: number, currentStatus: number) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const newStatus = currentStatus === 1 ? 0 : 1;
+
+      const response = await fetch('/api/user/ratechart/status', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ chartId, status: newStatus })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(`Rate chart status updated to ${newStatus === 1 ? 'active' : 'inactive'}`);
+        fetchRateCharts();
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => {
+          setSuccess('');
+        }, 5000);
+      } else {
+        setError(data.message || 'Failed to update status');
+        // Auto-hide error message after 5 seconds
+        setTimeout(() => {
+          setError('');
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      setError('Error updating status');
+      // Auto-hide error message after 5 seconds
+      setTimeout(() => {
+        setError('');
+      }, 5000);
+    }
   };
 
   // Filter rate charts
@@ -230,6 +353,7 @@ export default function RatechartManagement() {
       uploadedBy: masterChart.uploadedBy,
       createdAt: masterChart.uploadedAt,
       recordCount: masterChart.recordCount,
+      status: masterChart.status,
       societies: [],
       chartRecordIds: [masterChart.id] // Start with master chart ID
     };
@@ -261,6 +385,7 @@ export default function RatechartManagement() {
     uploadedBy: string; 
     createdAt: string;
     recordCount: number;
+    status: number;
     societies: { societyId: number; societyName: string; societyIdentifier: string }[];
     chartRecordIds: number[];
   }>);
@@ -340,12 +465,70 @@ export default function RatechartManagement() {
     }
   };
 
-  // Calculate stats
+  // Handle opening assign modal
+  const handleOpenAssignModal = (chartId: number, fileName: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>) => {
+    setSelectedChartForAssign({ chartId, fileName, societies });
+    setShowAssignModal(true);
+  };
+
+  // Handle assigning chart to additional societies
+  const handleAssignSocieties = async (societyIds: number[], replaceExisting: boolean) => {
+    if (!selectedChartForAssign) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/ratechart/assign', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          masterChartId: selectedChartForAssign.chartId,
+          societyIds,
+          replaceExisting
+        })
+      });
+
+      const data = await response.json();
+      
+      // Handle conflict scenario (409 status)
+      if (response.status === 409 && data.requiresConfirmation) {
+        return {
+          requiresConfirmation: true,
+          conflicts: data.conflicts
+        };
+      }
+      
+      if (data.success) {
+        setSuccess(`Successfully assigned chart to ${data.data.assignedCount} ${data.data.assignedCount === 1 ? 'society' : 'societies'}`);
+        setTimeout(() => setSuccess(''), 5000);
+        
+        // Refresh rate charts to show updated assignments
+        await fetchRateCharts();
+        
+        setShowAssignModal(false);
+        setSelectedChartForAssign(null);
+        return;
+      } else {
+        setError(data.message || 'Failed to assign chart to societies');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error assigning chart to societies:', error);
+      setError('Error assigning chart to societies');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
+  // Calculate stats - only count unique master charts
   const uniqueCharts = Object.keys(groupedCharts).length;
-  const totalCharts = rateCharts.length;
-  const cowCharts = rateCharts.filter(c => c.channel === 'COW').length;
-  const bufCharts = rateCharts.filter(c => c.channel === 'BUF').length;
-  const mixCharts = rateCharts.filter(c => c.channel === 'MIX').length;
+  const totalAssignments = rateCharts.length; // Total number of society assignments
+  const cowCharts = masterCharts.filter(c => c.channel === 'COW').length;
+  const bufCharts = masterCharts.filter(c => c.channel === 'BUF').length;
+  const mixCharts = masterCharts.filter(c => c.channel === 'MIX').length;
 
   if (loading) {
     return (
@@ -397,9 +580,11 @@ export default function RatechartManagement() {
         />
         <StatsCard
           title="Total Assignments"
-          value={totalCharts}
+          value={totalAssignments}
           icon={<Receipt className="w-4 h-4" />}
           color="gray"
+          onClick={() => setShowAssignmentsModal(true)}
+          clickable={true}
         />
         <StatsCard
           title="COW Charts"
@@ -503,6 +688,7 @@ export default function RatechartManagement() {
                   uploadedBy={group.uploadedBy}
                   createdAt={group.createdAt}
                   societies={group.societies}
+                  status={group.status}
                   isSelected={isGroupSelected}
                   searchQuery={searchQuery}
                   onToggleSelection={() => {
@@ -523,7 +709,10 @@ export default function RatechartManagement() {
                       });
                     }
                   }}
+                  onAssignSociety={() => handleOpenAssignModal(group.chartId, group.fileName, group.societies)}
                   onDelete={() => handleDelete(group.chartRecordIds[0])}
+                  onToggleStatus={handleToggleStatus}
+                  onView={() => handleViewRateChart(group.fileName, group.channel, group.societies[0]?.societyId || 0)}
                 />
               );
             })}
@@ -553,6 +742,188 @@ export default function RatechartManagement() {
       itemType="rate chart"
       hasFilters={societyFilter !== 'all' || channelFilter !== 'all' || searchQuery !== ''}
     />
+
+    {/* Assign Society Modal */}
+    {selectedChartForAssign && (
+      <AssignSocietyModal
+        isOpen={showAssignModal}
+        onClose={() => {
+          setShowAssignModal(false);
+          setSelectedChartForAssign(null);
+        }}
+        onAssign={handleAssignSocieties}
+        chartId={selectedChartForAssign.chartId}
+        fileName={selectedChartForAssign.fileName}
+        currentSocieties={selectedChartForAssign.societies}
+        allSocieties={societies}
+      />
+    )}
+
+    {/* Total Assignments Modal */}
+    <TotalAssignmentsModal
+      isOpen={showAssignmentsModal}
+      onClose={() => setShowAssignmentsModal(false)}
+      rateCharts={rateCharts}
+    />
+
+    {/* Single Delete Confirmation Modal */}
+    <BulkDeleteConfirmModal
+      isOpen={showSingleDeleteConfirm}
+      onClose={() => {
+        setShowSingleDeleteConfirm(false);
+        setChartToDelete(null);
+      }}
+      onConfirm={confirmSingleDelete}
+      itemCount={1}
+      itemType="rate chart"
+    />
+
+    {/* Rate Chart View Modal */}
+    {showRateChartModal && selectedRateChart && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div className="p-6">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Rate Chart - {selectedRateChart.channel} Channel
+              </h2>
+              <button
+                onClick={closeRateChartModal}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Chart Info */}
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">File Name</h3>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">{selectedRateChart.fileName}</p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  {selectedRateChart.channel}
+                </span>
+              </div>
+            </div>
+
+            {/* Search Inputs */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search FAT</label>
+                <input
+                  type="text"
+                  value={searchFat}
+                  onChange={(e) => setSearchFat(e.target.value)}
+                  placeholder="e.g., 3.5"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search SNF</label>
+                <input
+                  type="text"
+                  value={searchSnf}
+                  onChange={(e) => setSearchSnf(e.target.value)}
+                  placeholder="e.g., 8.5"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search CLR</label>
+                <input
+                  type="text"
+                  value={searchClr}
+                  onChange={(e) => setSearchClr(e.target.value)}
+                  placeholder="e.g., 25.0"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* Chart Data Table */}
+            <div className="overflow-auto max-h-[60vh]">
+              {loadingChartData ? (
+                <div className="flex justify-center items-center py-8">
+                  <FlowerSpinner />
+                </div>
+              ) : (() => {
+                // Filter data based on search inputs
+                const filteredData = rateChartData.filter(row => {
+                  const matchFat = !searchFat || row.fat.toLowerCase().includes(searchFat.toLowerCase());
+                  const matchSnf = !searchSnf || row.snf.toLowerCase().includes(searchSnf.toLowerCase());
+                  const matchClr = !searchClr || row.clr.toLowerCase().includes(searchClr.toLowerCase());
+                  return matchFat && matchSnf && matchClr;
+                });
+                
+                return filteredData.length > 0 ? (
+                <div>
+                  <table className="w-full border-collapse">
+                    <thead className="sticky top-0 bg-gray-100 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                          FAT
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                          SNF
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                          CLR
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                          Rate
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredData.map((row, index) => (
+                        <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                            {row.fat}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                            {row.snf}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                            {row.clr}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                            ₹{row.rate}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-right">
+                    Showing {filteredData.length} of {rateChartData.length} records
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400">{searchFat || searchSnf || searchClr ? 'No matching records found' : 'No data available for this rate chart'}</p>
+                </div>
+              );
+              })()}
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
+              <button
+                onClick={closeRateChartModal}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
   </>
   );
 }

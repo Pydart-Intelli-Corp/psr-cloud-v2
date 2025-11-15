@@ -7,7 +7,7 @@ import StatusDropdown from './StatusDropdown';
 
 interface DetailItem {
   icon: React.ReactNode;
-  text: string;
+  text: string | React.ReactNode;
   show?: boolean;
   highlight?: boolean; // New property for highlighting
   className?: string; // Custom className for styling
@@ -140,8 +140,8 @@ const ItemCard: React.FC<ItemCardProps> = ({
                 }`}>
                   {detail.icon}
                 </div>
-                <span className={detail.text.includes('@') || detail.text.length > 30 ? 'truncate' : ''}>
-                  {highlightText(detail.text, searchQuery)}
+                <span className={typeof detail.text === 'string' && (detail.text.includes('@') || detail.text.length > 30) ? 'truncate' : ''}>
+                  {typeof detail.text === 'string' ? highlightText(detail.text, searchQuery) : detail.text}
                 </span>
               </div>
             )

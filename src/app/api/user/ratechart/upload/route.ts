@@ -197,12 +197,12 @@ export async function POST(request: NextRequest) {
 
       // Insert rate chart records for all selected societies in one query
       const chartValues = societyIds.map(id => 
-        `(${id}, '${channel}', NOW(), '${user.fullName.replace(/'/g, "''")}', '${file.name.replace(/'/g, "''")}', ${rateData.length})`
+        `(${id}, '${channel}', NOW(), '${user.fullName.replace(/'/g, "''")}', '${file.name.replace(/'/g, "''")}', ${rateData.length}, 1)`
       ).join(',');
 
       await sequelize.query(`
         INSERT INTO ${schemaName}.rate_charts 
-        (society_id, channel, uploaded_at, uploaded_by, file_name, record_count)
+        (society_id, channel, uploaded_at, uploaded_by, file_name, record_count, status)
         VALUES ${chartValues}
       `, { transaction });
 

@@ -3,7 +3,12 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
 
-export async function GET(request: NextRequest) {
+/**
+ * Update rate chart status (active/inactive)
+ * PATCH /api/user/ratechart/status
+ * Body: { chartId: number, status: number }
+ */
+export async function PATCH(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
@@ -34,29 +39,30 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = user.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${user.dbKey.toLowerCase()}`;
 
-    // Query rate charts with society information
-    const [rateCharts] = await sequelize.query(`
-      SELECT 
-        rc.id,
-        rc.society_id AS societyId,
-        s.name AS societyName,
-        s.society_id AS societyIdentifier,
-        rc.channel,
-        rc.uploaded_at AS uploadedAt,
-        rc.uploaded_by AS uploadedBy,
-        rc.file_name AS fileName,
-        rc.record_count AS recordCount,
-        rc.shared_chart_id,
-        rc.status
-      FROM ${schemaName}.rate_charts rc
-      LEFT JOIN ${schemaName}.societies s ON rc.society_id = s.id
-      ORDER BY rc.uploaded_at DESC
-    `);
+    // Parse request body
+    const body = await request.json();
+    const { chartId, status } = body;
 
-    return createSuccessResponse('Rate charts retrieved successfully', rateCharts);
+    if (!chartId || status === undefined) {
+      return createErrorResponse('Chart ID and status are required', 400);
+    }
+
+    // Validate status value (0 or 1)
+    if (status !== 0 && status !== 1) {
+      return createErrorResponse('Status must be 0 (inactive) or 1 (active)', 400);
+    }
+
+    // Update status
+    await sequelize.query(
+      `UPDATE ${schemaName}.rate_charts SET status = ? WHERE id = ?`,
+      { replacements: [status, chartId] }
+    );
+
+    const statusText = status === 1 ? 'active' : 'inactive';
+    return createSuccessResponse(`Rate chart status updated to ${statusText}`, { chartId, status });
 
   } catch (error) {
-    console.error('Error fetching rate charts:', error);
-    return createErrorResponse('Failed to fetch rate charts', 500);
+    console.error('Error updating rate chart status:', error);
+    return createErrorResponse('Failed to update rate chart status', 500);
   }
 }

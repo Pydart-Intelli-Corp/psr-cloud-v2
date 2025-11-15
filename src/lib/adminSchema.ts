@@ -277,17 +277,21 @@ async function createAdminTables(schemaName: string): Promise<void> {
       // Rate Charts table
       `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`rate_charts\` (
         \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`shared_chart_id\` INT NULL COMMENT 'Reference to master rate chart for shared data',
         \`society_id\` INT NOT NULL COMMENT 'Reference to societies table',
         \`channel\` ENUM('COW', 'BUF', 'MIX') NOT NULL COMMENT 'Milk channel type',
         \`uploaded_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         \`uploaded_by\` VARCHAR(255) NOT NULL COMMENT 'Admin user who uploaded',
         \`file_name\` VARCHAR(255) NOT NULL COMMENT 'Original CSV file name',
         \`record_count\` INT NOT NULL DEFAULT 0 COMMENT 'Number of rate records',
+        \`status\` TINYINT(1) DEFAULT 1 COMMENT '1=Active/Ready to download, 0=Downloaded by machine',
         FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
         UNIQUE KEY \`unique_society_channel\` (\`society_id\`, \`channel\`),
+        INDEX \`idx_shared_chart_id\` (\`shared_chart_id\`),
         INDEX \`idx_society_id\` (\`society_id\`),
         INDEX \`idx_channel\` (\`channel\`),
-        INDEX \`idx_uploaded_at\` (\`uploaded_at\`)
+        INDEX \`idx_uploaded_at\` (\`uploaded_at\`),
+        INDEX \`idx_status\` (\`status\`)
       )`,
 
       // Rate Chart Data table
@@ -302,6 +306,23 @@ async function createAdminTables(schemaName: string): Promise<void> {
         FOREIGN KEY (\`rate_chart_id\`) REFERENCES \`${schemaName}\`.\`rate_charts\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
         INDEX \`idx_rate_chart_id\` (\`rate_chart_id\`),
         INDEX \`idx_clr_fat_snf\` (\`clr\`, \`fat\`, \`snf\`)
+      )`,
+
+      // Rate Chart Download History table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`rate_chart_download_history\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`rate_chart_id\` INT NOT NULL COMMENT 'Reference to rate_charts table',
+        \`machine_id\` INT NOT NULL COMMENT 'Reference to machines table',
+        \`society_id\` INT NOT NULL COMMENT 'Reference to societies table',
+        \`channel\` ENUM('COW', 'BUF', 'MIX') NOT NULL COMMENT 'Milk channel type',
+        \`downloaded_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`rate_chart_id\`) REFERENCES \`${schemaName}\`.\`rate_charts\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY (\`machine_id\`) REFERENCES \`${schemaName}\`.\`machines\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        UNIQUE KEY \`unique_machine_chart\` (\`machine_id\`, \`rate_chart_id\`),
+        INDEX \`idx_machine_society_channel\` (\`machine_id\`, \`society_id\`, \`channel\`),
+        INDEX \`idx_rate_chart_id\` (\`rate_chart_id\`),
+        INDEX \`idx_downloaded_at\` (\`downloaded_at\`)
       )`
     ];
     

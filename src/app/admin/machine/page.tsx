@@ -20,7 +20,10 @@ import {
   Folder,
   FolderOpen,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  FileText,
+  Download,
+  Clock
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -58,6 +61,8 @@ interface Machine {
   statusU: 0 | 1;
   statusS: 0 | 1;
   createdAt: string;
+  activeChartsCount?: number;
+  chartDetails?: string; // Format: "channel:filename:status|||channel:filename:status"
 }
 
 interface MachineFormData {
@@ -118,6 +123,13 @@ export default function MachineManagement() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showRateChartModal, setShowRateChartModal] = useState(false);
+  const [selectedRateChart, setSelectedRateChart] = useState<{ fileName: string; channel: string; societyId: number } | null>(null);
+  const [rateChartData, setRateChartData] = useState<Array<{ fat: string; snf: string; clr: string; rate: string }>>([]);
+  const [loadingChartData, setLoadingChartData] = useState(false);
+  const [searchFat, setSearchFat] = useState('');
+  const [searchSnf, setSearchSnf] = useState('');
+  const [searchClr, setSearchClr] = useState('');
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [formData, setFormData] = useState<MachineFormData>(initialFormData);
   const [passwordData, setPasswordData] = useState<PasswordFormData>({
@@ -163,6 +175,82 @@ export default function MachineManagement() {
       return 'Password must be exactly 6 numbers';
     }
     return '';
+  };
+
+  // Parse rate chart details from concatenated string
+  const parseChartDetails = (chartDetails?: string) => {
+    if (!chartDetails) return { pending: [], downloaded: [] };
+    
+    const charts = chartDetails.split('|||');
+    const pending: Array<{ channel: string; fileName: string }> = [];
+    const downloaded: Array<{ channel: string; fileName: string }> = [];
+    
+    charts.forEach(chart => {
+      const [channel, fileName, status] = chart.split(':');
+      if (channel && fileName && status) {
+        if (status === 'pending') {
+          pending.push({ channel, fileName });
+        } else if (status === 'downloaded') {
+          downloaded.push({ channel, fileName });
+        }
+      }
+    });
+    
+    return { pending, downloaded };
+  };
+
+  // Get channel badge color
+  const getChannelColor = (channel: string) => {
+    switch (channel.toUpperCase()) {
+      case 'COW': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'BUF': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'MIX': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    }
+  };
+
+  // Fetch rate chart data
+  const fetchRateChartData = async (fileName: string, channel: string, societyId: number) => {
+    try {
+      setLoadingChartData(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(`/api/user/ratechart/data?fileName=${encodeURIComponent(fileName)}&channel=${channel}&societyId=${societyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setRateChartData(data.data || []);
+      } else {
+        setError(typeof data.error === 'string' ? data.error : data.error?.message || 'Failed to fetch rate chart data');
+      }
+    } catch (error) {
+      console.error('Error fetching rate chart data:', error);
+      setError('Failed to fetch rate chart data');
+    } finally {
+      setLoadingChartData(false);
+    }
+  };
+
+  // Handle view rate chart
+  const handleViewRateChart = (fileName: string, channel: string, societyId: number) => {
+    setSelectedRateChart({ fileName, channel, societyId });
+    setShowRateChartModal(true);
+    fetchRateChartData(fileName, channel, societyId);
+  };
+
+  // Close rate chart modal
+  const closeRateChartModal = () => {
+    setShowRateChartModal(false);
+    setSelectedRateChart(null);
+    setRateChartData([]);
+    setSearchFat('');
+    setSearchSnf('');
+    setSearchClr('');
   };
 
   // Update password validation when data changes
@@ -1414,6 +1502,54 @@ export default function MachineManagement() {
                                   ...(machine.operatorName ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.operatorName }] : []),
                                   ...(machine.contactPhone ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.contactPhone }] : []),
                                   ...(machine.installationDate ? [{ icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Installed: ${new Date(machine.installationDate).toLocaleDateString()}` }] : []),
+                                  // Rate Chart Information
+                                  ...(() => {
+                                    const { pending, downloaded } = parseChartDetails(machine.chartDetails);
+                                    const details: Array<{ icon: JSX.Element; text: string | JSX.Element; className?: string }> = [];
+                                    
+                                    if (pending.length > 0) {
+                                      details.push({
+                                        icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                                        text: (
+                                          <div className="flex flex-wrap gap-1">
+                                            <span className="text-xs font-medium">Pending:</span>
+                                            {pending.map((chart, idx) => (
+                                              <button
+                                                key={idx}
+                                                onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
+                                                className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
+                                              >
+                                                {chart.channel}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )
+                                      });
+                                    }
+                                    
+                                    if (downloaded.length > 0) {
+                                      details.push({
+                                        icon: <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                                        text: (
+                                          <div className="flex flex-wrap gap-1">
+                                            <span className="text-xs font-medium">Downloaded:</span>
+                                            {downloaded.map((chart, idx) => (
+                                              <button
+                                                key={idx}
+                                                onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
+                                                className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
+                                              >
+                                                {chart.channel}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        ),
+                                        className: 'text-green-600 dark:text-green-400'
+                                      });
+                                    }
+                                    
+                                    return details;
+                                  })(),
                                   // Password Status Display
                                   (() => {
                                     const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS);
@@ -1467,6 +1603,54 @@ export default function MachineManagement() {
                     ...(machine.operatorName ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.operatorName }] : []),
                     ...(machine.contactPhone ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.contactPhone }] : []),
                     ...(machine.installationDate ? [{ icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Installed: ${new Date(machine.installationDate).toLocaleDateString()}` }] : []),
+                    // Rate Chart Information
+                    ...(() => {
+                      const { pending, downloaded } = parseChartDetails(machine.chartDetails);
+                      const details: Array<{ icon: JSX.Element; text: string | JSX.Element; className?: string }> = [];
+                      
+                      if (pending.length > 0) {
+                        details.push({
+                          icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                          text: (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-xs font-medium">Pending:</span>
+                              {pending.map((chart, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
+                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
+                                >
+                                  {chart.channel}
+                                </button>
+                              ))}
+                            </div>
+                          )
+                        });
+                      }
+                      
+                      if (downloaded.length > 0) {
+                        details.push({
+                          icon: <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                          text: (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-xs font-medium">Downloaded:</span>
+                              {downloaded.map((chart, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
+                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
+                                >
+                                  {chart.channel}
+                                </button>
+                              ))}
+                            </div>
+                          ),
+                          className: 'text-green-600 dark:text-green-400'
+                        });
+                      }
+                      
+                      return details;
+                    })(),
                     // Password Status Display
                     (() => {
                       const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS);
@@ -1810,6 +1994,137 @@ export default function MachineManagement() {
         itemName={selectedMachine?.machineId || ''}
         message="Are you sure you want to delete this machine? This action cannot be undone."
       />
+
+      {/* Rate Chart View Modal */}
+      <FormModal
+        isOpen={showRateChartModal && !!selectedRateChart}
+        onClose={closeRateChartModal}
+        title={`Rate Chart - ${selectedRateChart?.channel || ''} Channel`}
+        maxWidth="4xl"
+      >
+        <div className="space-y-4">
+          {/* Chart Info */}
+          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">File Name</h3>
+                <p className="text-base font-semibold text-gray-900 dark:text-white">{selectedRateChart?.fileName}</p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getChannelColor(selectedRateChart?.channel || '')}`}>
+                {selectedRateChart?.channel}
+              </span>
+            </div>
+          </div>
+
+          {/* Search Inputs */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search FAT</label>
+              <input
+                type="text"
+                value={searchFat}
+                onChange={(e) => setSearchFat(e.target.value)}
+                placeholder="e.g., 3.5"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search SNF</label>
+              <input
+                type="text"
+                value={searchSnf}
+                onChange={(e) => setSearchSnf(e.target.value)}
+                placeholder="e.g., 8.5"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search CLR</label>
+              <input
+                type="text"
+                value={searchClr}
+                onChange={(e) => setSearchClr(e.target.value)}
+                placeholder="e.g., 25.0"
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          {/* Chart Data Table */}
+          {loadingChartData ? (
+            <div className="flex justify-center items-center py-8">
+              <FlowerSpinner size="lg" />
+            </div>
+          ) : (() => {
+            // Filter data based on search inputs
+            const filteredData = rateChartData.filter(row => {
+              const matchFat = !searchFat || row.fat.toLowerCase().includes(searchFat.toLowerCase());
+              const matchSnf = !searchSnf || row.snf.toLowerCase().includes(searchSnf.toLowerCase());
+              const matchClr = !searchClr || row.clr.toLowerCase().includes(searchClr.toLowerCase());
+              return matchFat && matchSnf && matchClr;
+            });
+            
+            return filteredData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 dark:bg-gray-700">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                      FAT
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                      SNF
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                      CLR
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-300 dark:border-gray-600">
+                      Rate
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredData.map((row, index) => (
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                        {row.fat}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                        {row.snf}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                        {row.clr}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                        ₹{row.rate}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-right">
+                Showing {filteredData.length} of {rateChartData.length} records
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400">{searchFat || searchSnf || searchClr ? 'No matching records found' : 'No data available for this rate chart'}</p>
+            </div>
+          );
+          })()}
+
+          {/* Close Button */}
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={closeRateChartModal}
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </FormModal>
     </>
   );
 }

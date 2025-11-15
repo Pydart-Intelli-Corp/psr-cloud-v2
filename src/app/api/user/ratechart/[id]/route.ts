@@ -43,16 +43,47 @@ export async function DELETE(
     const transaction = await sequelize.transaction();
 
     try {
-      // Delete rate chart data first
-      await sequelize.query(`
-        DELETE FROM ${schemaName}.rate_chart_data
-        WHERE rate_chart_id = :id
+      // Check if this is a master chart (shared_chart_id IS NULL)
+      const [chartInfo] = await sequelize.query(`
+        SELECT id, shared_chart_id FROM ${schemaName}.rate_charts
+        WHERE id = :id
       `, {
         replacements: { id },
         transaction
-      });
+      }) as [Array<{ id: number; shared_chart_id: number | null }>, unknown];
 
-      // Delete rate chart record
+      if (!chartInfo || chartInfo.length === 0) {
+        await transaction.rollback();
+        return createErrorResponse('Rate chart not found', 404);
+      }
+
+      const chart = chartInfo[0];
+      const isMasterChart = chart.shared_chart_id === null;
+
+      if (isMasterChart) {
+        // This is a master chart - delete all shared charts that reference it
+        await sequelize.query(`
+          DELETE FROM ${schemaName}.rate_charts
+          WHERE shared_chart_id = :id
+        `, {
+          replacements: { id },
+          transaction
+        });
+
+        // Delete the master chart's data
+        await sequelize.query(`
+          DELETE FROM ${schemaName}.rate_chart_data
+          WHERE rate_chart_id = :id
+        `, {
+          replacements: { id },
+          transaction
+        });
+      } else {
+        // This is a shared chart - only delete this chart record (not the shared data)
+        // The data belongs to the master chart
+      }
+
+      // Delete the chart record itself
       await sequelize.query(`
         DELETE FROM ${schemaName}.rate_charts
         WHERE id = :id
@@ -63,7 +94,7 @@ export async function DELETE(
 
       await transaction.commit();
 
-      console.log(`🗑️  Rate chart ${id} deleted successfully`);
+      console.log(`🗑️  Rate chart ${id} deleted successfully${isMasterChart ? ' (including all shared references)' : ''}`);
 
       return createSuccessResponse('Rate chart deleted successfully', null);
 
