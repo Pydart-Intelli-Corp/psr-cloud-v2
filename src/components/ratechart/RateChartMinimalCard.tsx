@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye } from 'lucide-react';
+import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw } from 'lucide-react';
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -41,6 +41,7 @@ interface RateChartMinimalCardProps {
   onAssignSociety: () => void;
   onToggleStatus: (chartId: number, currentStatus: number) => void;
   onView: () => void;
+  onResetDownload: () => void;
   searchQuery?: string;
 }
 
@@ -58,6 +59,7 @@ export default function RateChartMinimalCard({
   onAssignSociety,
   onToggleStatus,
   onView,
+  onResetDownload,
   searchQuery = '',
 }: RateChartMinimalCardProps) {
   return (
@@ -94,6 +96,13 @@ export default function RateChartMinimalCard({
             title="View Chart Data"
           >
             <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onResetDownload}
+            className="p-1 text-purple-600 hover:bg-purple-50 rounded transition-colors flex-shrink-0"
+            title="Reset Download for Machines"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onAssignSociety}

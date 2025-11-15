@@ -17,6 +17,7 @@ import RateChartUploadModal from '@/components/ratechart/RateChartUploadModal';
 import RateChartMinimalCard from '@/components/ratechart/RateChartMinimalCard';
 import AssignSocietyModal from '@/components/ratechart/AssignSocietyModal';
 import TotalAssignmentsModal from '@/components/ratechart/TotalAssignmentsModal';
+import ResetDownloadModal from '@/components/ratechart/ResetDownloadModal';
 import ManagementPageHeader from '@/components/management/ManagementPageHeader';
 import FilterDropdown from '@/components/management/FilterDropdown';
 
@@ -89,6 +90,14 @@ export default function RatechartManagement() {
   const [searchFat, setSearchFat] = useState('');
   const [searchSnf, setSearchSnf] = useState('');
   const [searchClr, setSearchClr] = useState('');
+
+  // Reset download modal
+  const [showResetDownloadModal, setShowResetDownloadModal] = useState(false);
+  const [selectedChartForReset, setSelectedChartForReset] = useState<{
+    chartId: number;
+    fileName: string;
+    societies: Array<{ societyId: number; societyName: string }>;
+  } | null>(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -523,6 +532,54 @@ export default function RatechartManagement() {
     }
   };
 
+  // Handle opening reset download modal
+  const handleOpenResetDownloadModal = (chartId: number, fileName: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>) => {
+    setSelectedChartForReset({
+      chartId,
+      fileName,
+      societies: societies.map(s => ({ societyId: s.societyId, societyName: s.societyName }))
+    });
+    setShowResetDownloadModal(true);
+  };
+
+  // Handle resetting download history
+  const handleResetDownload = async (machineIds: number[]) => {
+    if (!selectedChartForReset) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/ratechart/reset-download', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          chartId: selectedChartForReset.chartId,
+          machineIds
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuccess(data.message || `Reset download history for ${machineIds.length} machine(s)`);
+        setTimeout(() => setSuccess(''), 5000);
+        setShowResetDownloadModal(false);
+        setSelectedChartForReset(null);
+      } else {
+        setError(data.message || 'Failed to reset download history');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error resetting download history:', error);
+      setError('Error resetting download history');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
   // Calculate stats - only count unique master charts
   const uniqueCharts = Object.keys(groupedCharts).length;
   const totalAssignments = rateCharts.length; // Total number of society assignments
@@ -713,6 +770,7 @@ export default function RatechartManagement() {
                   onDelete={() => handleDelete(group.chartRecordIds[0])}
                   onToggleStatus={handleToggleStatus}
                   onView={() => handleViewRateChart(group.fileName, group.channel, group.societies[0]?.societyId || 0)}
+                  onResetDownload={() => handleOpenResetDownloadModal(group.chartId, group.fileName, group.societies)}
                 />
               );
             })}
@@ -923,6 +981,21 @@ export default function RatechartManagement() {
           </div>
         </div>
       </div>
+    )}
+
+    {/* Reset Download Modal */}
+    {selectedChartForReset && (
+      <ResetDownloadModal
+        show={showResetDownloadModal}
+        onClose={() => {
+          setShowResetDownloadModal(false);
+          setSelectedChartForReset(null);
+        }}
+        onConfirm={handleResetDownload}
+        chartId={selectedChartForReset.chartId}
+        fileName={selectedChartForReset.fileName}
+        societies={selectedChartForReset.societies}
+      />
     )}
   </>
   );
