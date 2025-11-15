@@ -1505,7 +1505,7 @@ export default function MachineManagement() {
                                   // Rate Chart Information
                                   ...(() => {
                                     const { pending, downloaded } = parseChartDetails(machine.chartDetails);
-                                    const details: Array<{ icon: JSX.Element; text: string | JSX.Element; className?: string }> = [];
+                                    const details: Array<{ icon: React.ReactElement; text: string | React.ReactElement; className?: string }> = [];
                                     
                                     if (pending.length > 0) {
                                       details.push({
@@ -1606,7 +1606,7 @@ export default function MachineManagement() {
                     // Rate Chart Information
                     ...(() => {
                       const { pending, downloaded } = parseChartDetails(machine.chartDetails);
-                      const details: Array<{ icon: JSX.Element; text: string | JSX.Element; className?: string }> = [];
+                      const details: Array<{ icon: React.ReactElement; text: string | React.ReactElement; className?: string }> = [];
                       
                       if (pending.length > 0) {
                         details.push({
@@ -2000,7 +2000,7 @@ export default function MachineManagement() {
         isOpen={showRateChartModal && !!selectedRateChart}
         onClose={closeRateChartModal}
         title={`Rate Chart - ${selectedRateChart?.channel || ''} Channel`}
-        maxWidth="4xl"
+        maxWidth="2xl"
       >
         <div className="space-y-4">
           {/* Chart Info */}
@@ -2053,7 +2053,7 @@ export default function MachineManagement() {
           {/* Chart Data Table */}
           {loadingChartData ? (
             <div className="flex justify-center items-center py-8">
-              <FlowerSpinner size="lg" />
+              <FlowerSpinner />
             </div>
           ) : (() => {
             // Filter data based on search inputs
