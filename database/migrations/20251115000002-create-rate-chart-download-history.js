@@ -70,7 +70,7 @@ module.exports = {
             FOREIGN KEY (rate_chart_id) REFERENCES \`${schemaName}\`.rate_charts(id) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY (machine_id) REFERENCES \`${schemaName}\`.machines(id) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY (society_id) REFERENCES \`${schemaName}\`.societies(id) ON DELETE CASCADE ON UPDATE CASCADE,
-            UNIQUE KEY unique_machine_chart (machine_id, rate_chart_id),
+            UNIQUE KEY unique_machine_chart_channel (machine_id, rate_chart_id, channel),
             INDEX idx_machine_society_channel (machine_id, society_id, channel),
             INDEX idx_rate_chart_id (rate_chart_id),
             INDEX idx_downloaded_at (downloaded_at)

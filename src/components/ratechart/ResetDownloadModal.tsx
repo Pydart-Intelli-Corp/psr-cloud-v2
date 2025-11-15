@@ -18,6 +18,7 @@ interface ResetDownloadModalProps {
   onConfirm: (machineIds: number[]) => Promise<void>;
   chartId: number;
   fileName: string;
+  channel: string;
   societies: Array<{ societyId: number; societyName: string }>;
 }
 
@@ -27,6 +28,7 @@ export default function ResetDownloadModal({
   onConfirm,
   chartId,
   fileName,
+  channel,
   societies
 }: ResetDownloadModalProps) {
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -137,8 +139,15 @@ export default function ResetDownloadModal({
                 <RefreshCw className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   Reset Download Status
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    channel === 'COW' ? 'bg-blue-100 text-blue-700' :
+                    channel === 'BUF' ? 'bg-green-100 text-green-700' :
+                    'bg-purple-100 text-purple-700'
+                  }`}>
+                    {channel}
+                  </span>
                 </h3>
                 <p className="text-sm text-gray-600">
                   {fileName}
@@ -157,7 +166,7 @@ export default function ResetDownloadModal({
           {/* Content */}
           <div className="px-6 py-4">
             <p className="text-sm text-gray-600 mb-4">
-              Select machines to reset their download status. This will allow them to re-download this rate chart.
+              Select machines to reset their <strong>{channel} channel</strong> download status. This will allow them to re-download this rate chart for the {channel} milk type.
             </p>
 
             {/* Filters */}
@@ -281,12 +290,12 @@ export default function ResetDownloadModal({
               {submitting ? (
                 <>
                   <FlowerSpinner size={16} className="brightness-200" />
-                  <span>Resetting...</span>
+                  <span>Resetting {channel}...</span>
                 </>
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4" />
-                  <span>Reset Download ({selectedMachines.size})</span>
+                  <span>Reset {channel} Download ({selectedMachines.size})</span>
                 </>
               )}
             </button>

@@ -226,20 +226,20 @@ async function handleRequest(
     const chartData = dataResults as RateChartDataResult[];
     console.log(`✅ Found ${chartData.length} rate chart records`);
 
-    // Record download history
+    // Record download history with channel
     try {
       const historyQuery = `
         INSERT INTO \`${schemaName}\`.rate_chart_download_history 
-        (rate_chart_id, machine_id, downloaded_at)
-        VALUES (?, ?, NOW())
+        (rate_chart_id, machine_id, society_id, channel, downloaded_at)
+        VALUES (?, ?, ?, ?, NOW())
         ON DUPLICATE KEY UPDATE downloaded_at = NOW()
       `;
       
       await sequelize.query(historyQuery, {
-        replacements: [chart.id, machineData.id]
+        replacements: [chart.id, machineData.id, actualSocietyId, channelUpper]
       });
       
-      console.log(`✅ Recorded download history for machine ${machineData.id}`);
+      console.log(`✅ Recorded download history for machine ${machineData.id} channel ${channelUpper}`);
     } catch (historyError) {
       console.error(`⚠️ Failed to record download history:`, historyError);
       // Continue with download even if history recording fails

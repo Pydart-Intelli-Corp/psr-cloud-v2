@@ -96,6 +96,7 @@ export default function RatechartManagement() {
   const [selectedChartForReset, setSelectedChartForReset] = useState<{
     chartId: number;
     fileName: string;
+    channel: string;
     societies: Array<{ societyId: number; societyName: string }>;
   } | null>(null);
 
@@ -533,10 +534,11 @@ export default function RatechartManagement() {
   };
 
   // Handle opening reset download modal
-  const handleOpenResetDownloadModal = (chartId: number, fileName: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>) => {
+  const handleOpenResetDownloadModal = (chartId: number, fileName: string, channel: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>) => {
     setSelectedChartForReset({
       chartId,
       fileName,
+      channel,
       societies: societies.map(s => ({ societyId: s.societyId, societyName: s.societyName }))
     });
     setShowResetDownloadModal(true);
@@ -558,7 +560,8 @@ export default function RatechartManagement() {
         },
         body: JSON.stringify({
           chartId: selectedChartForReset.chartId,
-          machineIds
+          machineIds,
+          channel: selectedChartForReset.channel
         })
       });
 
@@ -567,7 +570,8 @@ export default function RatechartManagement() {
       if (data.success) {
         const machineCount = machineIds.length;
         const chartName = selectedChartForReset.fileName;
-        setSuccess(`✅ Successfully reset download status for ${machineCount} machine${machineCount > 1 ? 's' : ''}. Chart "${chartName}" can now be re-downloaded by selected machines.`);
+        const channel = selectedChartForReset.channel;
+        setSuccess(`✅ Successfully reset ${channel} channel download status for ${machineCount} machine${machineCount > 1 ? 's' : ''}. Chart "${chartName}" can now be re-downloaded by selected machines.`);
         setTimeout(() => setSuccess(''), 6000);
         setShowResetDownloadModal(false);
         setSelectedChartForReset(null);
@@ -772,7 +776,7 @@ export default function RatechartManagement() {
                   onDelete={() => handleDelete(group.chartRecordIds[0])}
                   onToggleStatus={handleToggleStatus}
                   onView={() => handleViewRateChart(group.fileName, group.channel, group.societies[0]?.societyId || 0)}
-                  onResetDownload={() => handleOpenResetDownloadModal(group.chartId, group.fileName, group.societies)}
+                  onResetDownload={() => handleOpenResetDownloadModal(group.chartId, group.fileName, group.channel, group.societies)}
                 />
               );
             })}
@@ -996,6 +1000,7 @@ export default function RatechartManagement() {
         onConfirm={handleResetDownload}
         chartId={selectedChartForReset.chartId}
         fileName={selectedChartForReset.fileName}
+        channel={selectedChartForReset.channel}
         societies={selectedChartForReset.societies}
       />
     )}

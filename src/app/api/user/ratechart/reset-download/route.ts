@@ -34,10 +34,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { chartId, machineIds } = body;
+    const { chartId, machineIds, channel } = body;
 
     if (!chartId || !machineIds || !Array.isArray(machineIds) || machineIds.length === 0) {
       return createErrorResponse('Chart ID and machine IDs are required', 400);
+    }
+
+    if (!channel || !['COW', 'BUF', 'MIX'].includes(channel)) {
+      return createErrorResponse('Valid channel (COW, BUF, or MIX) is required', 400);
     }
 
     // Get admin's dbKey
@@ -50,22 +54,22 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Delete download history records for the specified machines and chart
+    // Delete download history records for the specified machines, chart, and channel
     const placeholders = machineIds.map(() => '?').join(', ');
     const deleteQuery = `
       DELETE FROM \`${schemaName}\`.rate_chart_download_history
-      WHERE rate_chart_id = ? AND machine_id IN (${placeholders})
+      WHERE rate_chart_id = ? AND machine_id IN (${placeholders}) AND channel = ?
     `;
 
     const [result] = await sequelize.query(deleteQuery, {
-      replacements: [chartId, ...machineIds]
+      replacements: [chartId, ...machineIds, channel]
     });
 
     const deletedCount = (result as { affectedRows?: number }).affectedRows || 0;
 
     return createSuccessResponse(
-      `Reset download history for ${deletedCount} machine(s). They can now re-download the chart.`,
-      JSON.stringify({ deletedCount, chartId, machineIds })
+      `Reset ${channel} channel download history for ${deletedCount} machine(s). They can now re-download the ${channel} chart.`,
+      JSON.stringify({ deletedCount, chartId, machineIds, channel })
     );
 
   } catch (error) {

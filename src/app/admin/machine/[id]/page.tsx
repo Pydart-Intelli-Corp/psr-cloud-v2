@@ -25,7 +25,8 @@ import {
   Wrench,
   Cog,
   Timer,
-  Zap
+  Zap,
+  PieChart
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -129,6 +130,23 @@ interface MachineType {
   isActive: boolean;
 }
 
+interface MachineStatistic {
+  id: number;
+  machine_id: number;
+  society_id: number;
+  machine_type: string;
+  version: string;
+  total_test: number;
+  daily_cleaning: number;
+  weekly_cleaning: number;
+  cleaning_skip: number;
+  gain: number;
+  auto_channel: string;
+  statistics_date: string;
+  statistics_time: string;
+  created_at: string;
+}
+
 export default function MachineDetails() {
   const router = useRouter();
   const params = useParams();
@@ -140,7 +158,7 @@ export default function MachineDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'correction' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'statistics' | 'correction' | 'activity'>('overview');
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -151,6 +169,8 @@ export default function MachineDetails() {
   const [machineTypesLoading, setMachineTypesLoading] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [correctionHistory, setCorrectionHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [statistics, setStatistics] = useState<MachineStatistic[]>([]);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     machineId?: string;
     machineType?: string;
@@ -286,12 +306,44 @@ export default function MachineDetails() {
     }
   }, []);
 
+  // Fetch machine statistics
+  const fetchStatistics = useCallback(async () => {
+    if (!machineId) return;
+    
+    try {
+      setStatisticsLoading(true);
+      const token = localStorage.getItem('authToken');
+      
+      const response = await fetch(`/api/user/machine/statistics?machineId=${machineId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setStatistics(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching statistics:', error);
+    } finally {
+      setStatisticsLoading(false);
+    }
+  }, [machineId]);
+
   // Load data on mount
   useEffect(() => {
     fetchMachineDetails();
     fetchSocieties();
     fetchMachineTypes();
   }, [fetchMachineDetails, fetchSocieties, fetchMachineTypes]);
+
+  // Fetch statistics when statistics tab is active
+  useEffect(() => {
+    if (activeTab === 'statistics') {
+      fetchStatistics();
+    }
+  }, [activeTab, fetchStatistics]);
 
   // Open edit modal
   const handleEditClick = () => {
@@ -695,6 +747,7 @@ export default function MachineDetails() {
               {[
                 { id: 'overview' as const, label: t.dashboard?.overview || 'Overview', icon: Building2 },
                 { id: 'analytics' as const, label: t.nav?.analytics || 'Analytics', icon: BarChart3 },
+                { id: 'statistics' as const, label: 'Statistics', icon: PieChart },
                 { id: 'correction' as const, label: 'Correction', icon: Settings },
                 { id: 'activity' as const, label: t.dashboard?.recentActivity || 'Activity', icon: Activity }
               ].map((tab) => (
@@ -1157,6 +1210,89 @@ export default function MachineDetails() {
                   </LoadingButton>
                 </div>
               </form>
+            </div>
+          )}
+
+          {activeTab === 'statistics' && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+              <div className="mb-6">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Machine Statistics</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Operational statistics and performance metrics</p>
+              </div>
+
+              {statisticsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="large" />
+                </div>
+              ) : statistics.length === 0 ? (
+                <EmptyState
+                  icon={<PieChart className="w-10 h-10" />}
+                  title="No Statistics Available"
+                  message="No statistical data has been recorded for this machine yet."
+                  showAction={false}
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Date</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Time</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Total Tests</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Daily Clean</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Weekly Clean</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Skip Clean</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Gain</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Auto Channel</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {statistics.map((stat) => (
+                        <tr key={stat.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                          <td className="py-3 px-4 text-gray-900 dark:text-gray-100">
+                            {new Date(stat.statistics_date).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4 text-gray-900 dark:text-gray-100">{stat.statistics_time}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                              {stat.total_test}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                              {stat.daily_cleaning}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                              {stat.weekly_cleaning}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
+                              {stat.cleaning_skip}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                              {stat.gain}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                              stat.auto_channel === 'ENABLE' 
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {stat.auto_channel}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

@@ -319,10 +319,34 @@ async function createAdminTables(schemaName: string): Promise<void> {
         FOREIGN KEY (\`rate_chart_id\`) REFERENCES \`${schemaName}\`.\`rate_charts\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
         FOREIGN KEY (\`machine_id\`) REFERENCES \`${schemaName}\`.\`machines\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
         FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
-        UNIQUE KEY \`unique_machine_chart\` (\`machine_id\`, \`rate_chart_id\`),
+        UNIQUE KEY \`unique_machine_chart_channel\` (\`machine_id\`, \`rate_chart_id\`, \`channel\`),
         INDEX \`idx_machine_society_channel\` (\`machine_id\`, \`society_id\`, \`channel\`),
         INDEX \`idx_rate_chart_id\` (\`rate_chart_id\`),
         INDEX \`idx_downloaded_at\` (\`downloaded_at\`)
+      )`,
+
+      // Machine Statistics table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`machine_statistics\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`machine_id\` INT NOT NULL COMMENT 'Reference to machines table',
+        \`society_id\` INT NOT NULL COMMENT 'Reference to societies table',
+        \`machine_type\` VARCHAR(50) NOT NULL COMMENT 'Machine type',
+        \`version\` VARCHAR(20) NOT NULL COMMENT 'Machine version',
+        \`total_test\` INT DEFAULT 0 COMMENT 'Total tests (T parameter)',
+        \`daily_cleaning\` INT DEFAULT 0 COMMENT 'Daily cleaning count (D parameter)',
+        \`weekly_cleaning\` INT DEFAULT 0 COMMENT 'Weekly cleaning count (W parameter)',
+        \`cleaning_skip\` INT DEFAULT 0 COMMENT 'Cleaning skip count (S parameter)',
+        \`gain\` INT DEFAULT 0 COMMENT 'Gain value (G parameter)',
+        \`auto_channel\` VARCHAR(20) DEFAULT NULL COMMENT 'Auto channel status (ENABLE/DISABLE)',
+        \`statistics_date\` DATE NOT NULL COMMENT 'Date of statistics',
+        \`statistics_time\` TIME NOT NULL COMMENT 'Time of statistics',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`machine_id\`) REFERENCES \`${schemaName}\`.\`machines\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        INDEX \`idx_machine_id\` (\`machine_id\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_statistics_date\` (\`statistics_date\`),
+        INDEX \`idx_created_at\` (\`created_at\`)
       )`
     ];
     
