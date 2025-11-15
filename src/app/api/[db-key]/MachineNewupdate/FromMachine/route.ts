@@ -206,16 +206,88 @@ async function handleRequest(
     
     const formattedTimestamp = `${day}-${month}-${year} ${hoursStr}:${minutes}:${seconds} ${ampm}`;
 
-    // TODO: Implement actual update check logic
-    // For now, always return "No update"
-    // In future, check database for pending updates based on:
-    // - machineType
-    // - machineModel (firmware version)
-    // - machineId
+    // Check for pending updates if machine was found
+    const updateTypes: string[] = [];
     
-    const updateStatus = "No update";
-    const responseText = `${formattedTimestamp}|${updateStatus}`;
+    if (machineData) {
+      try {
+        // Check 1: Password updates (statusU = 1 or statusS = 1)
+        const passwordCheckQuery = `
+          SELECT statusU, statusS 
+          FROM \`${schemaName}\`.machines 
+          WHERE id = ?
+          LIMIT 1
+        `;
+        const [passwordResults] = await sequelize.query(passwordCheckQuery, { 
+          replacements: [machineData.id] 
+        });
+        
+        if (Array.isArray(passwordResults) && passwordResults.length > 0) {
+          const passwordStatus = passwordResults[0] as { statusU: number; statusS: number };
+          if (passwordStatus.statusU === 1 || passwordStatus.statusS === 1) {
+            updateTypes.push('password');
+            console.log(`🔑 Password update available for machine ${machineData.id}`);
+          }
+        }
 
+        // Check 2: Rate chart updates (status = 1 and not yet downloaded by this machine)
+        const chartCheckQuery = `
+          SELECT COUNT(*) as pending_charts
+          FROM \`${schemaName}\`.rate_charts rc
+          WHERE rc.society_id = ? 
+            AND rc.status = 1
+            AND NOT EXISTS (
+              SELECT 1 
+              FROM \`${schemaName}\`.rate_chart_download_history rcdh
+              WHERE rcdh.rate_chart_id = rc.id 
+                AND rcdh.machine_id = ?
+            )
+        `;
+        const [chartResults] = await sequelize.query(chartCheckQuery, { 
+          replacements: [actualSocietyId, machineData.id] 
+        });
+        
+        if (Array.isArray(chartResults) && chartResults.length > 0) {
+          const chartStatus = chartResults[0] as { pending_charts: number };
+          if (chartStatus.pending_charts > 0) {
+            updateTypes.push('chart');
+            console.log(`📊 Rate chart update available for machine ${machineData.id} (${chartStatus.pending_charts} pending)`);
+          }
+        }
+
+        // Check 3: Machine correction updates (status = 1)
+        const correctionCheckQuery = `
+          SELECT status 
+          FROM \`${schemaName}\`.machine_corrections 
+          WHERE machine_id = ? AND status = 1
+          LIMIT 1
+        `;
+        const [correctionResults] = await sequelize.query(correctionCheckQuery, { 
+          replacements: [machineData.id] 
+        });
+        
+        if (Array.isArray(correctionResults) && correctionResults.length > 0) {
+          updateTypes.push('correction');
+          console.log(`🔧 Correction update available for machine ${machineData.id}`);
+        }
+
+      } catch (checkError) {
+        console.error('⚠️ Error checking for updates:', checkError);
+        // Continue with "No update" if checks fail
+      }
+    }
+
+    // Build response based on available updates
+    let updateStatus: string;
+    if (updateTypes.length > 0) {
+      updateStatus = updateTypes.join(',');
+      console.log(`✅ Updates available: ${updateStatus}`);
+    } else {
+      updateStatus = "No update";
+      console.log(`ℹ️ No updates available`);
+    }
+
+    const responseText = `${formattedTimestamp}|${updateStatus}`;
     console.log(`✅ Response: "${responseText}"`);
 
     return ESP32ResponseHelper.createDataResponse(responseText);
