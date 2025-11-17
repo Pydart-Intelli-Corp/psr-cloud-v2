@@ -2515,38 +2515,42 @@ export default function MachineDetails() {
 
                     {/* Machine Selection List */}
                     {applyCorrectionsToOthers && (
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Select Machines ({selectedMachinesForCorrection.size} selected)
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleToggleSelectAllCorrection}
-                            disabled={correctionSaveLoading}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            {selectAllMachinesForCorrection ? 'Deselect All' : 'Select All'}
-                          </button>
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 flex-shrink-0">
+                              Select Machines ({selectedMachinesForCorrection.size} selected)
+                            </span>
+                            <button
+                              onClick={handleToggleSelectAllCorrection}
+                              disabled={correctionSaveLoading}
+                              className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium disabled:opacity-50 whitespace-nowrap px-3 py-1 bg-primary-50 dark:bg-primary-900/20 rounded-md hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+                            >
+                              {selectAllMachinesForCorrection ? 'Deselect All' : 'Select All'}
+                            </button>
+                          </div>
                         </div>
-                        
-                        <div className="space-y-2">
+                        <div className="max-h-64 overflow-y-auto">
                           {otherMachines.map((m) => (
-                            <label
+                            <div
                               key={m.id}
-                              className="flex items-center gap-3 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer transition-colors"
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                             >
                               <input
                                 type="checkbox"
+                                id={`machine-correction-${m.id}`}
                                 checked={selectedMachinesForCorrection.has(m.id)}
                                 onChange={() => handleToggleMachineCorrection(m.id)}
                                 disabled={correctionSaveLoading}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="w-4 h-4 text-primary-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:ring-2"
                               />
-                              <span className="text-sm text-gray-900 dark:text-gray-100">
+                              <label
+                                htmlFor={`machine-correction-${m.id}`}
+                                className="flex-1 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+                              >
                                 {m.machineId}
-                              </span>
-                            </label>
+                              </label>
+                            </div>
                           ))}
                         </div>
                       </div>

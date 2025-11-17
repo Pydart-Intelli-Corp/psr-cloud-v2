@@ -76,7 +76,8 @@ export async function GET(
     const cleanAdminName = adminUser.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${adminUser.dbKey.toLowerCase()}`;
 
-    // Fetch machine correction data (all daily records)
+    // Fetch machine correction data (only from ESP32 device with status = 1)
+    // status = 1 means corrections saved from SaveMachineCorrectionFromMachine endpoint
     const corrections = await sequelize.query<MachineCorrection>(
       `SELECT 
         id,
@@ -87,7 +88,7 @@ export async function GET(
         created_at,
         updated_at
        FROM ${schemaName}.machine_corrections 
-       WHERE machine_id = ?
+       WHERE machine_id = ? AND status = 1
        ORDER BY created_at DESC
        LIMIT 30`,
       {
