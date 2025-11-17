@@ -1023,7 +1023,9 @@ export default function MachineManagement() {
       operatorName: machine.operatorName || '',
       contactPhone: machine.contactPhone || '',
       status: machine.status,
-      notes: machine.notes || ''
+      notes: machine.notes || '',
+      setAsMaster: false,
+      disablePasswordInheritance: false
     });
     setFieldErrors({}); // Clear field errors
     setError(''); // Clear general errors
