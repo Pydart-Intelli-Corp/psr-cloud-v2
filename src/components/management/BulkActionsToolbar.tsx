@@ -7,7 +7,7 @@ import StatusDropdown from './StatusDropdown';
 interface BulkActionsToolbarProps {
   selectedCount: number;
   onBulkDelete: () => void;
-  onBulkDownload: () => void;
+  onBulkDownload?: (format: 'csv' | 'pdf') => void;
   onBulkStatusUpdate?: (status: string) => void;
   onClearSelection?: () => void;
   itemType: string; // e.g., 'farmer', 'BMC'
@@ -71,14 +71,16 @@ const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
           )}
 
           {/* Download */}
-          <button
-            onClick={onBulkDownload}
-            className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-1"
-            title={`Download selected ${itemType}s`}
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Download</span>
-          </button>
+          {onBulkDownload && (
+            <button
+              onClick={() => onBulkDownload('csv')}
+              className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-1"
+              title={`Download selected ${itemType}s`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Download</span>
+            </button>
+          )}
 
           {/* Delete */}
           <button

@@ -23,7 +23,9 @@ import {
   ChevronDown,
   FileText,
   Download,
-  Clock
+  Clock,
+  Plus,
+  Upload
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -40,6 +42,12 @@ import {
   EmptyState,
   ConfirmDeleteModal
 } from '@/components';
+import {
+  BulkActionsToolbar,
+  BulkDeleteConfirmModal,
+  LoadingSnackbar,
+  FloatingActionButton
+} from '@/components/management';
 
 interface Machine {
   id: number;
@@ -172,6 +180,9 @@ export default function MachineManagement() {
   const [selectAll, setSelectAll] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<'active' | 'inactive' | 'maintenance' | 'suspended'>('active');
 
   // Master machine state
   const [societyHasMaster, setSocietyHasMaster] = useState(false);
@@ -879,6 +890,88 @@ export default function MachineManagement() {
       setSelectedSocieties(new Set(machinesBySociety));
       
       setSelectAll(true);
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    setIsDeletingBulk(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const machineIds = Array.from(selectedMachines);
+      const deletePromises = machineIds.map(id =>
+        fetch(`/api/user/machine/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      );
+
+      const results = await Promise.allSettled(deletePromises);
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      if (successCount > 0) {
+        setSuccess(`Successfully deleted ${successCount} machine${successCount > 1 ? 's' : ''}`);
+        fetchMachines();
+      }
+      if (failCount > 0) {
+        setError(`Failed to delete ${failCount} machine${failCount > 1 ? 's' : ''}`);
+      }
+
+      setSelectedMachines(new Set());
+      setSelectAll(false);
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('Error in bulk delete:', error);
+      setError('Failed to delete machines');
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
+
+
+  // Handle bulk status update
+  const handleBulkStatusUpdate = async () => {
+    setIsUpdatingStatus(true);
+    setUpdateProgress(0);
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const machineIds = Array.from(selectedMachines);
+      const total = machineIds.length;
+      let completed = 0;
+
+      for (const id of machineIds) {
+        try {
+          await fetch(`/api/user/machine/${id}/status`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: bulkStatus })
+          });
+          completed++;
+          setUpdateProgress(Math.round((completed / total) * 100));
+        } catch (err) {
+          console.error(`Failed to update machine ${id}:`, err);
+        }
+      }
+
+      setSuccess(`Successfully updated ${completed} machine${completed > 1 ? 's' : ''} to ${bulkStatus}`);
+      fetchMachines();
+      setSelectedMachines(new Set());
+      setSelectAll(false);
+    } catch (error) {
+      console.error('Error in bulk status update:', error);
+      setError('Failed to update machine statuses');
+    } finally {
+      setIsUpdatingStatus(false);
+      setUpdateProgress(0);
     }
   };
 
@@ -1648,6 +1741,7 @@ export default function MachineManagement() {
                                   color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
                                   onClick: () => handleMasterBadgeClick(society.id)
                                 } : undefined}
+                                selectable={true}
                                 selected={selectedMachines.has(machine.id)}
                                 onSelect={() => handleSelectMachine(machine.id)}
                                 onPasswordSettings={() => handlePasswordSettingsClick(machine)}
@@ -1747,6 +1841,7 @@ export default function MachineManagement() {
                     color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
                     onClick: () => handleMasterBadgeClick(machine.societyId)
                   } : undefined}
+                  selectable={true}
                   selected={selectedMachines.has(machine.id)}
                   onSelect={() => handleSelectMachine(machine.id)}
                   onPasswordSettings={() => handlePasswordSettingsClick(machine)}
@@ -2603,6 +2698,44 @@ export default function MachineManagement() {
           </div>
         </div>
       </FormModal>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <BulkDeleteConfirmModal
+        show={showDeleteConfirm}
+        itemCount={selectedMachines.size}
+        itemType="machine"
+        onConfirm={handleBulkDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+        isDeleting={isDeletingBulk}
+      />
+
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        selectedCount={selectedMachines.size}
+        onBulkDelete={() => setShowDeleteConfirm(true)}
+        onBulkStatusUpdate={handleBulkStatusUpdate}
+        onClearSelection={() => {
+          setSelectedMachines(new Set());
+          setSelectedSocieties(new Set());
+          setSelectAll(false);
+        }}
+        itemType="machine"
+        showStatusUpdate={true}
+        currentBulkStatus={bulkStatus}
+        onBulkStatusChange={(status) => setBulkStatus(status as typeof bulkStatus)}
+      />
+
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        actions={[
+          {
+            icon: <Plus className="w-6 h-6 text-white" />,
+            label: 'Add Machine',
+            onClick: openAddModal,
+            color: 'bg-gradient-to-br from-blue-500 to-blue-600'
+          }
+        ]}
+      />
     </>
   );
 }
