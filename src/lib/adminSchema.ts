@@ -242,7 +242,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_created_at\` (\`created_at\`)
       )`,
 
-      // Machine Corrections table
+      // Machine Corrections table (Admin-saved corrections)
       `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`machine_corrections\` (
         \`id\` INT PRIMARY KEY AUTO_INCREMENT,
         \`machine_id\` INT NOT NULL COMMENT 'Reference to machines table',
@@ -274,6 +274,38 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_machine_type\` (\`machine_type\`),
         INDEX \`idx_status\` (\`status\`),
         INDEX \`idx_created_at\` (\`created_at\`)
+      )`,
+
+      // Machine Corrections From Machine table (ESP32 device corrections)
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`machine_corrections_from_machine\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`machine_id\` INT NOT NULL COMMENT 'Machine database ID',
+        \`society_id\` INT NOT NULL COMMENT 'Society database ID',
+        \`machine_type\` VARCHAR(50) DEFAULT NULL COMMENT 'Machine type',
+        \`channel1_fat\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Fat correction for channel 1',
+        \`channel1_snf\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'SNF correction for channel 1',
+        \`channel1_clr\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'CLR correction for channel 1',
+        \`channel1_temp\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Temperature correction for channel 1',
+        \`channel1_water\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Water correction for channel 1',
+        \`channel1_protein\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Protein correction for channel 1',
+        \`channel2_fat\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Fat correction for channel 2',
+        \`channel2_snf\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'SNF correction for channel 2',
+        \`channel2_clr\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'CLR correction for channel 2',
+        \`channel2_temp\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Temperature correction for channel 2',
+        \`channel2_water\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Water correction for channel 2',
+        \`channel2_protein\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Protein correction for channel 2',
+        \`channel3_fat\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Fat correction for channel 3',
+        \`channel3_snf\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'SNF correction for channel 3',
+        \`channel3_clr\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'CLR correction for channel 3',
+        \`channel3_temp\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Temperature correction for channel 3',
+        \`channel3_water\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Water correction for channel 3',
+        \`channel3_protein\` DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Protein correction for channel 3',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'When correction was received from ESP32',
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update timestamp',
+        INDEX \`idx_machine_id\` (\`machine_id\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_created_at\` (\`created_at\`),
+        INDEX \`idx_machine_society\` (\`machine_id\`, \`society_id\`)
       )`,
 
       // Rate Charts table

@@ -247,6 +247,23 @@ async function handleRequest(
     const water = parseValue(waterStr);
     const protein = parseValue(proteinStr);
 
+    // Parse timestamp from InputString (format: D2025-11-18_15:32:42)
+    // Remove 'D' prefix and convert underscore to space for MySQL datetime format
+    let correctionTimestamp = 'NOW()';
+    let correctionDate = 'CURDATE()';
+    
+    if (timestampStr && timestampStr.startsWith('D')) {
+      // Remove 'D' prefix and replace underscore with space
+      // D2025-11-18_15:32:42 -> 2025-11-18 15:32:42
+      const timestampValue = timestampStr.substring(1).replace('_', ' ');
+      correctionTimestamp = `'${timestampValue}'`;
+      // Extract just the date part for date comparison
+      correctionDate = `'${timestampValue.split(' ')[0]}'`;
+      console.log(`🕐 Using timestamp from device: ${timestampValue}`);
+    } else {
+      console.log(`🕐 Using current server time (no timestamp in InputString)`);
+    }
+
     console.log(`📊 Parsed correction values:`, {
       channel: channelName,
       fat,
@@ -254,15 +271,17 @@ async function handleRequest(
       clr,
       temp,
       water,
-      protein
+      protein,
+      timestamp: correctionTimestamp
     });
 
-    // Check if correction already exists for this machine TODAY
+    // Use separate machine_corrections_from_machine table for device-saved corrections
+    // Check if correction already exists for this machine on the same date
     // If same day: UPDATE, if different day: INSERT new record
     const checkQuery = `
-      SELECT id, DATE(created_at) as created_date FROM \`${schemaName}\`.machine_corrections
+      SELECT id, DATE(created_at) as created_date FROM \`${schemaName}\`.machine_corrections_from_machine
       WHERE machine_id = ? AND society_id = ?
-      AND DATE(created_at) = CURDATE()
+      AND DATE(created_at) = ${correctionDate}
       LIMIT 1
     `;
 
@@ -271,9 +290,9 @@ async function handleRequest(
     });
 
     if (Array.isArray(existingRecords) && existingRecords.length > 0) {
-      // Update existing record for TODAY
+      // Update existing record for the same date
       const updateQuery = `
-        UPDATE \`${schemaName}\`.machine_corrections
+        UPDATE \`${schemaName}\`.machine_corrections_from_machine
         SET 
           machine_type = ?,
           channel${channelNum}_fat = ?,
@@ -282,9 +301,8 @@ async function handleRequest(
           channel${channelNum}_temp = ?,
           channel${channelNum}_water = ?,
           channel${channelNum}_protein = ?,
-          status = 1,
-          updated_at = NOW()
-        WHERE machine_id = ? AND society_id = ? AND DATE(created_at) = CURDATE()
+          updated_at = ${correctionTimestamp}
+        WHERE machine_id = ? AND society_id = ? AND DATE(created_at) = ${correctionDate}
       `;
 
       await sequelize.query(updateQuery, {
@@ -301,16 +319,16 @@ async function handleRequest(
         ]
       });
 
-      console.log(`✅ Updated today's correction for machine ${machineData.id}, channel ${channelName}`);
+      console.log(`✅ Updated today's ESP32 correction for machine ${machineData.id}, channel ${channelName}`);
     } else {
-      // Insert new record for NEW DAY
+      // Insert new record for new date
       const insertQuery = `
-        INSERT INTO \`${schemaName}\`.machine_corrections
+        INSERT INTO \`${schemaName}\`.machine_corrections_from_machine
         (machine_id, society_id, machine_type, 
          channel${channelNum}_fat, channel${channelNum}_snf, channel${channelNum}_clr,
          channel${channelNum}_temp, channel${channelNum}_water, channel${channelNum}_protein,
-         status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())
+         created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${correctionTimestamp}, ${correctionTimestamp})
       `;
 
       await sequelize.query(insertQuery, {
@@ -327,7 +345,7 @@ async function handleRequest(
         ]
       });
 
-      console.log(`✅ Inserted new daily correction for machine ${machineData.id}, channel ${channelName}`);
+      console.log(`✅ Inserted new daily ESP32 correction for machine ${machineData.id}, channel ${channelName}`);
     }
 
     console.log(`✅ Machine correction saved successfully`);

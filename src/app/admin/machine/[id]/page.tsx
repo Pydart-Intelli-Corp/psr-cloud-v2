@@ -562,9 +562,30 @@ export default function MachineDetails() {
           setShowMachineCorrection(true);
           setSuccess(`Loaded ${result.data.length} correction records from machine`);
         } else {
+          // No data found - set all correction values to 0.00
+          setCorrectionData({
+            channel1_fat: '0.00',
+            channel1_snf: '0.00',
+            channel1_clr: '0.00',
+            channel1_temp: '0.00',
+            channel1_water: '0.00',
+            channel1_protein: '0.00',
+            channel2_fat: '0.00',
+            channel2_snf: '0.00',
+            channel2_clr: '0.00',
+            channel2_temp: '0.00',
+            channel2_water: '0.00',
+            channel2_protein: '0.00',
+            channel3_fat: '0.00',
+            channel3_snf: '0.00',
+            channel3_clr: '0.00',
+            channel3_temp: '0.00',
+            channel3_water: '0.00',
+            channel3_protein: '0.00'
+          });
           setMachineCorrection(null);
           setShowMachineCorrection(false);
-          setError('No correction data found for this machine');
+          setSuccess('No correction data found - all values set to 0.00');
         }
       } else {
         setError(result.error || 'Failed to fetch machine correction data');

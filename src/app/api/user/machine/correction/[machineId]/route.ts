@@ -76,23 +76,31 @@ export async function GET(
     const cleanAdminName = adminUser.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${adminUser.dbKey.toLowerCase()}`;
 
-    // Fetch machine correction data (only from ESP32 device with status = 1)
-    // status = 1 means corrections saved from SaveMachineCorrectionFromMachine endpoint
+    // Fetch machine correction data from machine_corrections_from_machine table
+    // This table stores corrections sent by ESP32 device via SaveMachineCorrectionFromMachine endpoint
+    // Only show the most recent correction per date (one per day)
     const corrections = await sequelize.query<MachineCorrection>(
       `SELECT 
-        id,
-        machine_id,
-        channel1_fat, channel1_snf, channel1_clr, channel1_temp, channel1_water, channel1_protein,
-        channel2_fat, channel2_snf, channel2_clr, channel2_temp, channel2_water, channel2_protein,
-        channel3_fat, channel3_snf, channel3_clr, channel3_temp, channel3_water, channel3_protein,
-        created_at,
-        updated_at
-       FROM ${schemaName}.machine_corrections 
-       WHERE machine_id = ? AND status = 1
-       ORDER BY created_at DESC
+        mc.id,
+        mc.machine_id,
+        mc.channel1_fat, mc.channel1_snf, mc.channel1_clr, mc.channel1_temp, mc.channel1_water, mc.channel1_protein,
+        mc.channel2_fat, mc.channel2_snf, mc.channel2_clr, mc.channel2_temp, mc.channel2_water, mc.channel2_protein,
+        mc.channel3_fat, mc.channel3_snf, mc.channel3_clr, mc.channel3_temp, mc.channel3_water, mc.channel3_protein,
+        mc.created_at,
+        mc.updated_at
+       FROM ${schemaName}.machine_corrections_from_machine mc
+       INNER JOIN (
+         SELECT DATE(created_at) as correction_date, MAX(created_at) as max_created_at
+         FROM ${schemaName}.machine_corrections_from_machine
+         WHERE machine_id = ?
+         GROUP BY DATE(created_at)
+       ) latest ON DATE(mc.created_at) = latest.correction_date 
+                  AND mc.created_at = latest.max_created_at
+       WHERE mc.machine_id = ?
+       ORDER BY mc.created_at DESC
        LIMIT 30`,
       {
-        replacements: [machineId],
+        replacements: [machineId, machineId],
         type: QueryTypes.SELECT
       }
     );
