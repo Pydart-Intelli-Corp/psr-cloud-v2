@@ -34,43 +34,41 @@ export default function ResetDownloadModal({
   societies
 }: ResetDownloadModalProps) {
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [selectedMachines, setSelectedMachines] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedMachines, setSelectedMachines] = useState<Set<number>>(new Set());
   const [societyFilter, setSocietyFilter] = useState<number | 'all'>('all');
 
   useEffect(() => {
+    const fetchMachines = async () => {
+      if (!show) return;
+      
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const response = await fetch(`/api/user/ratechart/data?chartId=${chartId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          setMachines(result.data?.machines || []);
+        }
+      } catch (error) {
+        console.error('Error fetching machines:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     if (show) {
       fetchMachines();
       setSelectedMachines(new Set());
       setSocietyFilter('all');
     }
   }, [show, chartId]);
-
-  const fetchMachines = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) return;
-
-      // Get machines for all societies that have this chart
-      const societyIds = societies.map(s => s.societyId);
-      const response = await fetch(`/api/user/machine?societyIds=${societyIds.join(',')}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setMachines(data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching machines:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleToggleSelection = (machineId: number) => {
     setSelectedMachines(prev => {

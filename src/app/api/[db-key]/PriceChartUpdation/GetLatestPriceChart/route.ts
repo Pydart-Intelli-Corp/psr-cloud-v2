@@ -228,10 +228,14 @@ async function handleRequest(
     }
 
     const chart = charts[0];
-    console.log(`✅ Found rate chart: ID ${chart.id}, filename: ${chart.file_name}, shared: ${chart.shared_chart_id !== null}`);
+    console.log(`✅ Found rate chart: ${chart.file_name} (ID: ${chart.id}, Type: ${chart.shared_chart_id ? 'SHARED' : 'MASTER'})`);
 
-    // PRIORITY 7: Get rate chart data (from master or shared chart)
-    const chartIdToQuery = chart.shared_chart_id || chart.id;
+    // Determine which chart ID to use for data lookup
+    // If this is a shared chart, use the master chart's ID for data
+    const dataChartId = chart.shared_chart_id || chart.id;
+    if (chart.shared_chart_id) {
+      console.log(`   📌 Using master chart ID ${dataChartId} for data lookup`);
+    }
     
     const rateChartDataQuery = `
       SELECT 
@@ -248,11 +252,11 @@ async function handleRequest(
     `;
 
     const [dataResults] = await sequelize.query(rateChartDataQuery, { 
-      replacements: [chartIdToQuery, pageSize, offset] 
+      replacements: [dataChartId, pageSize, offset] 
     });
     const rateData = dataResults as RateChartDataResult[];
 
-    console.log(`✅ Found ${rateData.length} rate chart records for chart ID ${chartIdToQuery} (Page ${pageNumber}, Offset ${offset})`);
+    console.log(`✅ Found ${rateData.length} rate chart records for chart ${chart.id} using data from chart ${dataChartId} (Page ${pageNumber}, Offset ${offset})`);
 
     if (rateData.length === 0) {
       // End of chart - no more data for this page

@@ -28,6 +28,7 @@ interface MachineQueryResult {
   contact_phone?: string;
   status: string;
   notes?: string;
+  is_master_machine?: number;
   user_password?: string;
   supervisor_password?: string;
   statusU: number;
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { machineId, machineType, societyId, location, installationDate, operatorName, contactPhone, status = 'active', notes }: MachineData = body;
+    const { machineId, machineType, societyId, location, installationDate, operatorName, contactPhone, status = 'active', notes, setAsMaster, disablePasswordInheritance }: MachineData & { setAsMaster?: boolean; disablePasswordInheritance?: boolean } = body;
 
     if (!machineId || !machineType || !societyId) {
       return createErrorResponse('Machine ID, Machine Type, and Society ID are required', 400);
@@ -100,12 +101,77 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Selected society not found', 400);
     }
 
+    // Check if this is the first machine for the society (will be master)
+    const countQuery = `
+      SELECT COUNT(*) as count FROM \`${schemaName}\`.machines 
+      WHERE society_id = ?
+    `;
+    
+    const [countResult] = await sequelize.query(countQuery, {
+      replacements: [societyId]
+    });
+    
+    const machineCount = (countResult as Array<{ count: number }>)[0]?.count || 0;
+    const isFirstMachine = machineCount === 0;
+    
+    // Determine if this should be master: first machine OR explicitly requested
+    let isMasterMachine = isFirstMachine || setAsMaster ? 1 : 0;
+
+    // If setAsMaster is true and there's already a master, replace it
+    if (setAsMaster && !isFirstMachine) {
+      // Remove master status from current master
+      await sequelize.query(
+        `UPDATE \`${schemaName}\`.machines 
+         SET is_master_machine = 0 
+         WHERE society_id = ? AND is_master_machine = 1`,
+        { replacements: [societyId] }
+      );
+      console.log(`[Machine POST] Replaced existing master machine for society ${societyId}`);
+    }
+
+    // If not the first machine AND not being set as master AND inheritance not disabled, get master machine passwords
+    let inheritedUserPassword = null;
+    let inheritedSupervisorPassword = null;
+    let inheritedStatusU = 0;
+    let inheritedStatusS = 0;
+
+    if (!isMasterMachine && !isFirstMachine && !disablePasswordInheritance) {
+      const masterQuery = `
+        SELECT user_password, supervisor_password, statusU, statusS 
+        FROM \`${schemaName}\`.machines 
+        WHERE society_id = ? AND is_master_machine = 1 
+        LIMIT 1
+      `;
+      
+      const [masterResult] = await sequelize.query(masterQuery, {
+        replacements: [societyId]
+      });
+
+      if (Array.isArray(masterResult) && masterResult.length > 0) {
+        const master = masterResult[0] as {
+          user_password: string | null;
+          supervisor_password: string | null;
+          statusU: number;
+          statusS: number;
+        };
+        inheritedUserPassword = master.user_password;
+        inheritedSupervisorPassword = master.supervisor_password;
+        inheritedStatusU = master.statusU;
+        inheritedStatusS = master.statusS;
+        
+        console.log(`[Machine POST] Inheriting passwords from master machine for society ${societyId}`);
+      }
+    } else if (disablePasswordInheritance) {
+      console.log(`[Machine POST] Password inheritance disabled for machine ${machineId} in society ${societyId}`);
+    }
+
     // Insert new machine
     const insertQuery = `
       INSERT INTO \`${schemaName}\`.machines 
       (machine_id, machine_type, society_id, location, installation_date, 
-       operator_name, contact_phone, status, notes, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+       operator_name, contact_phone, status, notes, is_master_machine, 
+       user_password, supervisor_password, statusU, statusS, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `;
 
     await sequelize.query(insertQuery, {
@@ -118,11 +184,16 @@ export async function POST(request: NextRequest) {
         operatorName || null,
         contactPhone || null,
         status,
-        notes || null
+        notes || null,
+        isMasterMachine,
+        inheritedUserPassword,
+        inheritedSupervisorPassword,
+        inheritedStatusU,
+        inheritedStatusS
       ]
     });
 
-    console.log(`✅ Machine added successfully to schema: ${schemaName}`);
+    console.log(`✅ Machine added successfully to schema: ${schemaName}${isMasterMachine ? ' (MASTER MACHINE)' : ' (inherited passwords from master)'}`);
     return createSuccessResponse('Machine created successfully');
 
   } catch (error) {
@@ -173,7 +244,7 @@ export async function GET(request: NextRequest) {
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
-          m.created_at, m.updated_at,
+          m.is_master_machine, m.created_at, m.updated_at,
           s.name as society_name, s.society_id as society_identifier,
           (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
            WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
@@ -205,7 +276,7 @@ export async function GET(request: NextRequest) {
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
-          m.created_at,
+          m.is_master_machine, m.created_at,
           s.name as society_name, s.society_id as society_identifier,
           (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
            WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
@@ -230,7 +301,7 @@ export async function GET(request: NextRequest) {
           m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
-          m.created_at,
+          m.is_master_machine, m.created_at,
           s.name as society_name, s.society_id as society_identifier,
           (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
            WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
@@ -263,6 +334,7 @@ export async function GET(request: NextRequest) {
       contactPhone: machine.contact_phone,
       status: machine.status,
       notes: machine.notes,
+      isMasterMachine: machine.is_master_machine === 1,
       // Don't include actual passwords in response for security
       statusU: machine.statusU,
       statusS: machine.statusS,

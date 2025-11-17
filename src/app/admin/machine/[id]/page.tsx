@@ -26,7 +26,9 @@ import {
   Cog,
   Timer,
   Zap,
-  PieChart
+  PieChart,
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -55,6 +57,7 @@ interface MachineDetails {
   contactPhone?: string;
   status: 'active' | 'inactive' | 'maintenance' | 'suspended';
   notes?: string;
+  isMasterMachine?: boolean;
   createdAt: string;
   updatedAt: string;
   lastActivity?: string;
@@ -209,6 +212,32 @@ export default function MachineDetails() {
     channel3_water: '',
     channel3_protein: ''
   });
+
+  // State for machine correction data
+  const [machineCorrection, setMachineCorrection] = useState<any>(null);
+  const [showMachineCorrection, setShowMachineCorrection] = useState(false);
+  const [machineCorrectionLoading, setMachineCorrectionLoading] = useState(false);
+  const [showCorrectionDeleteModal, setShowCorrectionDeleteModal] = useState(false);
+  const [selectedCorrections, setSelectedCorrections] = useState<number[]>([]);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // State for statistics selection and deletion
+  const [showStatisticsDeleteModal, setShowStatisticsDeleteModal] = useState(false);
+  const [selectedStatistics, setSelectedStatistics] = useState<number[]>([]);
+  const [statisticsDeleteLoading, setStatisticsDeleteLoading] = useState(false);
+
+  // State for master machine controls
+  const [showSetMasterModal, setShowSetMasterModal] = useState(false);
+  const [setForAll, setSetForAll] = useState(false);
+  const [masterActionLoading, setMasterActionLoading] = useState(false);
+
+  // State for correction propagation
+  const [showCorrectionConfirmModal, setShowCorrectionConfirmModal] = useState(false);
+  const [applyCorrectionsToOthers, setApplyCorrectionsToOthers] = useState(false);
+  const [selectedMachinesForCorrection, setSelectedMachinesForCorrection] = useState<Set<number>>(new Set());
+  const [selectAllMachinesForCorrection, setSelectAllMachinesForCorrection] = useState(false);
+  const [otherMachines, setOtherMachines] = useState<Array<{id: number, machineId: string}>>([]);
+  const [correctionSaveLoading, setCorrectionSaveLoading] = useState(false);
 
   const fetchMachineDetails = useCallback(async () => {
     try {
@@ -508,6 +537,163 @@ export default function MachineDetails() {
     }
   }, [machine]);
 
+  // Fetch machine correction data (from ESP32 device)
+  const fetchMachineCorrection = async () => {
+    if (!machine) return;
+
+    try {
+      setMachineCorrectionLoading(true);
+      const token = localStorage.getItem('authToken');
+      
+      const response = await fetch(
+        `/api/user/machine/correction/${machine.id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+          setMachineCorrection(result.data);
+          setShowMachineCorrection(true);
+          setSuccess(`Loaded ${result.data.length} correction records from machine`);
+        } else {
+          setMachineCorrection(null);
+          setShowMachineCorrection(false);
+          setError('No correction data found for this machine');
+        }
+      } else {
+        setError(result.error || 'Failed to fetch machine correction data');
+      }
+    } catch (error) {
+      console.error('Error fetching machine correction:', error);
+      setError('Failed to fetch machine correction data');
+    } finally {
+      setMachineCorrectionLoading(false);
+    }
+  };
+
+  // Selection handlers for machine corrections
+  const handleSelectAll = () => {
+    if (selectedCorrections.length === machineCorrection.length) {
+      setSelectedCorrections([]);
+    } else {
+      setSelectedCorrections(machineCorrection.map((c: any) => c.id));
+    }
+  };
+
+  const handleSelectCorrection = (id: number) => {
+    setSelectedCorrections(prev => 
+      prev.includes(id) ? prev.filter(cId => cId !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedCorrections.length > 0) {
+      setShowCorrectionDeleteModal(true);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!machine || selectedCorrections.length === 0) return;
+
+    try {
+      setDeleteLoading(true);
+      const token = localStorage.getItem('authToken');
+
+      const url = `/api/user/machine/correction/${machine.id}`;
+      const params = new URLSearchParams();
+      params.append('ids', selectedCorrections.join(','));
+
+      const response = await fetch(`${url}?${params.toString()}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setSuccess(result.message || `${selectedCorrections.length} correction record(s) deleted successfully`);
+        setShowCorrectionDeleteModal(false);
+        setSelectedCorrections([]);
+        // Refresh the correction data
+        await fetchMachineCorrection();
+      } else {
+        setError(result.error || 'Failed to delete correction data');
+      }
+    } catch (error) {
+      console.error('Error deleting correction data:', error);
+      setError('Failed to delete correction data');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Statistics selection handlers
+  const handleSelectAllStatistics = () => {
+    if (selectedStatistics.length === statistics.length) {
+      setSelectedStatistics([]);
+    } else {
+      setSelectedStatistics(statistics.map((s: MachineStatistic) => s.id));
+    }
+  };
+
+  const handleSelectStatistic = (id: number) => {
+    setSelectedStatistics(prev => 
+      prev.includes(id) ? prev.filter(sId => sId !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelectedStatistics = () => {
+    if (selectedStatistics.length > 0) {
+      setShowStatisticsDeleteModal(true);
+    }
+  };
+
+  const confirmDeleteStatistics = async () => {
+    if (!machine || selectedStatistics.length === 0) return;
+
+    try {
+      setStatisticsDeleteLoading(true);
+      const token = localStorage.getItem('authToken');
+
+      const url = `/api/user/machine/statistics`;
+      const params = new URLSearchParams();
+      params.append('machineId', machine.id.toString());
+      params.append('ids', selectedStatistics.join(','));
+
+      const response = await fetch(`${url}?${params.toString()}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setSuccess(result.message || `${selectedStatistics.length} statistics record(s) deleted successfully`);
+        setShowStatisticsDeleteModal(false);
+        setSelectedStatistics([]);
+        // Refresh the statistics data
+        await fetchStatistics();
+      } else {
+        setError(result.error || 'Failed to delete statistics data');
+      }
+    } catch (error) {
+      console.error('Error deleting statistics data:', error);
+      setError('Failed to delete statistics data');
+    } finally {
+      setStatisticsDeleteLoading(false);
+    }
+  };
+
   // Load history item into form
   const loadHistoryItem = (historyData: Record<string, unknown>) => {
     setCorrectionData({
@@ -542,12 +728,57 @@ export default function MachineDetails() {
     }
   };
 
-  // Save correction data
+  // Fetch other machines in the same society (excluding current machine)
+  const fetchOtherMachines = async () => {
+    if (!machine) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/user/machine/by-society?societyId=${machine.societyId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          // Filter out current machine
+          const others = result.data.filter((m: any) => m.id !== machine.id);
+          setOtherMachines(others.map((m: any) => ({ id: m.id, machineId: m.machineId })));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching other machines:', error);
+    }
+  };
+
+  // Handle save correction button click - show confirmation modal
   const handleSaveCorrection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!machine) return;
 
-    setCorrectionLoading(true);
+    setError('');
+    setSuccess('');
+
+    // If this is a master machine, show confirmation modal with apply to others option
+    if (machine.isMasterMachine) {
+      await fetchOtherMachines();
+      setApplyCorrectionsToOthers(false);
+      setSelectedMachinesForCorrection(new Set());
+      setSelectAllMachinesForCorrection(false);
+      setShowCorrectionConfirmModal(true);
+    } else {
+      // For non-master machines, save directly
+      await saveCorrectionData(false);
+    }
+  };
+
+  // Actually save the correction data
+  const saveCorrectionData = async (applyToOthers: boolean) => {
+    if (!machine) return;
+
+    setCorrectionSaveLoading(true);
     setError('');
     setSuccess('');
 
@@ -590,11 +821,46 @@ export default function MachineDetails() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        setSuccess('Correction data saved successfully!');
+        let successMessage = 'Correction data saved successfully!';
+        let updatedCount = 0;
+
+        // If master machine and apply to others is enabled
+        if (applyToOthers && selectedMachinesForCorrection.size > 0) {
+          const machineIds = Array.from(selectedMachinesForCorrection);
+          
+          // Apply corrections to selected machines in parallel
+          const updatePromises = machineIds.map(async (machineId) => {
+            try {
+              const updateResponse = await fetch('/api/user/machine-correction', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  ...dataToSend,
+                  machineId: machineId
+                })
+              });
+
+              if (updateResponse.ok) {
+                updatedCount++;
+              }
+            } catch (error) {
+              console.error(`Error updating machine ${machineId}:`, error);
+            }
+          });
+
+          await Promise.all(updatePromises);
+          successMessage = `Correction data saved successfully! Applied to ${updatedCount} additional machine(s).`;
+        }
+
+        setSuccess(successMessage);
+        setShowCorrectionConfirmModal(false);
         // Fetch the latest data to show what was saved
         await fetchCorrectionData();
         
-        setTimeout(() => setSuccess(''), 3000);
+        setTimeout(() => setSuccess(''), 5000);
       } else {
         setError(result.error || 'Failed to save correction data');
       }
@@ -602,7 +868,90 @@ export default function MachineDetails() {
       console.error('Error saving correction data:', error);
       setError('Failed to save correction data');
     } finally {
-      setCorrectionLoading(false);
+      setCorrectionSaveLoading(false);
+    }
+  };
+
+  // Handle correction confirmation
+  const handleCorrectionConfirm = async () => {
+    // Validate machine selection if applying to others
+    if (applyCorrectionsToOthers && selectedMachinesForCorrection.size === 0) {
+      setError('Please select at least one machine to apply corrections');
+      return;
+    }
+
+    await saveCorrectionData(applyCorrectionsToOthers);
+  };
+
+  // Toggle select all machines for correction
+  const handleToggleSelectAllCorrection = () => {
+    if (selectAllMachinesForCorrection) {
+      setSelectedMachinesForCorrection(new Set());
+      setSelectAllMachinesForCorrection(false);
+    } else {
+      setSelectedMachinesForCorrection(new Set(otherMachines.map(m => m.id)));
+      setSelectAllMachinesForCorrection(true);
+    }
+  };
+
+  // Toggle individual machine selection for correction
+  const handleToggleMachineCorrection = (machineId: number) => {
+    const newSelected = new Set(selectedMachinesForCorrection);
+    if (newSelected.has(machineId)) {
+      newSelected.delete(machineId);
+      setSelectAllMachinesForCorrection(false);
+    } else {
+      newSelected.add(machineId);
+      if (newSelected.size === otherMachines.length) {
+        setSelectAllMachinesForCorrection(true);
+      }
+    }
+    setSelectedMachinesForCorrection(newSelected);
+  };
+
+  // Handle set master machine
+  const handleSetMasterClick = () => {
+    setSetForAll(false);
+    setShowSetMasterModal(true);
+  };
+
+  const handleSetMasterConfirm = async () => {
+    if (!machine) return;
+
+    setMasterActionLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('authToken');
+      
+      const response = await fetch(`/api/user/machine/${machine.id}/set-master`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ setForAll })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        const message = setForAll 
+          ? 'Master machine set and all machines in society updated successfully!' 
+          : 'Master machine set successfully!';
+        setSuccess(message);
+        setShowSetMasterModal(false);
+        await fetchMachineDetails();
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(result.error || 'Failed to set master machine');
+      }
+    } catch (error) {
+      console.error('Error setting master machine:', error);
+      setError('Failed to set master machine');
+    } finally {
+      setMasterActionLoading(false);
     }
   };
 
@@ -709,7 +1058,14 @@ export default function MachineDetails() {
                   <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 dark:text-gray-100 truncate">{machine.machineId}</h1>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 dark:text-gray-100">{machine.machineId}</h1>
+                    {machine.isMasterMachine && (
+                      <span className="px-2 py-0.5 text-xs font-semibold bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 rounded-full border border-yellow-600 shadow-sm">
+                        Master Machine
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{machine.machineType}</p>
                 </div>
               </div>
@@ -865,6 +1221,24 @@ export default function MachineDetails() {
                     <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                       <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Notes</p>
                       <p className="text-sm sm:text-base text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{machine.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Master Machine Controls */}
+                  {!machine.isMasterMachine && (
+                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Master Machine Settings</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Set this machine as the master for its society</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleSetMasterClick}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 rounded-lg transition-all shadow-sm hover:shadow-md"
+                      >
+                        Set as Master Machine
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1174,6 +1548,17 @@ export default function MachineDetails() {
                     type="button"
                     variant="outline"
                     size="medium"
+                    isLoading={machineCorrectionLoading}
+                    onClick={fetchMachineCorrection}
+                    className="min-h-[44px]"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    From Machine
+                  </LoadingButton>
+                  <LoadingButton
+                    type="button"
+                    variant="outline"
+                    size="medium"
                     isLoading={false}
                     onClick={() => setShowHistoryModal(true)}
                     disabled={correctionHistory.length === 0}
@@ -1210,14 +1595,180 @@ export default function MachineDetails() {
                   </LoadingButton>
                 </div>
               </form>
+
+              {/* Machine Correction Data Table */}
+              {showMachineCorrection && machineCorrection && Array.isArray(machineCorrection) && machine && (
+                <div className="mt-6 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 rounded-lg sm:rounded-xl border border-emerald-200 dark:border-emerald-800 p-4 sm:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
+                        Daily Corrections from Machine
+                      </h4>
+                      <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                        Machine: {machine.machineId} (ID: {machine.id}) • Society: {machine.societyName} • {machineCorrection.length} {machineCorrection.length === 1 ? 'day' : 'days'} of data
+                        {selectedCorrections.length > 0 && ` • ${selectedCorrections.length} selected`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSelectAll}
+                        className="px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 rounded-lg transition-colors"
+                        title={selectedCorrections.length === machineCorrection.length ? "Deselect all" : "Select all"}
+                      >
+                        {selectedCorrections.length === machineCorrection.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                      {selectedCorrections.length > 0 && (
+                        <button
+                          onClick={handleDeleteSelected}
+                          className="px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 rounded-lg transition-colors flex items-center gap-1"
+                          title="Delete selected records"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete ({selectedCorrections.length})
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowMachineCorrection(false)}
+                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {machineCorrection.map((correction: any, index: number) => (
+                      <div key={correction.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 border transition-colors ${
+                        selectedCorrections.includes(correction.id)
+                          ? 'border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-200 dark:ring-emerald-800'
+                          : 'border-emerald-200 dark:border-emerald-700'
+                      }`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedCorrections.includes(correction.id)}
+                              onChange={() => handleSelectCorrection(correction.id)}
+                              className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-emerald-500 focus:ring-2 cursor-pointer"
+                            />
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                              index === 0 
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                            }`}>
+                              {index === 0 ? '🔴 Today' : correction.date}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Last updated: {new Date(correction.lastUpdated).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-emerald-200 dark:border-emerald-700">
+                                <th className="text-left py-2 px-3 font-semibold text-emerald-900 dark:text-emerald-100">
+                                  Parameter
+                                </th>
+                                <th className="text-center py-2 px-3 font-semibold text-emerald-900 dark:text-emerald-100">
+                                  Channel 1 (COW)
+                                </th>
+                                <th className="text-center py-2 px-3 font-semibold text-emerald-900 dark:text-emerald-100">
+                                  Channel 2 (BUF)
+                                </th>
+                                <th className="text-center py-2 px-3 font-semibold text-emerald-900 dark:text-emerald-100">
+                                  Channel 3 (MIX)
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-emerald-100 dark:divide-emerald-800">
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-emerald-900 dark:text-emerald-100">Fat (%)</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel1.fat || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel2.fat || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel3.fat || '-'}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-emerald-900 dark:text-emerald-100">SNF (%)</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel1.snf || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel2.snf || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel3.snf || '-'}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-emerald-900 dark:text-emerald-100">CLR</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel1.clr || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel2.clr || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel3.clr || '-'}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-emerald-900 dark:text-emerald-100">Temp (°C)</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel1.temp || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel2.temp || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel3.temp || '-'}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-emerald-900 dark:text-emerald-100">Water (%)</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel1.water || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel2.water || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel3.water || '-'}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-emerald-900 dark:text-emerald-100">Protein (%)</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel1.protein || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel2.protein || '-'}</td>
+                                <td className="py-2 px-3 text-center text-emerald-800 dark:text-emerald-200">{correction.channel3.protein || '-'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'statistics' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <div className="mb-6">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Machine Statistics</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Operational statistics and performance metrics</p>
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Machine Statistics</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Operational statistics and performance metrics
+                    {selectedStatistics.length > 0 && ` • ${selectedStatistics.length} selected`}
+                  </p>
+                </div>
+                {statistics.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSelectAllStatistics}
+                      className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
+                      title={selectedStatistics.length === statistics.length ? "Deselect all" : "Select all"}
+                    >
+                      {selectedStatistics.length === statistics.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <button
+                      onClick={fetchStatistics}
+                      disabled={statisticsLoading}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                      title="Refresh statistics"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${statisticsLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    {selectedStatistics.length > 0 && (
+                      <button
+                        onClick={handleDeleteSelectedStatistics}
+                        className="px-3 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 rounded-lg transition-colors flex items-center gap-1"
+                        title="Delete selected records"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete ({selectedStatistics.length})
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {statisticsLoading ? (
@@ -1236,6 +1787,14 @@ export default function MachineDetails() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100 w-12">
+                          <input
+                            type="checkbox"
+                            checked={selectedStatistics.length === statistics.length && statistics.length > 0}
+                            onChange={handleSelectAllStatistics}
+                            className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                          />
+                        </th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Date</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Time</th>
                         <th className="text-center py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Total Tests</th>
@@ -1248,7 +1807,19 @@ export default function MachineDetails() {
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {statistics.map((stat) => (
-                        <tr key={stat.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <tr key={stat.id} className={`transition-colors ${
+                          selectedStatistics.includes(stat.id)
+                            ? 'bg-blue-50 dark:bg-blue-900/20'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        }`}>
+                          <td className="py-3 px-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedStatistics.includes(stat.id)}
+                              onChange={() => handleSelectStatistic(stat.id)}
+                              className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                            />
+                          </td>
                           <td className="py-3 px-4 text-gray-900 dark:text-gray-100">
                             {new Date(stat.statistics_date).toLocaleDateString()}
                           </td>
@@ -1800,6 +2371,355 @@ export default function MachineDetails() {
                     ))}
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Statistics Modal */}
+      <AnimatePresence>
+        {showStatisticsDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !statisticsDeleteLoading && setShowStatisticsDeleteModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  Delete Selected Statistics
+                </h3>
+                <button
+                  onClick={() => !statisticsDeleteLoading && setShowStatisticsDeleteModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={statisticsDeleteLoading}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-gray-600 dark:text-gray-400">
+                  Are you sure you want to delete <strong>{selectedStatistics.length}</strong> selected statistics {selectedStatistics.length === 1 ? 'record' : 'records'}? This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowStatisticsDeleteModal(false)}
+                  disabled={statisticsDeleteLoading}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <LoadingButton
+                  onClick={confirmDeleteStatistics}
+                  isLoading={statisticsDeleteLoading}
+                  loadingText="Deleting..."
+                  variant="primary"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </LoadingButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Correction Confirmation Modal */}
+      <AnimatePresence>
+        {showCorrectionConfirmModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !correctionSaveLoading && setShowCorrectionConfirmModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    Save Correction Data
+                  </h3>
+                  <button
+                    onClick={() => !correctionSaveLoading && setShowCorrectionConfirmModal(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    disabled={correctionSaveLoading}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Wrench className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                        Master Machine Correction
+                      </h4>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        You are saving correction data for the master machine <strong>{machine?.machineId}</strong>. 
+                        You can optionally apply these corrections to other machines in this society.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Apply to Other Machines Checkbox */}
+                {otherMachines.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <input
+                        type="checkbox"
+                        id="applyCorrectionsToOthers"
+                        checked={applyCorrectionsToOthers}
+                        onChange={(e) => {
+                          setApplyCorrectionsToOthers(e.target.checked);
+                          if (!e.target.checked) {
+                            setSelectedMachinesForCorrection(new Set());
+                            setSelectAllMachinesForCorrection(false);
+                          }
+                        }}
+                        disabled={correctionSaveLoading}
+                        className="mt-1 w-4 h-4 text-primary-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:ring-2"
+                      />
+                      <label htmlFor="applyCorrectionsToOthers" className="flex-1 cursor-pointer">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                          Apply these corrections to other machines
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Select which machines in this society should receive these correction values
+                        </p>
+                      </label>
+                    </div>
+
+                    {/* Machine Selection List */}
+                    {applyCorrectionsToOthers && (
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Select Machines ({selectedMachinesForCorrection.size} selected)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleToggleSelectAllCorrection}
+                            disabled={correctionSaveLoading}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {selectAllMachinesForCorrection ? 'Deselect All' : 'Select All'}
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {otherMachines.map((m) => (
+                            <label
+                              key={m.id}
+                              className="flex items-center gap-3 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedMachinesForCorrection.has(m.id)}
+                                onChange={() => handleToggleMachineCorrection(m.id)}
+                                disabled={correctionSaveLoading}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-900 dark:text-gray-100">
+                                {m.machineId}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {otherMachines.length === 0 && (
+                  <div className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">
+                    No other machines found in this society
+                  </div>
+                )}
+              </div>
+
+              <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowCorrectionConfirmModal(false)}
+                    disabled={correctionSaveLoading}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <LoadingButton
+                    onClick={handleCorrectionConfirm}
+                    isLoading={correctionSaveLoading}
+                    loadingText="Saving..."
+                    variant="primary"
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                  >
+                    <Wrench className="w-4 h-4 mr-2" />
+                    Save Correction Data
+                  </LoadingButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Set Master Machine Modal */}
+      <AnimatePresence>
+        {showSetMasterModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !masterActionLoading && setShowSetMasterModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  Set as Master Machine
+                </h3>
+                <button
+                  onClick={() => !masterActionLoading && setShowSetMasterModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={masterActionLoading}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-6 space-y-4">
+                <p className="text-gray-600 dark:text-gray-400">
+                  This will set <strong>{machine?.machineId}</strong> as the master machine for its society. The current master machine will be changed.
+                </p>
+
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="setForAll"
+                      checked={setForAll}
+                      onChange={(e) => setSetForAll(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="setForAll" className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
+                        Set passwords for all machines in society
+                      </label>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Update all machines in this society with the master machine's current passwords (user and supervisor passwords)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowSetMasterModal(false)}
+                  disabled={masterActionLoading}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <LoadingButton
+                  onClick={handleSetMasterConfirm}
+                  isLoading={masterActionLoading}
+                  loadingText="Setting..."
+                  variant="primary"
+                  className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white"
+                >
+                  Set as Master
+                </LoadingButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Correction Modal */}
+      <AnimatePresence>
+        {showCorrectionDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !deleteLoading && setShowCorrectionDeleteModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  Delete Selected Corrections
+                </h3>
+                <button
+                  onClick={() => !deleteLoading && setShowCorrectionDeleteModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  disabled={deleteLoading}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-gray-600 dark:text-gray-400">
+                  Are you sure you want to delete <strong>{selectedCorrections.length}</strong> selected correction {selectedCorrections.length === 1 ? 'record' : 'records'}? This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowCorrectionDeleteModal(false)}
+                  disabled={deleteLoading}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <LoadingButton
+                  onClick={confirmDelete}
+                  isLoading={deleteLoading}
+                  loadingText="Deleting..."
+                  variant="primary"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </LoadingButton>
               </div>
             </motion.div>
           </motion.div>

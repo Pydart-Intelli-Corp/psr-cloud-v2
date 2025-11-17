@@ -56,6 +56,7 @@ interface Machine {
   contactPhone?: string;
   status: 'active' | 'inactive' | 'maintenance' | 'suspended';
   notes?: string;
+  isMasterMachine?: boolean;
   userPassword?: string;
   supervisorPassword?: string;
   statusU: 0 | 1;
@@ -75,6 +76,8 @@ interface MachineFormData {
   contactPhone: string;
   status: 'active' | 'inactive' | 'maintenance' | 'suspended';
   notes: string;
+  setAsMaster: boolean;
+  disablePasswordInheritance: boolean;
 }
 
 interface PasswordFormData {
@@ -104,7 +107,9 @@ const initialFormData: MachineFormData = {
   operatorName: '',
   contactPhone: '',
   status: 'active',
-  notes: ''
+  notes: '',
+  setAsMaster: false,
+  disablePasswordInheritance: false
 };
 
 export default function MachineManagement() {
@@ -168,6 +173,23 @@ export default function MachineManagement() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
 
+  // Master machine state
+  const [societyHasMaster, setSocietyHasMaster] = useState(false);
+  const [existingMasterMachine, setExistingMasterMachine] = useState<string | null>(null);
+  const [isFirstMachine, setIsFirstMachine] = useState(false);
+  
+  // Change master modal state
+  const [showChangeMasterModal, setShowChangeMasterModal] = useState(false);
+  const [selectedSocietyForMaster, setSelectedSocietyForMaster] = useState<number | null>(null);
+  const [newMasterMachineId, setNewMasterMachineId] = useState<number | null>(null);
+  const [setForAll, setSetForAll] = useState(false);
+  const [isChangingMaster, setIsChangingMaster] = useState(false);
+  
+  // Password update for multiple machines
+  const [applyPasswordsToOthers, setApplyPasswordsToOthers] = useState(false);
+  const [selectedMachinesForPassword, setSelectedMachinesForPassword] = useState<Set<number>>(new Set());
+  const [selectAllMachinesForPassword, setSelectAllMachinesForPassword] = useState(false);
+
   // Password validation functions
   const validatePasswordFormat = (password: string) => {
     if (!password) return '';
@@ -197,6 +219,90 @@ export default function MachineManagement() {
     });
     
     return { pending, downloaded };
+  };
+
+  // Check master machine status for selected society
+  const checkMasterMachineStatus = (societyId: string) => {
+    console.log('checkMasterMachineStatus called with:', societyId);
+    
+    if (!societyId) {
+      setSocietyHasMaster(false);
+      setExistingMasterMachine(null);
+      setIsFirstMachine(false);
+      return;
+    }
+
+    const societyMachines = machines.filter(m => m.societyId === parseInt(societyId));
+    const masterMachine = societyMachines.find(m => m.isMasterMachine);
+    
+    console.log('Society machines:', societyMachines.length, 'Master:', masterMachine?.machineId);
+    
+    setIsFirstMachine(societyMachines.length === 0);
+    setSocietyHasMaster(!!masterMachine);
+    setExistingMasterMachine(masterMachine ? masterMachine.machineId : null);
+
+    // Auto-check setAsMaster if it's the first machine
+    if (societyMachines.length === 0) {
+      setFormData(prev => ({ ...prev, setAsMaster: true }));
+    } else {
+      setFormData(prev => ({ ...prev, setAsMaster: false }));
+    }
+  };
+
+  // Handle click on master badge to change master
+  const handleMasterBadgeClick = (societyId: number) => {
+    setSelectedSocietyForMaster(societyId);
+    setNewMasterMachineId(null);
+    setSetForAll(false);
+    setShowChangeMasterModal(true);
+  };
+
+  // Handle change master confirmation
+  const handleChangeMasterConfirm = async () => {
+    if (!newMasterMachineId) {
+      setError('Please select a machine to set as master');
+      return;
+    }
+
+    setIsChangingMaster(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('authToken');
+      console.log('Token from localStorage:', token);
+      console.log('Token type:', typeof token);
+      console.log('Token length:', token?.length);
+      
+      if (!token) {
+        setError('Authentication token not found. Please login again.');
+        return;
+      }
+      
+      const response = await fetch(`/api/user/machine/${newMasterMachineId}/set-master`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ setForAll })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess('Master machine updated successfully');
+        setShowChangeMasterModal(false);
+        await fetchMachines(); // Refresh machines list
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(data.error || data.message || 'Failed to update master machine');
+      }
+    } catch (error) {
+      console.error('Error updating master machine:', error);
+      setError('Failed to update master machine');
+    } finally {
+      setIsChangingMaster(false);
+    }
   };
 
   // Get channel badge color
@@ -979,6 +1085,9 @@ export default function MachineManagement() {
     setError('');
     setSuccess('');
     setSelectedMachine(null);
+    setApplyPasswordsToOthers(false);
+    setSelectedMachinesForPassword(new Set());
+    setSelectAllMachinesForPassword(false);
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -1008,6 +1117,12 @@ export default function MachineManagement() {
       return;
     }
 
+    // Check if applying to others and validate selection
+    if (applyPasswordsToOthers && selectedMachinesForPassword.size === 0) {
+      setError('Please select at least one machine to apply passwords to');
+      return;
+    }
+
     setIsSubmitting(true);
     setError('');
 
@@ -1018,6 +1133,7 @@ export default function MachineManagement() {
         return;
       }
 
+      // Update the master machine first
       const response = await fetch(`/api/user/machine/${selectedMachine.id}/password`, {
         method: 'PUT',
         headers: {
@@ -1036,16 +1152,40 @@ export default function MachineManagement() {
         return;
       }
 
-      if (response.ok) {
-        setSuccess('Machine passwords updated successfully!');
-        await fetchMachines();
-        closePasswordModal();
-        setTimeout(() => setSuccess(''), 3000);
-      } else {
+      if (!response.ok) {
         const errorResponse = await response.json();
         const errorMessage = errorResponse.error || errorResponse.message || 'Failed to update passwords';
         setError(errorMessage);
+        setIsSubmitting(false);
+        return;
       }
+
+      // If applying to other machines, update them as well
+      if (applyPasswordsToOthers && selectedMachinesForPassword.size > 0) {
+        const updatePromises = Array.from(selectedMachinesForPassword).map(async (machineId) => {
+          const updateResponse = await fetch(`/api/user/machine/${machineId}/password`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              userPassword: passwordData.userPassword || null,
+              supervisorPassword: passwordData.supervisorPassword || null,
+            }),
+          });
+          return updateResponse.ok;
+        });
+
+        await Promise.all(updatePromises);
+        setSuccess(`Passwords updated for master machine and ${selectedMachinesForPassword.size} other machine(s)!`);
+      } else {
+        setSuccess('Machine passwords updated successfully!');
+      }
+
+      await fetchMachines();
+      closePasswordModal();
+      setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Error updating passwords:', error);
       setError('Failed to update passwords. Please try again.');
@@ -1493,6 +1633,11 @@ export default function MachineManagement() {
                                 status={machine.status}
                                 icon={<Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
                                 showStatus={true}
+                                badge={machine.isMasterMachine ? {
+                                  text: 'Master',
+                                  color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
+                                  onClick: () => handleMasterBadgeClick(society.id)
+                                } : undefined}
                                 selected={selectedMachines.has(machine.id)}
                                 onSelect={() => handleSelectMachine(machine.id)}
                                 onPasswordSettings={() => handlePasswordSettingsClick(machine)}
@@ -1587,6 +1732,11 @@ export default function MachineManagement() {
                   status={machine.status}
                   icon={<Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
                   showStatus={true}
+                  badge={machine.isMasterMachine ? {
+                    text: 'Master',
+                    color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
+                    onClick: () => handleMasterBadgeClick(machine.societyId)
+                  } : undefined}
                   selected={selectedMachines.has(machine.id)}
                   onSelect={() => handleSelectMachine(machine.id)}
                   onPasswordSettings={() => handlePasswordSettingsClick(machine)}
@@ -1721,7 +1871,11 @@ export default function MachineManagement() {
             <FormSelect
               label="Society"
               value={formData.societyId}
-              onChange={(value) => setFormData({ ...formData, societyId: value })}
+              onChange={(value) => {
+                console.log('Society selected:', value, 'Type:', typeof value);
+                setFormData({ ...formData, societyId: value });
+                checkMasterMachineStatus(value);
+              }}
               options={societies.map(society => ({ 
                 value: society.id, 
                 label: `${society.name} (${society.society_id})` 
@@ -1781,6 +1935,116 @@ export default function MachineManagement() {
               placeholder="Additional notes or comments..."
               colSpan={2}
             />
+
+            {/* Master Machine Checkbox */}
+            {formData.societyId !== '' && (
+              <div className="sm:col-span-2">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="setAsMaster"
+                      checked={formData.setAsMaster}
+                      onChange={(e) => setFormData({ ...formData, setAsMaster: e.target.checked })}
+                      disabled={isFirstMachine}
+                      className="mt-1 w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500 disabled:opacity-50"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="setAsMaster" className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
+                        Set as Master Machine
+                      </label>
+                      {isFirstMachine ? (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          This is the first machine for this society and will automatically be set as master
+                        </p>
+                      ) : societyHasMaster && formData.setAsMaster ? (
+                        <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1 font-medium">
+                          ⚠️ Warning: This will replace the current master machine ({existingMasterMachine}) with this one
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Master machine passwords will be inherited by all machines in this society
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Password Inheritance Info */}
+            {formData.societyId !== '' && !formData.setAsMaster && societyHasMaster && !isFirstMachine && (
+              <div className="sm:col-span-2">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                        Password Inheritance Enabled
+                      </h4>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        This machine will automatically inherit user and supervisor passwords from the master machine (<strong>{existingMasterMachine}</strong>). 
+                        The passwords will be set when the machine is created, and you can update them later if needed.
+                      </p>
+                      <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                        <strong>Note:</strong> Password status (enabled/disabled) will also be inherited from the master machine.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Disable Password Inheritance Checkbox */}
+            {formData.societyId !== '' && !formData.setAsMaster && societyHasMaster && !isFirstMachine && (
+              <div className="sm:col-span-2">
+                <div className="flex items-start gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <input
+                    type="checkbox"
+                    id="disablePasswordInheritance"
+                    checked={formData.disablePasswordInheritance}
+                    onChange={(e) => setFormData({ ...formData, disablePasswordInheritance: e.target.checked })}
+                    className="mt-1 w-4 h-4 text-primary-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 focus:ring-2"
+                  />
+                  <label htmlFor="disablePasswordInheritance" className="flex-1 cursor-pointer">
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                      Do not inherit passwords from master machine
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Check this if you want to set passwords manually later instead of using the master machine's passwords
+                    </p>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* No Master Machine Warning */}
+            {formData.societyId !== '' && !formData.setAsMaster && !societyHasMaster && !isFirstMachine && (
+              <div className="sm:col-span-2">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <svg className="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                        No Master Machine Found
+                      </h4>
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        This society has machines but no master machine is designated. Passwords will not be inherited automatically. 
+                        Consider setting this machine as master or designate an existing machine as master first.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </FormGrid>
 
           <FormError error={error} />
@@ -1964,6 +2228,105 @@ export default function MachineManagement() {
             />
           </FormGrid>
 
+          {/* Apply to Other Machines Section - Only show for master machines */}
+          {selectedMachine?.isMasterMachine && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="flex items-start gap-3 mb-4">
+                <input
+                  type="checkbox"
+                  id="applyPasswordsToOthers"
+                  checked={applyPasswordsToOthers}
+                  onChange={(e) => {
+                    setApplyPasswordsToOthers(e.target.checked);
+                    if (!e.target.checked) {
+                      setSelectedMachinesForPassword(new Set());
+                      setSelectAllMachinesForPassword(false);
+                    }
+                  }}
+                  className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <label htmlFor="applyPasswordsToOthers" className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
+                    Apply these passwords to other machines in this society
+                  </label>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    Select machines below to update their passwords with the same values
+                  </p>
+                </div>
+              </div>
+
+              {/* Machine Selection - Show when checkbox is checked */}
+              {applyPasswordsToOthers && selectedMachine && (
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Select Machines ({selectedMachinesForPassword.size} selected)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const societyMachines = machines.filter(
+                          m => m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id
+                        );
+                        if (selectAllMachinesForPassword) {
+                          setSelectedMachinesForPassword(new Set());
+                          setSelectAllMachinesForPassword(false);
+                        } else {
+                          setSelectedMachinesForPassword(new Set(societyMachines.map(m => m.id)));
+                          setSelectAllMachinesForPassword(true);
+                        }
+                      }}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {selectAllMachinesForPassword ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {machines
+                      .filter(m => m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id)
+                      .map(machine => (
+                        <label
+                          key={machine.id}
+                          className="flex items-center gap-3 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMachinesForPassword.has(machine.id)}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedMachinesForPassword);
+                              if (e.target.checked) {
+                                newSelected.add(machine.id);
+                              } else {
+                                newSelected.delete(machine.id);
+                                setSelectAllMachinesForPassword(false);
+                              }
+                              setSelectedMachinesForPassword(newSelected);
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {machine.machineId}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {machine.machineType}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                  </div>
+                  
+                  {machines.filter(m => m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id).length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                      No other machines in this society
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <FormError error={error} />
 
           <FormActions
@@ -2121,6 +2484,111 @@ export default function MachineManagement() {
               className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
               Close
+            </button>
+          </div>
+        </div>
+      </FormModal>
+
+      {/* Change Master Machine Modal */}
+      <FormModal
+        isOpen={showChangeMasterModal}
+        onClose={() => setShowChangeMasterModal(false)}
+        title="Change Master Machine"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-yellow-900 dark:text-yellow-100 mb-1">
+                  About Master Machine
+                </h4>
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  The master machine's passwords are inherited by all other machines in the society. 
+                  Changing the master will update which machine's passwords are used as the default for new machines.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {selectedSocietyForMaster && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select New Master Machine <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newMasterMachineId || ''}
+                  onChange={(e) => setNewMasterMachineId(e.target.value ? parseInt(e.target.value) : null)}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">Select a machine</option>
+                  {machines
+                    .filter(m => m.societyId === selectedSocietyForMaster)
+                    .map(machine => (
+                      <option key={machine.id} value={machine.id}>
+                        {machine.machineId} - {machine.machineType}
+                        {machine.isMasterMachine ? ' (Current Master)' : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="setForAllMachines"
+                  checked={setForAll}
+                  onChange={(e) => setSetForAll(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <label htmlFor="setForAllMachines" className="text-sm font-medium text-blue-900 dark:text-blue-100 cursor-pointer">
+                    Apply master's passwords to all machines in society
+                  </label>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    If checked, all machines in this society will be updated with the new master machine's passwords immediately.
+                  </p>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setShowChangeMasterModal(false)}
+              disabled={isChangingMaster}
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleChangeMasterConfirm}
+              disabled={isChangingMaster || !newMasterMachineId}
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isChangingMaster ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Changing...
+                </>
+              ) : (
+                'Change Master'
+              )}
             </button>
           </div>
         </div>

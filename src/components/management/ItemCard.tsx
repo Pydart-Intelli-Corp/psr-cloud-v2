@@ -48,6 +48,12 @@ interface ItemCardProps {
   viewText?: string;
   passwordTitle?: string;
   className?: string;
+  // Badge support (e.g., for master machine)
+  badge?: {
+    text: string;
+    color: string;
+    onClick?: () => void; // Make badge clickable
+  };
   // Selection support
   selectable?: boolean;
   selected?: boolean;
@@ -79,6 +85,7 @@ const ItemCard: React.FC<ItemCardProps> = ({
   viewText = 'View Details',
   passwordTitle = 'Password Settings',
   className = '',
+  badge,
   selectable = false,
   selected = false,
   onSelect,
@@ -110,9 +117,25 @@ const ItemCard: React.FC<ItemCardProps> = ({
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
-                {highlightText(name, searchQuery)}
-              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  {highlightText(name, searchQuery)}
+                </h3>
+                {badge && (
+                  <span 
+                    className={`px-2 py-0.5 text-xs font-semibold rounded-full border shadow-sm ${badge.color} ${badge.onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                    onClick={(e) => {
+                      if (badge.onClick) {
+                        e.stopPropagation();
+                        badge.onClick();
+                      }
+                    }}
+                    title={badge.onClick ? 'Click to change master machine' : undefined}
+                  >
+                    {badge.text}
+                  </span>
+                )}
+              </div>
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                 {highlightText(identifier, searchQuery)}
               </p>

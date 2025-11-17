@@ -213,44 +213,98 @@ async function handleRequest(
     const machineData = machineResults[0] as MachineResult;
     console.log(`✅ Found machine: "${machineId}" -> database ID: ${machineData.id}`);
 
-    // Insert statistics into database
-    const insertQuery = `
-      INSERT INTO \`${schemaName}\`.machine_statistics 
-      (
-        machine_id, 
-        society_id, 
-        machine_type, 
-        version, 
-        total_test, 
-        daily_cleaning, 
-        weekly_cleaning, 
-        cleaning_skip, 
-        gain, 
-        auto_channel, 
-        statistics_date, 
-        statistics_time
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    // Check if statistics already exist for today
+    const checkQuery = `
+      SELECT id FROM \`${schemaName}\`.machine_statistics 
+      WHERE machine_id = ? AND DATE(created_at) = CURDATE()
+      LIMIT 1
     `;
 
-    await sequelize.query(insertQuery, {
-      replacements: [
-        machineData.id,
-        actualSocietyId,
-        machineType,
-        version,
-        totalTest,
-        dailyCleaning,
-        weeklyCleaning,
-        cleaningSkip,
-        gain,
-        autoChannel,
-        statisticsDate,
-        statisticsTime
-      ]
+    const [existingResults] = await sequelize.query(checkQuery, {
+      replacements: [machineData.id]
     });
 
-    console.log(`✅ Machine statistics saved successfully`);
+    if (Array.isArray(existingResults) && existingResults.length > 0) {
+      // Update existing record for today
+      console.log(`📝 Updating today's statistics for machine ${machineData.id}`);
+      
+      const updateQuery = `
+        UPDATE \`${schemaName}\`.machine_statistics 
+        SET 
+          society_id = ?,
+          machine_type = ?,
+          version = ?,
+          total_test = ?,
+          daily_cleaning = ?,
+          weekly_cleaning = ?,
+          cleaning_skip = ?,
+          gain = ?,
+          auto_channel = ?,
+          statistics_date = ?,
+          statistics_time = ?
+        WHERE machine_id = ? AND DATE(created_at) = CURDATE()
+      `;
+
+      await sequelize.query(updateQuery, {
+        replacements: [
+          actualSocietyId,
+          machineType,
+          version,
+          totalTest,
+          dailyCleaning,
+          weeklyCleaning,
+          cleaningSkip,
+          gain,
+          autoChannel,
+          statisticsDate,
+          statisticsTime,
+          machineData.id
+        ]
+      });
+
+      console.log(`✅ Today's machine statistics updated successfully`);
+    } else {
+      // Insert new record for today
+      console.log(`📝 Creating new statistics record for machine ${machineData.id}`);
+      
+      const insertQuery = `
+        INSERT INTO \`${schemaName}\`.machine_statistics 
+        (
+          machine_id, 
+          society_id, 
+          machine_type, 
+          version, 
+          total_test, 
+          daily_cleaning, 
+          weekly_cleaning, 
+          cleaning_skip, 
+          gain, 
+          auto_channel, 
+          statistics_date, 
+          statistics_time
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      await sequelize.query(insertQuery, {
+        replacements: [
+          machineData.id,
+          actualSocietyId,
+          machineType,
+          version,
+          totalTest,
+          dailyCleaning,
+          weeklyCleaning,
+          cleaningSkip,
+          gain,
+          autoChannel,
+          statisticsDate,
+          statisticsTime
+        ]
+      });
+
+      console.log(`✅ New machine statistics created successfully`);
+    }
     console.log(`${'='.repeat(80)}\n`);
 
     // Return success response

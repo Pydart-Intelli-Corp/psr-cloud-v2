@@ -172,6 +172,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`contact_phone\` VARCHAR(15),
         \`status\` ENUM('active', 'inactive', 'maintenance', 'suspended') DEFAULT 'active',
         \`notes\` TEXT,
+        \`is_master_machine\` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Master machine flag: 1 = master, 0 = normal',
         \`user_password\` VARCHAR(255) COMMENT 'User password for external API access',
         \`supervisor_password\` VARCHAR(255) COMMENT 'Supervisor password for external API access',
         \`statusU\` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'User password status: 0 = not set, 1 = set',
@@ -183,6 +184,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_machine_type\` (\`machine_type\`),
         INDEX \`idx_society_id\` (\`society_id\`),
         INDEX \`idx_status\` (\`status\`),
+        INDEX \`idx_is_master\` (\`is_master_machine\`),
         INDEX \`idx_statusU\` (\`statusU\`),
         INDEX \`idx_statusS\` (\`statusS\`),
         INDEX \`idx_created_at\` (\`created_at\`)
