@@ -438,7 +438,15 @@ export default function MachineManagement() {
 
       const data = await response.json();
       if (data.success) {
-        setMachines(data.data || []);
+        // Sort machines: master machines first, then by ID
+        const sortedMachines = (data.data || []).sort((a: Machine, b: Machine) => {
+          // Master machines come first
+          if (a.isMasterMachine && !b.isMasterMachine) return -1;
+          if (!a.isMasterMachine && b.isMasterMachine) return 1;
+          // If both are master or both are not, sort by ID
+          return a.id - b.id;
+        });
+        setMachines(sortedMachines);
       } else {
         setError(typeof data.error === 'string' ? data.error : data.error?.message || 'Failed to fetch machines');
       }

@@ -21,12 +21,16 @@ interface MachineResult {
  * SaveMachineCorrectionFromMachine API Endpoint
  * 
  * Purpose: Save machine correction values from ESP32/machine device
- * InputString format: societyId|machineType|version|machineId||channel|F±value|S±value|C±value|T±value|W±value|P±value|Dtimestamp
+ * 
+ * **InputString Formats (Both Accepted):**
+ * 
+ * Format 1 (with double pipe): societyId|machineType|version|machineId||channel|F±value|S±value|C±value|T±value|W±value|P±value|Dtimestamp
+ * Format 2 (without double pipe): societyId|machineType|version|machineId|channel|F±value|S±value|C±value|T±value|W±value|P±value|Dtimestamp
  * 
  * Channel mapping:
- * - ||1| = COW channel
- * - ||2| = BUF channel
- * - ||3| = MIX channel
+ * - channel = 1 → COW channel
+ * - channel = 2 → BUF channel  
+ * - channel = 3 → MIX channel
  * 
  * Values format:
  * - F = Fat (e.g., F+0.16, F-0.10)
@@ -35,9 +39,15 @@ interface MachineResult {
  * - T = Temperature (e.g., T+0.00, T-1.50)
  * - W = Water (e.g., W+00, W-05)
  * - P = Protein (e.g., P+0.00, P+1.25)
- * - D = Date/Timestamp (e.g., D2025-11-06_01:04:05)
+ * - D = Date/Timestamp (e.g., D2025-11-17_15:32:42)
  * 
- * Example: 2121|ECOD-G|LE2.00|M00000003||1|F+0.16|S-1.00|C+0.00|T+0.00|W+00|P+0.00|D2025-11-06_01:04:05
+ * Examples (Format 1 with double pipe): 
+ * S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101||1|F+0.00|S+0.00|C+0.03|T+0.00|W+0.00|P+0.00|D2025-11-17_15:32:42
+ * 2121|ECOD-G|LE2.00|M00000003||2|F+0.16|S-1.00|C+0.00|T+0.00|W+00|P+0.00|D2025-11-06_01:04:05
+ * 
+ * Examples (Format 2 without double pipe): 
+ * S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101|1|F+0.00|S+0.00|C+0.03|T+0.00|W+0.00|P+0.00|D2025-11-17_15:32:42
+ * 2121|ECOD-G|LE2.00|M00000003|2|F+0.16|S-1.00|C+0.00|T+0.00|W+00|P+0.00|D2025-11-06_01:04:05
  * 
  * Endpoint: GET/POST /api/[db-key]/MachineCorrection/SaveMachineCorrectionFromMachine
  */
@@ -97,15 +107,27 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
-    // Parse input string: societyId|machineType|version|machineId||channel|F±value|S±value|C±value|T±value|W±value|P±value|Dtimestamp
+    // Parse input string: Accept both formats:
+    // Format 1 (with double pipe): societyId|machineType|version|machineId||channel|F±value|S±value|C±value|T±value|W±value|P±value|Dtimestamp
+    // Format 2 (without double pipe): societyId|machineType|version|machineId|channel|F±value|S±value|C±value|T±value|W±value|P±value|Dtimestamp
     const inputParts = inputString.split('|');
     
-    if (inputParts.length < 13) {
-      console.log(`❌ Invalid InputString format. Expected at least 13 parts, got ${inputParts.length}`);
+    let societyIdStr, machineType, machineModel, machineId, channelStr, fatStr, snfStr, clrStr, tempStr, waterStr, proteinStr, timestampStr;
+    
+    if (inputParts.length >= 13) {
+      // Format 1: Has empty field between machineId and channel (double pipe ||)
+      // Example: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101||2|F+0.00|S+0.00|...
+      [societyIdStr, machineType, machineModel, machineId, , channelStr, fatStr, snfStr, clrStr, tempStr, waterStr, proteinStr, timestampStr] = inputParts;
+      console.log(`📋 Using Format 1 (with double pipe): ${inputParts.length} parts`);
+    } else if (inputParts.length >= 12) {
+      // Format 2: No empty field (single pipe between machineId and channel)
+      // Example: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101|2|F+0.00|S+0.00|...
+      [societyIdStr, machineType, machineModel, machineId, channelStr, fatStr, snfStr, clrStr, tempStr, waterStr, proteinStr, timestampStr] = inputParts;
+      console.log(`📋 Using Format 2 (without double pipe): ${inputParts.length} parts`);
+    } else {
+      console.log(`❌ Invalid InputString format. Expected at least 12 parts, got ${inputParts.length}`);
       return ESP32ResponseHelper.createErrorResponse('Invalid InputString format');
     }
-
-    const [societyIdStr, machineType, machineModel, machineId, , channelStr, fatStr, snfStr, clrStr, tempStr, waterStr, proteinStr, timestampStr] = inputParts;
     
     console.log(`🔍 Parsed InputString:`, { 
       societyIdStr, 
