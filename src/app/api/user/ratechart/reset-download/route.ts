@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { chartId, machineIds, channel } = body;
+    const { chartIds, machineIds, channel } = body;
 
-    if (!chartId || !machineIds || !Array.isArray(machineIds) || machineIds.length === 0) {
-      return createErrorResponse('Chart ID and machine IDs are required', 400);
+    if (!chartIds || !Array.isArray(chartIds) || chartIds.length === 0 || !machineIds || !Array.isArray(machineIds) || machineIds.length === 0) {
+      return createErrorResponse('Chart IDs and machine IDs are required', 400);
     }
 
     if (!channel || !['COW', 'BUF', 'MIX'].includes(channel)) {
@@ -54,22 +54,23 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Delete download history records for the specified machines, chart, and channel
-    const placeholders = machineIds.map(() => '?').join(', ');
+    // Delete download history records for the specified machines, charts, and channel
+    const chartPlaceholders = chartIds.map(() => '?').join(', ');
+    const machinePlaceholders = machineIds.map(() => '?').join(', ');
     const deleteQuery = `
       DELETE FROM \`${schemaName}\`.rate_chart_download_history
-      WHERE rate_chart_id = ? AND machine_id IN (${placeholders}) AND channel = ?
+      WHERE rate_chart_id IN (${chartPlaceholders}) AND machine_id IN (${machinePlaceholders}) AND channel = ?
     `;
 
     const [result] = await sequelize.query(deleteQuery, {
-      replacements: [chartId, ...machineIds, channel]
+      replacements: [...chartIds, ...machineIds, channel]
     });
 
     const deletedCount = (result as { affectedRows?: number }).affectedRows || 0;
 
     return createSuccessResponse(
       `Reset ${channel} channel download history for ${deletedCount} machine(s). They can now re-download the ${channel} chart.`,
-      JSON.stringify({ deletedCount, chartId, machineIds, channel })
+      JSON.stringify({ deletedCount, chartIds, machineIds, channel })
     );
 
   } catch (error) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, Search } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
 import { FlowerSpinner } from '@/components';
 
 interface Machine {
@@ -9,6 +9,8 @@ interface Machine {
   machineId: string;
   machineType: string;
   societyName: string;
+  societyId: number;
+  societyIdentifier?: string;
   location?: string;
 }
 
@@ -35,14 +37,12 @@ export default function ResetDownloadModal({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedMachines, setSelectedMachines] = useState<Set<number>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
   const [societyFilter, setSocietyFilter] = useState<number | 'all'>('all');
 
   useEffect(() => {
     if (show) {
       fetchMachines();
       setSelectedMachines(new Set());
-      setSearchQuery('');
       setSocietyFilter('all');
     }
   }, [show, chartId]);
@@ -107,16 +107,10 @@ export default function ResetDownloadModal({
   };
 
   const filteredMachines = machines.filter(machine => {
-    const matchesSearch = searchQuery === '' || 
-      machine.machineId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      machine.machineType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      machine.societyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (machine.location && machine.location.toLowerCase().includes(searchQuery.toLowerCase()));
-    
     const matchesSociety = societyFilter === 'all' || 
       societies.find(s => s.societyId === societyFilter && s.societyName === machine.societyName);
 
-    return matchesSearch && matchesSociety;
+    return matchesSociety;
   });
 
   if (!show) return null;
@@ -170,24 +164,12 @@ export default function ResetDownloadModal({
             </p>
 
             {/* Filters */}
-            <div className="flex gap-3 mb-4">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search machines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                />
-              </div>
-
+            <div className="mb-4">
               {/* Society Filter */}
               <select
                 value={societyFilter}
                 onChange={(e) => setSocietyFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               >
                 <option value="all">All Societies</option>
                 {societies.map(society => (
@@ -255,7 +237,9 @@ export default function ResetDownloadModal({
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-gray-600">
-                          {machine.societyName}
+                          <span className="font-medium">{machine.societyName}</span>
+                          {' '}
+                          <span className="text-gray-400">({machine.societyIdentifier || `ID: ${machine.societyId}`})</span>
                         </p>
                         {machine.location && (
                           <>

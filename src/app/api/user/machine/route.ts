@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
     // Check if id parameter is provided for single machine fetch
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const societyIdsParam = searchParams.get('societyIds');
 
     let query: string;
     let replacements: (string | number)[] = [];
@@ -189,6 +190,39 @@ export async function GET(request: NextRequest) {
         WHERE m.id = ?
       `;
       replacements = [id];
+    } else if (societyIdsParam) {
+      // Query machines filtered by society IDs
+      const societyIds = societyIdsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      
+      if (societyIds.length === 0) {
+        return createSuccessResponse('Machines retrieved successfully', []);
+      }
+
+      const placeholders = societyIds.map(() => '?').join(', ');
+      
+      query = `
+        SELECT 
+          m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
+          m.installation_date, m.operator_name, m.contact_phone, m.status, 
+          m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
+          m.created_at,
+          s.name as society_name, s.society_id as society_identifier,
+          (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
+          (SELECT GROUP_CONCAT(DISTINCT 
+            CONCAT(rc.channel, ':', rc.file_name, ':', 
+              CASE WHEN dh.id IS NOT NULL THEN 'downloaded' ELSE 'pending' END)
+            SEPARATOR '|||')
+           FROM \`${schemaName}\`.rate_charts rc
+           LEFT JOIN \`${schemaName}\`.rate_chart_download_history dh 
+             ON dh.rate_chart_id = rc.id AND dh.machine_id = m.id
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details
+        FROM \`${schemaName}\`.machines m
+        LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+        WHERE m.society_id IN (${placeholders})
+        ORDER BY m.created_at DESC
+      `;
+      replacements = societyIds;
     } else {
       // Query all machines with rate chart information
       query = `

@@ -183,20 +183,20 @@ async function handleRequest(
 
     const rateChartId = (chartResults[0] as { id: number }).id;
 
-    // Check if machine already downloaded this chart
+    // Check if machine already downloaded this chart for this channel
     const checkHistoryQuery = `
       SELECT id 
       FROM \`${schemaName}\`.rate_chart_download_history 
-      WHERE machine_id = ? AND rate_chart_id = ?
+      WHERE machine_id = ? AND rate_chart_id = ? AND channel = ?
       LIMIT 1
     `;
 
     const [historyResults] = await sequelize.query(checkHistoryQuery, { 
-      replacements: [machineData.id, rateChartId] 
+      replacements: [machineData.id, rateChartId, channelUpper] 
     });
 
     if (Array.isArray(historyResults) && historyResults.length > 0) {
-      console.log(`ℹ️ Machine ${machineData.id} already downloaded chart ${rateChartId}`);
+      console.log(`ℹ️ Machine ${machineData.id} already downloaded chart ${rateChartId} for channel ${channelUpper}`);
       return ESP32ResponseHelper.createDataResponse('Price chart history saved successfully.');
     }
 

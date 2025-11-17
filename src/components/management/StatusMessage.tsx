@@ -26,6 +26,7 @@ const StatusMessage: React.FC<StatusMessageProps> = ({
     <AnimatePresence>
       {success && (
         <motion.div
+          key="success-message"
           initial={{ opacity: 0, x: 400 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 400 }}
@@ -49,6 +50,7 @@ const StatusMessage: React.FC<StatusMessageProps> = ({
       )}
       {error && (
         <motion.div
+          key="error-message"
           initial={{ opacity: 0, x: 400 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 400 }}

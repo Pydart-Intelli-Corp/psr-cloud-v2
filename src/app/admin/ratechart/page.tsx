@@ -98,6 +98,7 @@ export default function RatechartManagement() {
     fileName: string;
     channel: string;
     societies: Array<{ societyId: number; societyName: string }>;
+    chartRecordIds: number[];
   } | null>(null);
 
   // Redirect if not admin
@@ -368,11 +369,12 @@ export default function RatechartManagement() {
       chartRecordIds: [masterChart.id] // Start with master chart ID
     };
     
-    // Add the master chart's society
+    // Add the master chart's society with its chart record ID
     acc[masterChart.id].societies.push({
       societyId: masterChart.societyId,
       societyName: masterChart.societyName,
-      societyIdentifier: masterChart.societyIdentifier
+      societyIdentifier: masterChart.societyIdentifier,
+      chartRecordId: masterChart.id // Add the chart record ID for this society
     });
     
     // Find all societies that share this chart
@@ -381,7 +383,8 @@ export default function RatechartManagement() {
         acc[masterChart.id].societies.push({
           societyId: chart.societyId,
           societyName: chart.societyName,
-          societyIdentifier: chart.societyIdentifier
+          societyIdentifier: chart.societyIdentifier,
+          chartRecordId: chart.id // Add the chart record ID for this society
         });
         acc[masterChart.id].chartRecordIds.push(chart.id);
       }
@@ -396,7 +399,7 @@ export default function RatechartManagement() {
     createdAt: string;
     recordCount: number;
     status: number;
-    societies: { societyId: number; societyName: string; societyIdentifier: string }[];
+    societies: { societyId: number; societyName: string; societyIdentifier: string; chartRecordId: number }[];
     chartRecordIds: number[];
   }>);
 
@@ -534,12 +537,13 @@ export default function RatechartManagement() {
   };
 
   // Handle opening reset download modal
-  const handleOpenResetDownloadModal = (chartId: number, fileName: string, channel: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>) => {
+  const handleOpenResetDownloadModal = (chartId: number, fileName: string, channel: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>, chartRecordIds: number[]) => {
     setSelectedChartForReset({
       chartId,
       fileName,
       channel,
-      societies: societies.map(s => ({ societyId: s.societyId, societyName: s.societyName }))
+      societies: societies.map(s => ({ societyId: s.societyId, societyName: s.societyName })),
+      chartRecordIds
     });
     setShowResetDownloadModal(true);
   };
@@ -559,7 +563,7 @@ export default function RatechartManagement() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          chartId: selectedChartForReset.chartId,
+          chartIds: selectedChartForReset.chartRecordIds || [selectedChartForReset.chartId],
           machineIds,
           channel: selectedChartForReset.channel
         })
@@ -582,6 +586,44 @@ export default function RatechartManagement() {
     } catch (error) {
       console.error('Error resetting download history:', error);
       setError('❌ Error resetting download history. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
+  // Handle removing society from rate chart
+  const handleRemoveSociety = async (chartRecordId: number, societyId: number, societyName: string) => {
+    if (!confirm(`Remove ${societyName} from this rate chart?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/ratechart/remove-society', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ chartId: chartRecordId, societyId })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuccess(`✅ Successfully removed ${societyName} from rate chart`);
+        setTimeout(() => setSuccess(''), 5000);
+        // Force a fresh fetch to update the UI
+        setRateCharts([]);
+        await fetchRateCharts();
+      } else {
+        setError(data.message || 'Failed to remove society');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error removing society:', error);
+      setError('❌ Error removing society. Please try again.');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -776,7 +818,8 @@ export default function RatechartManagement() {
                   onDelete={() => handleDelete(group.chartRecordIds[0])}
                   onToggleStatus={handleToggleStatus}
                   onView={() => handleViewRateChart(group.fileName, group.channel, group.societies[0]?.societyId || 0)}
-                  onResetDownload={() => handleOpenResetDownloadModal(group.chartId, group.fileName, group.channel, group.societies)}
+                  onResetDownload={() => handleOpenResetDownloadModal(group.chartId, group.fileName, group.channel, group.societies, group.chartRecordIds)}
+                  onRemoveSociety={handleRemoveSociety}
                 />
               );
             })}

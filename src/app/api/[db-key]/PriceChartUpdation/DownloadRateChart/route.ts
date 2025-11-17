@@ -204,9 +204,33 @@ async function handleRequest(
     }
 
     const chart = chartResults[0] as RateChartResult;
-    console.log(`✅ Found rate chart: ${chart.file_name} (ID: ${chart.id})`);
+    console.log(`✅ Found rate chart: ${chart.file_name} (ID: ${chart.id}, Type: ${chart.shared_chart_id ? 'SHARED' : 'MASTER'})`);
 
-    // Fetch rate chart data
+    // Determine which chart ID to use for data lookup
+    // If this is a shared chart, use the master chart's ID for data
+    const dataChartId = chart.shared_chart_id || chart.id;
+    if (chart.shared_chart_id) {
+      console.log(`   📌 Using master chart ID ${dataChartId} for data lookup`);
+    }
+
+    // Check if machine already downloaded this chart for this channel
+    const checkHistoryQuery = `
+      SELECT id, downloaded_at
+      FROM \`${schemaName}\`.rate_chart_download_history
+      WHERE machine_id = ? AND rate_chart_id = ? AND channel = ?
+      LIMIT 1
+    `;
+
+    const [historyResults] = await sequelize.query(checkHistoryQuery, {
+      replacements: [machineData.id, chart.id, channelUpper]
+    });
+
+    if (Array.isArray(historyResults) && historyResults.length > 0) {
+      console.log(`❌ Machine ${machineData.id} already downloaded chart ${chart.id} for channel ${channelUpper}`);
+      return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+    }
+
+    // Fetch rate chart data using the master chart ID
     const dataQuery = `
       SELECT fat, snf, clr, rate
       FROM \`${schemaName}\`.rate_chart_data
@@ -215,7 +239,7 @@ async function handleRequest(
     `;
 
     const [dataResults] = await sequelize.query(dataQuery, {
-      replacements: [chart.id]
+      replacements: [dataChartId]
     });
 
     if (!Array.isArray(dataResults) || dataResults.length === 0) {
@@ -232,7 +256,6 @@ async function handleRequest(
         INSERT INTO \`${schemaName}\`.rate_chart_download_history 
         (rate_chart_id, machine_id, society_id, channel, downloaded_at)
         VALUES (?, ?, ?, ?, NOW())
-        ON DUPLICATE KEY UPDATE downloaded_at = NOW()
       `;
       
       await sequelize.query(historyQuery, {

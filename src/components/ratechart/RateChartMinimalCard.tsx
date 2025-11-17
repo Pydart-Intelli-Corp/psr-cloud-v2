@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText } from 'lucide-react';
+import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X } from 'lucide-react';
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -25,6 +25,7 @@ interface Society {
   societyId: number;
   societyName: string;
   societyIdentifier: string;
+  chartRecordId: number;
 }
 
 interface RateChartMinimalCardProps {
@@ -42,6 +43,7 @@ interface RateChartMinimalCardProps {
   onToggleStatus: (chartId: number, currentStatus: number) => void;
   onView: () => void;
   onResetDownload: () => void;
+  onRemoveSociety?: (chartRecordId: number, societyId: number, societyName: string) => void;
   searchQuery?: string;
 }
 
@@ -60,8 +62,11 @@ export default function RateChartMinimalCard({
   onToggleStatus,
   onView,
   onResetDownload,
+  onRemoveSociety,
   searchQuery = '',
 }: RateChartMinimalCardProps) {
+  const [showAllSocieties, setShowAllSocieties] = React.useState(false);
+
   return (
     <div
       className={`relative border rounded-xl p-4 transition-all duration-300 hover:shadow-lg group ${
@@ -113,19 +118,40 @@ export default function RateChartMinimalCard({
               📍 {societies.length} {societies.length === 1 ? 'Society' : 'Societies'}
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {societies.slice(0, 3).map((society) => (
+              {(showAllSocieties ? societies : societies.slice(0, 3)).map((society) => (
                 <span
                   key={society.societyId}
-                  className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 shadow-sm"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 shadow-sm group/badge"
                   title={`${society.societyName} ${society.societyIdentifier ? `(${society.societyIdentifier})` : ''}`}
                 >
-                  {highlightText(society.societyName.length > 12 ? `${society.societyName.substring(0, 12)}...` : society.societyName, searchQuery)}
+                  <span>
+                    {highlightText(society.societyName.length > 12 ? `${society.societyName.substring(0, 12)}...` : society.societyName, searchQuery)}
+                  </span>
+                  {onRemoveSociety && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveSociety(society.chartRecordId, society.societyId, society.societyName);
+                      }}
+                      className="opacity-0 group-hover/badge:opacity-100 transition-opacity hover:bg-green-200 dark:hover:bg-green-800 rounded p-0.5"
+                      title={`Remove ${society.societyName}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
               ))}
               {societies.length > 3 && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
-                  +{societies.length - 3} more
-                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAllSocieties(!showAllSocieties);
+                  }}
+                  className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors cursor-pointer"
+                  title={showAllSocieties ? 'Show less' : 'Show all societies'}
+                >
+                  {showAllSocieties ? 'Show less' : `+${societies.length - 3} more`}
+                </button>
               )}
             </div>
           </div>
