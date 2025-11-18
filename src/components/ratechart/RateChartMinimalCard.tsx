@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X } from 'lucide-react';
+import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X, MoreVertical, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
+import { ConfirmDeleteModal } from '@/components/management';
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -65,150 +66,296 @@ export default function RateChartMinimalCard({
   onRemoveSociety,
   searchQuery = '',
 }: RateChartMinimalCardProps) {
-  const [showAllSocieties, setShowAllSocieties] = React.useState(false);
+  const [showActionsMenu, setShowActionsMenu] = React.useState(false);
+  const [showSocietiesDropdown, setShowSocietiesDropdown] = React.useState(false);
+  const [societyToRemove, setSocietyToRemove] = React.useState<{ chartRecordId: number; societyId: number; societyName: string } | null>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowActionsMenu(false);
+      }
+    };
+
+    if (showActionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showActionsMenu]);
 
   return (
     <div
-      className={`relative border rounded-xl p-4 transition-all duration-300 hover:shadow-lg group ${
+      className={`relative border rounded-xl p-5 transition-all duration-300 hover:shadow-lg ${
         isSelected
           ? 'border-green-500 dark:border-green-400 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 shadow-md ring-2 ring-green-200 dark:ring-green-700'
           : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-300 dark:hover:border-green-600'
       }`}
     >
-      {/* Selection Checkbox - Top Left */}
-      <div className="absolute top-3 left-3 z-10">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={onToggleSelection}
-          className="w-4 h-4 text-green-600 dark:text-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500 dark:focus:ring-green-400 focus:ring-2 cursor-pointer transition-transform hover:scale-110"
-        />
-      </div>
-
-      {/* Status Badge - Top Right */}
-      <div className="absolute top-3 right-3 z-10">
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${
-          status === 1 
-            ? 'bg-green-500 dark:bg-green-600 text-white' 
-            : 'bg-gray-400 dark:bg-gray-600 text-white'
-        }`}>
-          {status === 1 ? 'Active' : 'Inactive'}
-        </span>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="mt-6">
-        {/* Details Section */}
-        <div className="flex-1 min-w-0">
-          {/* File Name */}
-          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 truncate" title={fileName}>
-            {highlightText(fileName, searchQuery)}
-          </h3>
-
-          {/* Channel Badge */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-600 dark:to-indigo-600 text-white shadow-sm">
-              {highlightText(channel, searchQuery)}
-            </span>
-          </div>
-
-          {/* Societies Section */}
-          <div className="mb-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
-              📍 {societies.length} {societies.length === 1 ? 'Society' : 'Societies'}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {(showAllSocieties ? societies : societies.slice(0, 3)).map((society) => (
-                <span
-                  key={society.societyId}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 shadow-sm group/badge"
-                  title={`${society.societyName} ${society.societyIdentifier ? `(${society.societyIdentifier})` : ''}`}
-                >
-                  <span>
-                    {highlightText(society.societyName.length > 12 ? `${society.societyName.substring(0, 12)}...` : society.societyName, searchQuery)}
-                  </span>
-                  {onRemoveSociety && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemoveSociety(society.chartRecordId, society.societyId, society.societyName);
-                      }}
-                      className="opacity-0 group-hover/badge:opacity-100 transition-opacity hover:bg-green-200 dark:hover:bg-green-800 rounded p-0.5"
-                      title={`Remove ${society.societyName}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              ))}
-              {societies.length > 3 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAllSocieties(!showAllSocieties);
-                  }}
-                  className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors cursor-pointer"
-                  title={showAllSocieties ? 'Show less' : 'Show all societies'}
-                >
-                  {showAllSocieties ? 'Show less' : `+${societies.length - 3} more`}
-                </button>
-              )}
+      {/* Header Section */}
+      <div className="flex items-start justify-between mb-4">
+        {/* Left: Checkbox */}
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleSelection}
+            className="mt-1 w-4 h-4 text-green-600 dark:text-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500 dark:focus:ring-green-400 focus:ring-2 cursor-pointer transition-transform hover:scale-110"
+          />
+          
+          {/* File Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <Receipt className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" title={fileName}>
+                {highlightText(fileName, searchQuery)}
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                channel === 'COW' 
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  : channel === 'BUF'
+                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                  : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+              }`}>
+                {highlightText(channel, searchQuery)}
+              </span>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                status === 1 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+              }`}>
+                {status === 1 ? 'Active' : 'Inactive'}
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* Date */}
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            📅 {new Date(createdAt).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric',
-              year: 'numeric'
-            })}
-          </p>
+        {/* Right: Actions Menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setShowActionsMenu(!showActionsMenu)}
+            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title="Actions"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
+
+          {/* Dropdown Menu */}
+          {showActionsMenu && (
+            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 py-1">
+              <button
+                onClick={() => {
+                  onView();
+                  setShowActionsMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>View Chart Data</span>
+              </button>
+              <button
+                onClick={() => {
+                  onAssignSociety();
+                  setShowActionsMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <UserPlus className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span>Assign to Societies</span>
+              </button>
+              <button
+                onClick={() => {
+                  onResetDownload();
+                  setShowActionsMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>Reset Download</span>
+              </button>
+              <button
+                onClick={() => {
+                  onToggleStatus(chartId, status);
+                  setShowActionsMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                {status === 1 ? (
+                  <>
+                    <PowerOff className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                    <span>Deactivate Chart</span>
+                  </>
+                ) : (
+                  <>
+                    <Power className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <span>Activate Chart</span>
+                  </>
+                )}
+              </button>
+              <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+              <button
+                onClick={() => {
+                  onDelete();
+                  setShowActionsMenu(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Chart</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Action Buttons - Bottom */}
-      <div className="flex items-center justify-end gap-1.5 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+      {/* Metadata Section */}
+      <div className="flex items-center gap-4 mb-4 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-1.5">
+          <FileText className="w-3.5 h-3.5" />
+          <span>{uploadedBy}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span>•</span>
+          <span>{new Date(createdAt).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            year: 'numeric'
+          })}</span>
+        </div>
+      </div>
+
+      {/* Societies Section */}
+      <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
         <button
-          onClick={() => onToggleStatus(chartId, status)}
-          className={`p-2 rounded-lg transition-all duration-200 ${
-            status === 1 
-              ? 'text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 hover:shadow-sm' 
-              : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-sm'
-          }`}
-          title={status === 1 ? 'Active - Click to Deactivate' : 'Inactive - Click to Activate'}
+          onClick={() => setShowSocietiesDropdown(!showSocietiesDropdown)}
+          className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
         >
-          {status === 1 ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
-        </button>
-        <button
-          onClick={onView}
-          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
-          title="View Chart Data"
-        >
-          <Eye className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onResetDownload}
-          className="p-2 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
-          title="Reset Download for Machines"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onAssignSociety}
-          className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
-          title="Assign to More Societies"
-        >
-          <UserPlus className="w-4 h-4" />
-        </button>
-        <button
-          onClick={onDelete}
-          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 hover:shadow-sm"
-          title="Delete Chart"
-        >
-          <Trash2 className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+            <span>Assigned Societies ({societies.length})</span>
+          </div>
+          {showSocietiesDropdown ? (
+            <ChevronUp className="w-4 h-4" />
+          ) : (
+            <ChevronDown className="w-4 h-4" />
+          )}
         </button>
       </div>
+
+      {/* Societies Dropdown Overlay */}
+      {showSocietiesDropdown && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 animate-fadeIn"
+            onClick={() => setShowSocietiesDropdown(false)}
+          />
+          
+          {/* Dropdown Content */}
+          <div className="absolute left-0 right-0 bottom-full mb-1 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-slideUp">
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-green-500 dark:bg-green-600 rounded-lg">
+                    <Building2 className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      Assigned Societies
+                    </h4>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {societies.length} {societies.length === 1 ? 'society' : 'societies'} assigned
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSocietiesDropdown(false)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="max-h-64 overflow-y-auto p-3 space-y-2">
+              {societies.map((society, index) => (
+                <div
+                  key={society.societyId}
+                  className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-md transition-all duration-300 overflow-hidden animate-fadeInUp"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-500/0 via-green-500/5 to-green-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <div className="relative flex items-center justify-between p-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                        <span className="text-sm font-bold text-green-700 dark:text-green-300">
+                          {society.societyName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors" title={society.societyName}>
+                          {highlightText(society.societyName, searchQuery)}
+                        </p>
+                        {society.societyIdentifier && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                              {highlightText(society.societyIdentifier, searchQuery)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {onRemoveSociety && societies.length > 1 && (
+                      <button
+                        onClick={() => {
+                          setSocietyToRemove({
+                            chartRecordId: society.chartRecordId,
+                            societyId: society.societyId,
+                            societyName: society.societyName
+                          });
+                        }}
+                        className="ml-2 p-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-300 hover:rotate-90"
+                        title={`Remove ${society.societyName}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Remove Society Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={!!societyToRemove}
+        onClose={() => setSocietyToRemove(null)}
+        onConfirm={() => {
+          if (societyToRemove && onRemoveSociety) {
+            onRemoveSociety(societyToRemove.chartRecordId, societyToRemove.societyId, societyToRemove.societyName);
+            if (societies.length === 2) {
+              setShowSocietiesDropdown(false);
+            }
+          }
+          setSocietyToRemove(null);
+        }}
+        itemName={societyToRemove?.societyName || ''}
+        itemType="society"
+        title="Remove Society Assignment"
+        message="Are you sure you want to remove"
+        confirmText="Remove Society"
+      />
     </div>
   );
 }

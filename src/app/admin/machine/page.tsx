@@ -2701,12 +2701,11 @@ export default function MachineManagement() {
 
       {/* Bulk Delete Confirmation Modal */}
       <BulkDeleteConfirmModal
-        show={showDeleteConfirm}
+        isOpen={showDeleteConfirm}
         itemCount={selectedMachines.size}
         itemType="machine"
         onConfirm={handleBulkDelete}
-        onCancel={() => setShowDeleteConfirm(false)}
-        isDeleting={isDeletingBulk}
+        onClose={() => setShowDeleteConfirm(false)}
       />
 
       {/* Bulk Actions Toolbar */}

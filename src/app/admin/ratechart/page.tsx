@@ -12,6 +12,7 @@ import {
   EmptyState,
   LoadingSnackbar
 } from '@/components';
+import { BulkActionsToolbar } from '@/components/management';
 import BulkDeleteConfirmModal from '@/components/management/BulkDeleteConfirmModal';
 import RateChartUploadModal from '@/components/ratechart/RateChartUploadModal';
 import RateChartMinimalCard from '@/components/ratechart/RateChartMinimalCard';
@@ -70,6 +71,7 @@ export default function RatechartManagement() {
   // Single delete confirmation
   const [showSingleDeleteConfirm, setShowSingleDeleteConfirm] = useState(false);
   const [chartToDelete, setChartToDelete] = useState<number | null>(null);
+  const [chartToDeleteSocieties, setChartToDeleteSocieties] = useState<string>('');
 
   // Assign society modal
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -225,6 +227,21 @@ export default function RatechartManagement() {
   // Handle delete - open confirmation modal
   const handleDelete = async (id: number) => {
     setChartToDelete(id);
+    
+    // Find the group that contains this chart ID to get society information
+    const group = Object.values(groupedCharts).find(g => 
+      g.chartRecordIds.includes(id) || g.chartId === id
+    );
+    
+    if (group && group.societies.length > 0) {
+      const societyIds = group.societies
+        .map(s => s.societyIdentifier || s.societyId.toString())
+        .join(', ');
+      setChartToDeleteSocieties(societyIds);
+    } else {
+      setChartToDeleteSocieties('');
+    }
+    
     setShowSingleDeleteConfirm(true);
   };
 
@@ -267,6 +284,7 @@ export default function RatechartManagement() {
     } finally {
       setShowSingleDeleteConfirm(false);
       setChartToDelete(null);
+      setChartToDeleteSocieties('');
     }
   };
 
@@ -592,10 +610,6 @@ export default function RatechartManagement() {
 
   // Handle removing society from rate chart
   const handleRemoveSociety = async (chartRecordId: number, societyId: number, societyName: string) => {
-    if (!confirm(`Remove ${societyName} from this rate chart?`)) {
-      return;
-    }
-
     try {
       const token = localStorage.getItem('authToken');
       if (!token) return;
@@ -732,40 +746,22 @@ export default function RatechartManagement() {
         icon={<Receipt className="w-5 h-5" />}
       />
 
-      {/* Bulk Actions Bar - Only show when items are selected */}
-      {selectedCharts.size > 0 && (
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              {/* Select All Checkbox */}
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectAll}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select All
-                </span>
-              </label>
-
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {selectedCharts.size} selected
-              </span>
-            </div>
-
-            {/* Delete Selected Button */}
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete Selected ({selectedCharts.size})</span>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        selectedCount={(() => {
+          const selectedGroupCount = Object.values(groupedCharts).filter(group => 
+            group.chartRecordIds.some(id => selectedCharts.has(id))
+          ).length;
+          return selectedGroupCount;
+        })()}
+        onBulkDelete={() => setShowDeleteConfirm(true)}
+        onClearSelection={() => {
+          setSelectedCharts(new Set());
+          setSelectAll(false);
+        }}
+        itemType="rate chart"
+        showStatusUpdate={false}
+      />
 
       {/* Rate Charts Display */}
       <div className="space-y-6">
@@ -845,9 +841,32 @@ export default function RatechartManagement() {
       isOpen={showDeleteConfirm}
       onClose={() => setShowDeleteConfirm(false)}
       onConfirm={handleBulkDelete}
-      itemCount={selectedCharts.size}
+      itemCount={(() => {
+        const selectedGroupCount = Object.values(groupedCharts).filter(group => 
+          group.chartRecordIds.some(id => selectedCharts.has(id))
+        ).length;
+        return selectedGroupCount;
+      })()}
       itemType="rate chart"
       hasFilters={societyFilter !== 'all' || channelFilter !== 'all' || searchQuery !== ''}
+      additionalInfo={(() => {
+        // Get all selected groups
+        const selectedGroups = Object.values(groupedCharts).filter(group => 
+          group.chartRecordIds.some(id => selectedCharts.has(id))
+        );
+        
+        if (selectedGroups.length === 0) return undefined;
+        
+        // Build society info for each selected chart
+        const chartInfo = selectedGroups.map(group => {
+          const societyIds = group.societies
+            .map(s => s.societyIdentifier || s.societyId.toString())
+            .join(', ');
+          return `${group.fileName} (${group.channel}): ${societyIds}`;
+        });
+        
+        return chartInfo.join(' | ');
+      })()}
     />
 
     {/* Assign Society Modal */}
@@ -879,10 +898,12 @@ export default function RatechartManagement() {
       onClose={() => {
         setShowSingleDeleteConfirm(false);
         setChartToDelete(null);
+        setChartToDeleteSocieties('');
       }}
       onConfirm={confirmSingleDelete}
       itemCount={1}
       itemType="rate chart"
+      additionalInfo={chartToDeleteSocieties ? `Assigned to society IDs: ${chartToDeleteSocieties}` : undefined}
     />
 
     {/* Rate Chart View Modal */}
