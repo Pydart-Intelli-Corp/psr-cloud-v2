@@ -12,6 +12,8 @@ interface StatsGridProps<T extends ItemWithStatus> {
   allItems: T[];
   filteredItems: T[];
   hasFilters: boolean;
+  onStatusFilterChange?: (status: 'all' | 'active' | 'inactive' | 'suspended' | 'maintenance') => void;
+  currentStatusFilter?: string;
 }
 
 /**
@@ -21,7 +23,9 @@ interface StatsGridProps<T extends ItemWithStatus> {
 const StatsGrid = <T extends ItemWithStatus>({
   allItems,
   filteredItems,
-  hasFilters
+  hasFilters,
+  onStatusFilterChange,
+  currentStatusFilter = 'all'
 }: StatsGridProps<T>) => {
   const getStatusCount = (items: T[], status: string) => {
     return items.filter(item => item.status === status).length;
@@ -39,6 +43,9 @@ const StatsGrid = <T extends ItemWithStatus>({
         icon={<Users className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="green"
         className="p-2 sm:p-3"
+        onClick={onStatusFilterChange ? () => onStatusFilterChange('all') : undefined}
+        clickable={!!onStatusFilterChange}
+        isActive={currentStatusFilter === 'all'}
       />
       
       <StatsCard
@@ -50,6 +57,9 @@ const StatsGrid = <T extends ItemWithStatus>({
         icon={<UserCheck className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="green"
         className="p-2 sm:p-3"
+        onClick={onStatusFilterChange ? () => onStatusFilterChange('active') : undefined}
+        clickable={!!onStatusFilterChange}
+        isActive={currentStatusFilter === 'active'}
       />
 
       <StatsCard
@@ -61,6 +71,9 @@ const StatsGrid = <T extends ItemWithStatus>({
         icon={<UserX className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="red"
         className="p-2 sm:p-3"
+        onClick={onStatusFilterChange ? () => onStatusFilterChange('inactive') : undefined}
+        clickable={!!onStatusFilterChange}
+        isActive={currentStatusFilter === 'inactive'}
       />
 
       <StatsCard
@@ -72,6 +85,9 @@ const StatsGrid = <T extends ItemWithStatus>({
         icon={<AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="yellow"
         className="p-2 sm:p-3"
+        onClick={onStatusFilterChange ? () => onStatusFilterChange('suspended') : undefined}
+        clickable={!!onStatusFilterChange}
+        isActive={currentStatusFilter === 'suspended'}
       />
 
       <StatsCard
@@ -83,6 +99,9 @@ const StatsGrid = <T extends ItemWithStatus>({
         icon={<AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="blue"
         className="p-2 sm:p-3"
+        onClick={onStatusFilterChange ? () => onStatusFilterChange('maintenance') : undefined}
+        clickable={!!onStatusFilterChange}
+        isActive={currentStatusFilter === 'maintenance'}
       />
     </div>
   );

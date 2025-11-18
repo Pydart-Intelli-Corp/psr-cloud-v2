@@ -30,6 +30,8 @@ export const ml: TranslationKeys = {
     clearAll: 'എല്ലാം മായ്ക്കുക',
     selected: 'തിരഞ്ഞെടുത്തത്',
     upload: 'അപ്‌ലോഡ്',
+    available: 'ലഭ്യമായ',
+    of: 'ന്റെ',
   },
 
   // നാവിഗേഷൻ
@@ -251,6 +253,7 @@ export const ml: TranslationKeys = {
     society: 'സൊസൈറ്റി',
     machine: 'മെഷീൻ',
     status: 'നില',
+    notes: 'കുറിപ്പുകൾ',
     
     // നില മൂല്യങ്ങൾ
     active: 'സജീവം',
@@ -266,6 +269,7 @@ export const ml: TranslationKeys = {
     viewMode: 'കാഴ്ച മോഡ്',
     listView: 'പട്ടിക കാഴ്ച',
     gridView: 'ഗ്രിഡ് കാഴ്ച',
+    folderView: 'ഫോൾഡർ കാഴ്ച',
     
     // ബൾക്ക് പ്രവർത്തനങ്ങൾ
     updateStatus: 'നില അപ്‌ഡേറ്റ് ചെയ്യുക',
@@ -277,6 +281,8 @@ export const ml: TranslationKeys = {
     noMatchingFarmers: 'നിങ്ങളുടെ ഫിൽട്ടറുമായി യോജിക്കുന്ന കർഷകരില്ല',
     tryChangingFilters: 'കൂടുതൽ ഫലങ്ങൾ കാണാൻ ഫിൽട്ടർ മാറ്റാൻ ശ്രമിക്കുക',
     getStartedMessage: 'നിങ്ങളുടെ ആദ്യത്തെ കർഷകനെ ചേർത്ത് ആരംഭിക്കുക',
+    deletedSuccessfully: 'കർഷകനെ വിജയകരമായി ഇല്ലാതാക്കി',
+    deleteError: 'കർഷകനെ ഇല്ലാതാക്കുന്നതിൽ പരാജയപ്പെട്ടു. ദയവായി വീണ്ടും ശ്രമിക്കുക.',
     
     // ലോഡിംഗ് അവസ്ഥകൾ
     addingFarmer: 'കർഷകനെ ചേർക്കുന്നു...',
@@ -285,6 +291,9 @@ export const ml: TranslationKeys = {
     updatingFarmers: 'കർഷകരെ അപ്‌ഡേറ്റ് ചെയ്യുന്നു...',
     updatingStatus: 'നില അപ്‌ഡേറ്റ് ചെയ്യുന്നു...',
     pleaseWait: 'ദയവായി കാത്തിരിക്കുക',
+    loading: 'ലോഡ് ചെയ്യുന്നു...',
+    saving: 'സംരക്ഷിക്കുന്നു...',
+    uploading: 'അപ്‌ലോഡ് ചെയ്യുന്നു...',
     
     // ഫോം ലേബലുകൾ
     enterFarmerId: 'കർഷക ഐഡി നൽകുക',
@@ -299,9 +308,20 @@ export const ml: TranslationKeys = {
     selectSociety: 'സൊസൈറ്റി തിരഞ്ഞെടുക്കുക',
     selectMachine: 'മെഷീൻ തിരഞ്ഞെടുക്കുക',
     selectStatus: 'നില തിരഞ്ഞെടുക്കുക',
+    enterNotes: 'അധിക കുറിപ്പുകൾ നൽകുക (ഓപ്ഷണൽ)',
+    enterMobileNumber: 'മൊബൈൽ നമ്പർ നൽകുക',
+    
+    // പ്ലെയ്സ്ഹോൾഡർ ടെക്സ്റ്റ്
+    enterUniqueFarmerId: 'അദ്വിതീയ കർഷക ഐഡി നൽകുക (ഉദാ: F001, FA-2024-001)',
+    enterFarmerFullName: 'കർഷകന്റെ പൂർണ്ണ പേര് നൽകുക',
+    enterFarmerAddress: 'കർഷകന്റെ വിലാസം നൽകുക',
+    enterRfIdOptional: 'ആർഎഫ് ഐഡി നൽകുക (ഓപ്ഷണൽ)',
+    addAdditionalNotes: 'ഈ കർഷകനെക്കുറിച്ച് എന്തെങ്കിലും അധിക കുറിപ്പുകൾ ചേർക്കുക...',
+    noNotesAvailable: 'അധിക കുറിപ്പുകളൊന്നും ലഭ്യമല്ല.',
     
     // സ്ഥിരീകരണം
     confirmDelete: 'നിങ്ങൾക്ക് തീർച്ചയായും ഇല്ലാതാക്കണോ',
+    confirmDeleteThis: 'ഈ കർഷകനെ ഇല്ലാതാക്കണമെന്ന് നിങ്ങൾക്ക് ഉറപ്പാണോ?',
     confirmBulkDelete: 'തിരഞ്ഞെടുത്ത കർഷകരെ ഇല്ലാതാക്കുക',
     deleteWarning: 'ഈ പ്രവർത്തനം പഴയപടിയാക്കാൻ കഴിയില്ല.',
     itemsFromFiltered: 'ഫിൽട്ടർ ചെയ്ത ഫലങ്ങളിൽ നിന്ന്',
@@ -313,28 +333,84 @@ export const ml: TranslationKeys = {
     showing: 'കാണിക്കുന്നു',
     of: 'ൽ',
     farmers: 'കർഷകർ',
+    farmer: 'കർഷകൻ',
     
     // CSV അപ്‌ലോഡ്
     csvUploadTitle: 'കർഷക CSV അപ്‌ലോഡ് ചെയ്യുക',
     csvUploadDescription: 'ഒന്നിലധികം കർഷകരെ ചേർക്കാൻ CSV ഫയൽ അപ്‌ലോഡ് ചെയ്യുക',
     selectFile: 'ഫയൽ തിരഞ്ഞെടുക്കുക',
+    selectCsvFile: 'CSV ഫയൽ തിരഞ്ഞെടുക്കുക',
     downloadTemplate: 'ടെംപ്ലേറ്റ് ഡൗൺലോഡ് ചെയ്യുക',
+    downloadSampleTemplate: 'സാമ്പിൾ ടെംപ്ലേറ്റ് ഡൗൺലോഡ് ചെയ്യുക',
     upload: 'അപ്‌ലോഡ് ചെയ്യുക',
+    uploadFarmers: 'കർഷകരെ അപ്‌ലോഡ് ചെയ്യുക',
     uploadSuccess: 'CSV അപ്‌ലോഡ് വിജയകരമായി പൂർത്തിയാക്കി!',
     uploadError: 'CSV അപ്‌ലോഡ് പരാജയപ്പെട്ടു',
+    uploadComplete: 'അപ്‌ലോഡ് പൂർത്തിയായി',
+    csvFormatRequirements: 'CSV ഫോർമാറ്റ് ആവശ്യകതകൾ',
+    selectDefaultSociety: 'ഡിഫോൾട്ട് സൊസൈറ്റി തിരഞ്ഞെടുക്കുക',
+    selectDefaultMachine: 'ഡിഫോൾട്ട് മെഷീൻ തിരഞ്ഞെടുക്കുക',
+    defaultSociety: 'ഡിഫോൾട്ട് സൊസൈറ്റി',
+    defaultMachine: 'ഡിഫോൾട്ട് മെഷീൻ',
+    societyForFarmers: 'CSV-യിലെ എല്ലാ കർഷകർക്കുമുള്ള സൊസൈറ്റി',
+    machineForFarmers: 'CSV-യിലെ എല്ലാ കർഷകർക്കുമുള്ള മെഷീൻ',
+    uploadResults: 'അപ്‌ലോഡ് ഫലങ്ങൾ',
+    totalProcessed: 'മൊത്തം പ്രോസസ്സ് ചെയ്തത്',
+    successful: 'വിജയകരം',
+    failed: 'പരാജയപ്പെട്ടത്',
+    failedFarmers: 'പരാജയപ്പെട്ട കർഷകർ',
+    row: 'വരി',
+    error: 'പിശക്',
+    tryAgain: 'വീണ്ടും ശ്രമിക്കുക',
+    uploadAnother: 'മറ്റൊന്ന് അപ്‌ലോഡ് ചെയ്യുക',
+    pleaseSelectCsv: 'ദയവായി ഒരു CSV ഫയൽ തിരഞ്ഞെടുക്കുക',
+    pleaseSelectSocietyAndMachine: 'ദയവായി ഒരു CSV ഫയൽ, സൊസൈറ്റി, മെഷീൻ എന്നിവ തിരഞ്ഞെടുക്കുക',
+    csvFileOnly: 'ദയവായി ഒരു CSV ഫയൽ തിരഞ്ഞെടുക്കുക',
+    
+    // CSV ഫോർമാറ്റ്
+    csvHeaders: 'ഹെഡറുകൾ: ID, RF-ID, NAME, MOBILE, SMS, BONUS (കുറഞ്ഞത്)',
+    csvOptionalFields: 'ഓപ്ഷണൽ: ADDRESS, BANK_NAME, ACCOUNT_NUMBER, IFSC_CODE, SOCIETY_ID, MACHINE-ID',
+    csvIdRequired: 'ID, NAME എന്നിവ ആവശ്യമായ ഫീൽഡുകളാണ്',
+    csvSmsValues: 'SMS മൂല്യങ്ങൾ: ON അല്ലെങ്കിൽ OFF',
+    csvBonusFormat: 'BONUS ഒരു സംഖ്യയായിരിക്കണം (ഡിഫോൾട്ട്: 0)',
+    csvMachineId: 'MACHINE-ID ഓപ്ഷണലാണ് - നൽകിയില്ലെങ്കിൽ, തിരഞ്ഞെടുത്ത മെഷീൻ ഉപയോഗിക്കും',
+    csvRfIdUnique: 'RF-ID എല്ലാ കർഷകർക്കിടയിലും അദ്വിതീയമായിരിക്കണം',
+    csvFarmerIdUnique: 'കർഷക ID തിരഞ്ഞെടുത്ത സൊസൈറ്റിയിൽ അദ്വിതീയമായിരിക്കണം',
+    csvSocietyRequirement: 'എല്ലാ കർഷകർക്കും ഒരു സൊസൈറ്റി ഉണ്ടായിരിക്കണം - CSV SOCIETY_ID അല്ലെങ്കിൽ മുകളിലെ ഡിഫോൾട്ട് ഒന്ന്',
+    csvUtf8Encoding: 'ഫയൽ UTF-8 എൻകോഡ് ചെയ്തിരിക്കണം',
+    csvFilesOnly: 'CSV ഫയലുകൾ മാത്രം',
+    csvFileSizeLimit: '10MB വരെ',
+    csvSocietyAssignment: 'CSV-യിൽ society_id ഇല്ലാത്ത എല്ലാ കർഷകർക്കും ഈ സൊസൈറ്റി നൽകും',
+    csvMachineAssignment: 'CSV-യിലെ എല്ലാ കർഷകർക്കും ഈ മെഷീൻ നൽകും',
     
     // ഫിൽട്ടറുകൾ
     filterBySociety: 'സൊസൈറ്റി അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
     filterByMachine: 'മെഷീൻ അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
     filterByStatus: 'നില അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
     unassigned: 'നിയോഗിച്ചിട്ടില്ല',
+    noMachineAssigned: 'മെഷീൻ നിയോഗിച്ചിട്ടില്ല',
+    noMachinesAvailable: 'മെഷീനുകൾ ലഭ്യമല്ല',
+    addMachinesFirst: 'ദയവായി ആദ്യം മെഷീനുകൾ ചേർക്കുക.',
     
     // വിശദാംശങ്ങൾ കാണുക
     farmerDetails: 'കർഷക വിശദാംശങ്ങൾ',
+    basicDetails: 'അടിസ്ഥാന വിശദാംശങ്ങൾ',
     basicInformation: 'അടിസ്ഥാന വിവരം',
+    contactAndSocietyInfo: 'ബന്ധപ്പെടാനുള്ള വിവരങ്ങളും സൊസൈറ്റി വിവരവും',
     contactInformation: 'ബന്ധപ്പെടാനുള്ള വിവരങ്ങൾ',
+    bankingDetails: 'ബാങ്കിംഗ് വിശദാംശങ്ങൾ',
     bankInformation: 'ബാങ്ക് വിവരങ്ങൾ',
+    additionalInfo: 'അധിക വിവരങ്ങൾ',
     assignmentInformation: 'നിയമന വിവരങ്ങൾ',
+    backToList: 'പട്ടികയിലേക്ക് തിരിച്ചുപോകുക',
+    editThisFarmer: 'ഈ കർഷകനെ എഡിറ്റ് ചെയ്യുക',
+    
+    // ഫോം പ്രവർത്തനങ്ങൾ
+    createFarmer: 'കർഷകനെ സൃഷ്ടിക്കുക',
+    updateFarmer: 'കർഷകനെ അപ്‌ഡേറ്റ് ചെയ്യുക',
+    
+    // സാധുതാ സന്ദേശങ്ങൾ
+    noMachinesForSociety: 'ഈ സൊസൈറ്റിക്ക് മെഷീനുകൾ കണ്ടെത്തിയില്ല. നിങ്ങൾക്ക് മെഷീൻ മാനേജ്മെന്റ് വിഭാഗത്തിൽ നിന്ന് ആദ്യം മെഷീനുകൾ ചേർക്കാം, അല്ലെങ്കിൽ മെഷീൻ നൽകാതെ തന്നെ തുടരാം.',
     
     // ആവശ്യമായ
     requiredField: '*',

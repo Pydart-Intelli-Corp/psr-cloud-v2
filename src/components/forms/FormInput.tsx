@@ -7,6 +7,7 @@ interface FormInputProps {
   type?: 'text' | 'email' | 'tel' | 'date' | 'number' | 'password';
   value: string | number;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
@@ -31,6 +32,7 @@ const FormInput: React.FC<FormInputProps> = ({
   type = 'text',
   value,
   onChange,
+  onBlur,
   placeholder,
   required = false,
   disabled = false,
@@ -58,6 +60,7 @@ const FormInput: React.FC<FormInputProps> = ({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         required={required}
         disabled={disabled}

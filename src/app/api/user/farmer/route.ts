@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Update farmer
+// PUT - Update farmer (single or bulk)
 export async function PUT(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -284,15 +284,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { 
-      id, farmerId, rfId, farmerName, password, contactNumber, smsEnabled, 
-      bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
-      machineId, status, notes 
-    } = body;
-
-    if (!id || !farmerId || !farmerName) {
-      return createErrorResponse('ID, Farmer ID and name are required', 400);
-    }
 
     await connectDB();
     const { getModels } = await import('@/models');
@@ -307,6 +298,53 @@ export async function PUT(request: NextRequest) {
     // Generate admin-specific schema name  
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+    // Check if this is a bulk status update
+    if (body.bulkStatusUpdate && Array.isArray(body.farmerIds)) {
+      const { farmerIds, status: newStatus } = body;
+      
+      if (!newStatus || farmerIds.length === 0) {
+        return createErrorResponse('Status and farmer IDs are required for bulk update', 400);
+      }
+
+      console.log(`🔄 Processing bulk status update for ${farmerIds.length} farmers to status: ${newStatus}`);
+
+      // Use a single UPDATE query with IN clause for better performance
+      const placeholders = farmerIds.map(() => '?').join(',');
+      const query = `
+        UPDATE \`${schemaName}\`.farmers 
+        SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id IN (${placeholders})
+      `;
+
+      const replacements = [newStatus, ...farmerIds];
+      const [result] = await sequelize.query(query, { replacements });
+
+      // Check affected rows
+      const affectedRows = (result as any).affectedRows || 0;
+      
+      console.log(`✅ Successfully updated status for ${affectedRows} farmers in schema: ${schemaName}`);
+      
+      if (affectedRows === 0) {
+        return createErrorResponse('No farmers were updated', 404);
+      }
+
+      return createSuccessResponse(
+        `Successfully updated status to "${newStatus}" for ${affectedRows} farmer(s)`, 
+        { updated: affectedRows }
+      );
+    }
+
+    // Single farmer update
+    const { 
+      id, farmerId, rfId, farmerName, password, contactNumber, smsEnabled, 
+      bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
+      machineId, status, notes 
+    } = body;
+
+    if (!id || !farmerId || !farmerName) {
+      return createErrorResponse('ID, Farmer ID and name are required', 400);
+    }
 
     const query = `
       UPDATE \`${schemaName}\`.farmers 

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Users, UserCheck, Phone, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload } from 'lucide-react';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { 
   FlowerSpinner,
   FormModal, 
@@ -18,10 +19,10 @@ import {
 } from '@/components';
 import {
   BulkDeleteConfirmModal,
+  ConfirmDeleteModal,
   BulkActionsToolbar,
   LoadingSnackbar,
   ViewModeToggle,
-  FolderControls,
   FilterDropdown,
   StatsGrid,
   ManagementPageHeader,
@@ -61,6 +62,8 @@ const FarmerManagement = () => {
   const [selectedFarmers, setSelectedFarmers] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [farmerToDelete, setFarmerToDelete] = useState<{id: number, name: string} | null>(null);
+  const [showSingleDeleteConfirm, setShowSingleDeleteConfirm] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [showColumnSelection, setShowColumnSelection] = useState(false);
@@ -281,15 +284,22 @@ const FarmerManagement = () => {
     }
   };
 
-  // Handle farmer deletion
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this farmer? This action cannot be undone.')) {
-      return;
+  // Handle farmer deletion - show confirmation
+  const handleDelete = (id: number) => {
+    const farmer = farmers.find(f => f.id === id);
+    if (farmer) {
+      setFarmerToDelete({ id: farmer.id, name: farmer.farmerName });
+      setShowSingleDeleteConfirm(true);
     }
+  };
+
+  // Confirm single farmer deletion
+  const confirmDeleteFarmer = async () => {
+    if (!farmerToDelete) return;
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/farmer?id=${id}`, {
+      const response = await fetch(`/api/user/farmer?id=${farmerToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`
@@ -297,17 +307,20 @@ const FarmerManagement = () => {
       });
 
       if (response.ok) {
-        setFarmers(prev => prev.filter(f => f.id !== id));
-        setSuccess('Farmer deleted successfully');
+        setFarmers(prev => prev.filter(f => f.id !== farmerToDelete.id));
+        setSuccess(t.farmerManagement.deletedSuccessfully || 'Farmer deleted successfully');
         setError('');
       } else {
-        setError('Failed to delete farmer. Please try again.');
+        setError(t.farmerManagement.deleteError || 'Failed to delete farmer. Please try again.');
         setSuccess('');
       }
     } catch (error) {
       console.error('Error deleting farmer:', error);
-      setError('Error deleting farmer. Please try again.');
+      setError(t.farmerManagement.deleteError || 'Error deleting farmer. Please try again.');
       setSuccess('');
+    } finally {
+      setShowSingleDeleteConfirm(false);
+      setFarmerToDelete(null);
     }
   };
 
@@ -581,78 +594,61 @@ const FarmerManagement = () => {
       const token = localStorage.getItem('authToken');
       setUpdateProgress(5);
       
-      // Step 2: Get selected farmers list (10%)
-      const selectedFarmersList = farmers.filter(farmer => selectedFarmers.has(farmer.id));
+      // Step 2: Prepare farmer IDs (10%)
+      const farmerIds = Array.from(selectedFarmers);
+      const totalFarmers = farmerIds.length;
       setUpdateProgress(10);
       
-      const totalFarmers = selectedFarmersList.length;
-      let completedFarmers = 0;
+      console.log(`🔄 Bulk updating ${totalFarmers} farmers to status: ${statusToUpdate}`);
       
-      // Step 3-93: Update farmers with incremental progress (10% to 90%)
-      const updatePromises = selectedFarmersList.map((farmer) => 
-        fetch('/api/user/farmer', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            id: farmer.id,
-            farmerId: farmer.farmerId,
-            rfId: farmer.rfId,
-            farmerName: farmer.farmerName,
-            contactNumber: farmer.contactNumber,
-            smsEnabled: farmer.smsEnabled,
-            bonus: farmer.bonus,
-            address: farmer.address,
-            bankName: farmer.bankName,
-            bankAccountNumber: farmer.bankAccountNumber,
-            ifscCode: farmer.ifscCode,
-            societyId: farmer.societyId,
-            machineId: farmer.machineId,
-            status: statusToUpdate,
-            notes: farmer.notes
-          })
-        }).then(response => {
-          completedFarmers++;
-          // Update progress from 10% to 90% based on completion
-          const progress = 10 + Math.floor((completedFarmers / totalFarmers) * 80);
-          setUpdateProgress(progress);
-          return response;
+      // Step 3: Single bulk update API call (10% to 90%)
+      setUpdateProgress(30);
+      const response = await fetch('/api/user/farmer', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bulkStatusUpdate: true,
+          farmerIds: farmerIds,
+          status: statusToUpdate
         })
-      );
+      });
 
-      const results = await Promise.allSettled(updatePromises);
-      
-      // Step 4: Process results (95%)
-      setUpdateProgress(95);
-      const successful = results.filter(result => result.status === 'fulfilled').length;
-      const failed = results.length - successful;
+      setUpdateProgress(70);
 
-      // Step 5: Refresh data and finalize (100%)
-      if (failed === 0) {
-        await fetchFarmers();
-        setUpdateProgress(100);
-        setSelectedFarmers(new Set());
-        setSelectAll(false);
-        setSuccess(`Successfully updated status to "${statusToUpdate}" for ${successful} farmer(s)${(statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''}`);
-        setError('');
-      } else if (successful > 0) {
-        await fetchFarmers();
-        setUpdateProgress(100);
-        setSelectedFarmers(new Set());
-        setSelectAll(false);
-        setSuccess(`Updated ${successful} farmer(s) successfully. ${failed} failed.`);
-        setError('Some farmers could not be updated. Please try again.');
-      } else {
-        setUpdateProgress(100);
-        setError('Failed to update farmer status. Please try again.');
-        setSuccess('');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update farmer status');
       }
+
+      const result = await response.json();
+      const updatedCount = result.data?.updated || totalFarmers;
+      
+      // Step 4: Refresh data (90%)
+      setUpdateProgress(90);
+      await fetchFarmers();
+      
+      // Step 5: Finalize (100%)
+      setUpdateProgress(100);
+      setSelectedFarmers(new Set());
+      setSelectedSocieties(new Set());
+      setSelectAll(false);
+      
+      console.log(`✅ Successfully updated ${updatedCount} farmers`);
+      
+      setSuccess(
+        `Successfully updated status to "${statusToUpdate}" for ${updatedCount} farmer(s)${
+          (statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''
+        }`
+      );
+      setError('');
+
     } catch (error) {
       console.error('Error updating farmer status:', error);
       setUpdateProgress(100);
-      setError('Error updating farmer status');
+      setError(error instanceof Error ? error.message : 'Error updating farmer status. Please try again.');
       setSuccess('');
     } finally {
       setIsBulkUpdatingStatus(false);
@@ -1211,6 +1207,8 @@ const FarmerManagement = () => {
         allItems={farmers}
         filteredItems={filteredFarmers}
         hasFilters={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all'}
+        onStatusFilterChange={(status) => setStatusFilter(status)}
+        currentStatusFilter={statusFilter}
       />
 
       {/* Filter Controls */}
@@ -1247,24 +1245,14 @@ const FarmerManagement = () => {
             </span>
           </label>
 
-          {/* View Mode Toggle and Folder Controls - Right Side */}
+          {/* View Mode Toggle - Right Side */}
           <div className="flex items-center gap-3">
-            {/* Folder Controls (shown only in folder view) */}
-            {viewMode === 'folder' && (
-              <FolderControls
-                onExpandAll={expandAllSocieties}
-                onCollapseAll={collapseAllSocieties}
-                expandedCount={expandedSocieties.size}
-                totalCount={societies.length}
-              />
-            )}
-            
             {/* View Mode Toggle */}
             <ViewModeToggle
               viewMode={viewMode}
               onViewModeChange={setViewMode}
-              folderLabel={t.farmerManagement.gridView}
-              listLabel={t.farmerManagement.listView}
+              folderLabel="Folder View"
+              listLabel="Grid View"
             />
           </div>
         </div>
@@ -1311,7 +1299,7 @@ const FarmerManagement = () => {
                 const farmerIds = society.farmers.map(f => f.id);
 
                 return (
-                  <div key={society.id} className={`bg-white dark:bg-gray-800 rounded-lg border-2 overflow-hidden transition-colors ${
+                  <div key={society.id} className={`relative bg-white dark:bg-gray-800 rounded-lg border-2 transition-colors hover:z-10 ${
                     isSocietySelected 
                       ? 'border-blue-500 dark:border-blue-400' 
                       : 'border-gray-200 dark:border-gray-700'
@@ -1385,9 +1373,9 @@ const FarmerManagement = () => {
                     {isExpanded && (
                       <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {society.farmers.map(farmer => (
+                          {society.farmers.map((farmer) => (
+                            <div key={farmer.id} className="relative hover:z-20">
                             <ItemCard
-                              key={farmer.id}
                               id={farmer.id}
                               name={farmer.farmerName}
                               identifier={`ID: ${farmer.farmerId}`}
@@ -1418,6 +1406,7 @@ const FarmerManagement = () => {
                               onSelect={() => handleSelectFarmer(farmer.id)}
                               searchQuery={searchQuery}
                             />
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1503,7 +1492,11 @@ const FarmerManagement = () => {
             label={t.farmerManagement.farmerId}
             type="text"
             value={formData.farmerId}
-            onChange={(value) => setFormData({ ...formData, farmerId: value })}
+            onChange={(value) => {
+              // Allow only numbers
+              const numericValue = value.replace(/[^0-9]/g, '');
+              setFormData({ ...formData, farmerId: numericValue });
+            }}
             placeholder={t.farmerManagement.enterFarmerId}
             required
             error={fieldErrors.farmerId}
@@ -1563,8 +1556,21 @@ const FarmerManagement = () => {
             label={t.farmerManagement.contactNumber}
             type="tel"
             value={formData.contactNumber}
-            onChange={(value) => setFormData({ ...formData, contactNumber: value })}
+            onChange={(value) => {
+              const formatted = formatPhoneInput(value);
+              setFormData({ ...formData, contactNumber: formatted });
+            }}
+            onBlur={() => {
+              const error = validatePhoneOnBlur(formData.contactNumber);
+              if (error) {
+                setFieldErrors(prev => ({ ...prev, contactNumber: error }));
+              } else {
+                const { contactNumber, ...rest } = fieldErrors;
+                setFieldErrors(rest);
+              }
+            }}
             placeholder={t.farmerManagement.enterContactNumber}
+            error={fieldErrors.contactNumber}
           />
           <FormSelect
             label={t.farmerManagement.smsEnabled}
@@ -1637,17 +1643,17 @@ const FarmerManagement = () => {
           />
           
           <FormInput
-            label="Notes"
+            label={t.farmerManagement.notes}
             type="text"
             value={formData.notes}
             onChange={(value) => setFormData({ ...formData, notes: value })}
-            placeholder="Enter additional notes (optional)"
+            placeholder={t.farmerManagement.enterNotes}
           />
         </FormGrid>
           
           <FormActions
             onCancel={closeAddModal}
-            submitText="Create Farmer"
+            submitText={t.farmerManagement.createFarmer}
             isLoading={isSubmitting}
             isSubmitDisabled={!formData.societyId || !formData.machineId || !formData.farmerId || !formData.farmerName}
             submitType="submit"
@@ -1665,50 +1671,51 @@ const FarmerManagement = () => {
           <FormGrid>
           {/* Mandatory Fields First */}
           <FormInput
-            label="Farmer ID"
+            label={t.farmerManagement.farmerId}
             type="text"
             value={formData.farmerId}
             onChange={(value) => setFormData({ ...formData, farmerId: value })}
-            placeholder="Enter unique farmer ID (e.g., F001, FA-2024-001)"
+            placeholder={t.farmerManagement.enterUniqueFarmerId}
             required
+            readOnly
             colSpan={1}
             error={fieldErrors.farmerId}
           />
           
           <FormInput
-            label="Farmer Name"
+            label={t.farmerManagement.farmerName}
             type="text"
             value={formData.farmerName}
             onChange={(value) => setFormData({ ...formData, farmerName: value })}
-            placeholder="Enter farmer's full name"
+            placeholder={t.farmerManagement.enterFarmerFullName}
             required
             colSpan={1}
             error={fieldErrors.farmerName}
           />
           
           <FormSelect
-            label="Society"
+            label={t.farmerManagement.society}
             value={formData.societyId}
             onChange={(value) => {
               setFormData({ ...formData, societyId: value, machineId: '' });
               fetchMachinesBySociety(value.toString());
             }}
             options={societies.map(society => ({ value: society.id, label: `${society.name} (${society.society_id})` }))}
-            placeholder="Select Society"
+            placeholder={t.farmerManagement.selectSociety}
             required
             colSpan={1}
           />
           
           {/* Machine Selection - Same row as society */}
           <FormSelect
-            label="Machine"
+            label={t.farmerManagement.machine}
             value={formData.machineId}
             onChange={(value) => setFormData({ ...formData, machineId: value })}
             options={machines.map(machine => ({
               value: machine.id.toString(),
               label: `${machine.machineId} - ${machine.machineType}`
             }))}
-            placeholder={machinesLoading ? "Loading..." : machines.length > 0 ? "Select Machine" : "No machines available"}
+            placeholder={machinesLoading ? t.common.loading : machines.length > 0 ? t.farmerManagement.selectMachine : t.farmerManagement.noMachinesAvailable}
             disabled={machinesLoading}
             required
             colSpan={1}
@@ -1717,25 +1724,25 @@ const FarmerManagement = () => {
 
           {/* Optional Fields */}
           <FormInput
-            label="RF ID"
+            label={t.farmerManagement.rfId}
             type="text"
             value={formData.rfId}
             onChange={(value) => setFormData({ ...formData, rfId: value })}
-            placeholder="Enter RF ID (optional)"
+            placeholder={t.farmerManagement.enterRfIdOptional}
             colSpan={1}
           />
           
           <FormInput
-            label="Contact Number"
+            label={t.farmerManagement.contactNumber}
             type="tel"
             value={formData.contactNumber}
             onChange={(value) => setFormData({ ...formData, contactNumber: value })}
-            placeholder="Enter mobile number"
+            placeholder={t.farmerManagement.enterMobileNumber}
             colSpan={1}
           />
           
           <FormSelect
-            label="SMS Enabled"
+            label={t.farmerManagement.smsEnabled}
             value={formData.smsEnabled}
             onChange={(value) => setFormData({ ...formData, smsEnabled: value })}
             options={[
@@ -1746,76 +1753,76 @@ const FarmerManagement = () => {
           />
           
           <FormInput
-            label="Bonus"
+            label={t.farmerManagement.bonus}
             type="number"
             value={formData.bonus}
             onChange={(value) => setFormData({ ...formData, bonus: parseFloat(value) || 0 })}
-            placeholder="Enter bonus amount"
+            placeholder={t.farmerManagement.enterBonus}
             colSpan={1}
           />
           
           <FormInput
-            label="Address"
+            label={t.farmerManagement.address}
             type="text"
             value={formData.address}
             onChange={(value) => setFormData({ ...formData, address: value })}
-            placeholder="Enter farmer's address"
+            placeholder={t.farmerManagement.enterFarmerAddress}
             colSpan={2}
           />
           
           <FormInput
-            label="Bank Name"
+            label={t.farmerManagement.bankName}
             type="text"
             value={formData.bankName}
             onChange={(value) => setFormData({ ...formData, bankName: value })}
-            placeholder="Enter bank name"
+            placeholder={t.farmerManagement.enterBankName}
             colSpan={1}
           />
           
           <FormInput
-            label="Bank Account Number"
+            label={t.farmerManagement.bankAccountNumber}
             type="text"
             value={formData.bankAccountNumber}
             onChange={(value) => setFormData({ ...formData, bankAccountNumber: value })}
-            placeholder="Enter account number"
+            placeholder={t.farmerManagement.enterAccountNumber}
             colSpan={1}
           />
           
           <FormInput
-            label="IFSC Code"
+            label={t.farmerManagement.ifscCode}
             type="text"
             value={formData.ifscCode}
             onChange={(value) => setFormData({ ...formData, ifscCode: value.toUpperCase() })}
-            placeholder="Enter IFSC code"
+            placeholder={t.farmerManagement.enterIfscCode}
             colSpan={1}
           />
           
           <FormSelect
-            label="Status"
+            label={t.farmerManagement.status}
             value={formData.status}
             onChange={(value) => setFormData({ ...formData, status: value })}
             options={[
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-              { value: 'suspended', label: 'Suspended' },
-              { value: 'maintenance', label: 'Maintenance' }
+              { value: 'active', label: t.farmerManagement.active },
+              { value: 'inactive', label: t.farmerManagement.inactive },
+              { value: 'suspended', label: t.farmerManagement.suspended },
+              { value: 'maintenance', label: t.farmerManagement.maintenance }
             ]}
             colSpan={1}
           />
           
           <FormInput
-            label="Notes"
+            label={t.farmerManagement.notes}
             type="text"
             value={formData.notes}
             onChange={(value) => setFormData({ ...formData, notes: value })}
-            placeholder="Enter additional notes (optional)"
+            placeholder={t.farmerManagement.enterNotes}
             colSpan={2}
           />
           </FormGrid>
           
           <FormActions
             onCancel={closeEditModal}
-            submitText="Update Farmer"
+            submitText={t.farmerManagement.updateFarmer}
             isLoading={isSubmitting}
             isSubmitDisabled={!formData.societyId || !formData.machineId || !formData.farmerId || !formData.farmerName}
             submitType="submit"
@@ -1935,6 +1942,22 @@ const FarmerManagement = () => {
         showStatusUpdate={true}
         currentBulkStatus={bulkStatus}
         onBulkStatusChange={(status) => setBulkStatus(status as typeof bulkStatus)}
+      />
+
+      {/* Single Farmer Delete Confirmation */}
+      <ConfirmDeleteModal
+        isOpen={showSingleDeleteConfirm}
+        onClose={() => {
+          setShowSingleDeleteConfirm(false);
+          setFarmerToDelete(null);
+        }}
+        onConfirm={confirmDeleteFarmer}
+        itemName={farmerToDelete?.name || ''}
+        itemType={t.farmerManagement.farmer}
+        title={t.farmerManagement.deleteFarmer}
+        message={t.farmerManagement.confirmDeleteThis}
+        confirmText={t.common.delete}
+        cancelText={t.common.cancel}
       />
 
       {/* Floating Action Button */}

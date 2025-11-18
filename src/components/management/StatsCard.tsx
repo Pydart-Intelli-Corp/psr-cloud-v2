@@ -10,6 +10,7 @@ interface StatsCardProps {
   className?: string;
   onClick?: () => void;
   clickable?: boolean;
+  isActive?: boolean;
 }
 
 /**
@@ -23,7 +24,8 @@ const StatsCard: React.FC<StatsCardProps> = ({
   color = 'green',
   className = '',
   onClick,
-  clickable = false
+  clickable = false,
+  isActive = false
 }) => {
   const getColorClasses = (color: string) => {
     switch (color) {
@@ -62,10 +64,29 @@ const StatsCard: React.FC<StatsCardProps> = ({
 
   const colorClasses = getColorClasses(color);
 
+  const getActiveClasses = () => {
+    if (!isActive) return '';
+    
+    switch (color) {
+      case 'green':
+        return 'ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20';
+      case 'red':
+        return 'ring-2 ring-red-500 bg-red-50 dark:bg-red-900/20';
+      case 'yellow':
+        return 'ring-2 ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/20';
+      case 'blue':
+        return 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20';
+      default:
+        return 'ring-2 ring-gray-500 bg-gray-50 dark:bg-gray-900/20';
+    }
+  };
+
   return (
     <div 
-      className={`bg-white dark:bg-gray-800 p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow ${clickable ? 'cursor-pointer hover:border-green-500' : ''} ${className}`}
-      onClick={clickable ? onClick : undefined}
+      className={`bg-white dark:bg-gray-800 p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all ${
+        clickable ? 'cursor-pointer hover:shadow-lg hover:scale-105' : ''
+      } ${getActiveClasses()} ${className}`}
+      onClick={onClick}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => e.key === 'Enter' && onClick?.() : undefined}

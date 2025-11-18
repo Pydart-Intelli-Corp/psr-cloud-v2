@@ -1578,26 +1578,6 @@ export default function MachineManagement() {
                 </button>
               </div>
             </div>
-
-            {/* Folder Controls (shown only in folder view) */}
-            {viewMode === 'folder' && (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={expandAllSocieties}
-                  className="flex items-center space-x-1 px-3 py-1.5 text-xs sm:text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                >
-                  <FolderOpen className="w-4 h-4" />
-                  <span>Expand All</span>
-                </button>
-                <button
-                  onClick={collapseAllSocieties}
-                  className="flex items-center space-x-1 px-3 py-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                >
-                  <Folder className="w-4 h-4" />
-                  <span>Collapse All</span>
-                </button>
-              </div>
-            )}
           </div>
         )}
 

@@ -28,6 +28,8 @@ export const en = {
     clearAll: 'Clear All',
     selected: 'selected',
     upload: 'Upload',
+    available: 'available',
+    of: 'of',
   },
 
   // Navigation
@@ -249,6 +251,7 @@ export const en = {
     society: 'Society',
     machine: 'Machine',
     status: 'Status',
+    notes: 'Notes',
     
     // Status Values
     active: 'Active',
@@ -264,6 +267,7 @@ export const en = {
     viewMode: 'View Mode',
     listView: 'List View',
     gridView: 'Grid View',
+    folderView: 'Folder View',
     
     // Bulk Actions
     updateStatus: 'Update Status',
@@ -275,6 +279,8 @@ export const en = {
     noMatchingFarmers: 'No farmers match your filters',
     tryChangingFilters: 'Try changing the filter to see more results',
     getStartedMessage: 'Get started by adding your first farmer',
+    deletedSuccessfully: 'Farmer deleted successfully',
+    deleteError: 'Failed to delete farmer. Please try again.',
     
     // Loading States
     addingFarmer: 'Adding farmer...',
@@ -283,6 +289,9 @@ export const en = {
     updatingFarmers: 'Updating farmers...',
     updatingStatus: 'Updating status...',
     pleaseWait: 'Please wait',
+    loading: 'Loading...',
+    saving: 'Saving...',
+    uploading: 'Uploading...',
     
     // Form Labels
     enterFarmerId: 'Enter farmer ID',
@@ -297,9 +306,20 @@ export const en = {
     selectSociety: 'Select society',
     selectMachine: 'Select machine',
     selectStatus: 'Select status',
+    enterNotes: 'Enter additional notes (optional)',
+    enterMobileNumber: 'Enter mobile number',
+    
+    // Placeholder Text
+    enterUniqueFarmerId: 'Enter unique farmer ID (e.g., F001, FA-2024-001)',
+    enterFarmerFullName: "Enter farmer's full name",
+    enterFarmerAddress: "Enter farmer's address",
+    enterRfIdOptional: 'Enter RF ID (optional)',
+    addAdditionalNotes: 'Add any additional notes about this farmer...',
+    noNotesAvailable: 'No additional notes available.',
     
     // Confirmation
     confirmDelete: 'Are you sure you want to delete',
+    confirmDeleteThis: 'Are you sure you want to delete this farmer?',
     confirmBulkDelete: 'Delete Selected Farmers',
     deleteWarning: 'This action cannot be undone.',
     itemsFromFiltered: 'from the filtered results',
@@ -311,28 +331,108 @@ export const en = {
     showing: 'Showing',
     of: 'of',
     farmers: 'farmers',
+    farmer: 'farmer',
     
     // CSV Upload
     csvUploadTitle: 'Upload Farmers CSV',
     csvUploadDescription: 'Upload a CSV file to add multiple farmers',
     selectFile: 'Select File',
+    selectCsvFile: 'Select CSV File',
     downloadTemplate: 'Download Template',
+    downloadSampleTemplate: 'Download Sample Template',
     upload: 'Upload',
+    uploadFarmers: 'Upload Farmers',
     uploadSuccess: 'CSV upload completed successfully!',
     uploadError: 'CSV upload failed',
+    uploadComplete: 'Upload Complete',
+    csvFormatRequirements: 'CSV Format Requirements',
+    selectDefaultSociety: 'Select Default Society',
+    selectDefaultMachine: 'Select Default Machine',
+    defaultSociety: 'Default Society',
+    defaultMachine: 'Default Machine',
+    societyForFarmers: 'Society for all farmers in CSV',
+    machineForFarmers: 'Machine for all farmers in CSV',
+    uploadResults: 'Upload Results',
+    totalProcessed: 'Total Processed',
+    successful: 'Successful',
+    failed: 'Failed',
+    failedFarmers: 'Failed Farmers',
+    row: 'Row',
+    error: 'Error',
+    tryAgain: 'Try Again',
+    uploadAnother: 'Upload Another',
+    pleaseSelectCsv: 'Please select a CSV file',
+    pleaseSelectSocietyAndMachine: 'Please select a CSV file, society, and machine',
+    csvFileOnly: 'Please select a CSV file',
+    
+    // CSV Format
+    csvHeaders: 'Headers: ID, RF-ID, NAME, MOBILE, SMS, BONUS (minimum)',
+    csvOptionalFields: 'Optional: ADDRESS, BANK_NAME, ACCOUNT_NUMBER, IFSC_CODE, SOCIETY_ID, MACHINE-ID',
+    csvIdRequired: 'ID and NAME are required fields',
+    csvSmsValues: 'SMS values: ON or OFF',
+    csvBonusFormat: 'BONUS should be a number (default: 0)',
+    csvMachineId: 'MACHINE-ID is optional - if not provided, selected machine will be used',
+    csvRfIdUnique: 'RF-ID must be unique across all farmers',
+    csvFarmerIdUnique: 'Farmer ID must be unique within the selected society',
+    csvSocietyRequirement: 'All farmers must have a society - either from CSV SOCIETY_ID or the default above',
+    csvUtf8Encoding: 'File should be UTF-8 encoded',
+    csvFilesOnly: 'CSV files only',
+    csvFileSizeLimit: 'up to 10MB',
+    csvSocietyAssignment: 'This society will be assigned to all farmers that don\'t have a society_id in the CSV',
+    csvMachineAssignment: 'This machine will be assigned to all farmers in the CSV',
     
     // Filters
     filterBySociety: 'Filter by Society',
     filterByMachine: 'Filter by Machine',
     filterByStatus: 'Filter by Status',
     unassigned: 'Unassigned',
+    noMachineAssigned: 'No Machine Assigned',
+    noMachinesAvailable: 'No machines available',
+    addMachinesFirst: 'Please add machines first.',
     
-    // View Details
+    // View Details (Farmer Detail Page)
     farmerDetails: 'Farmer Details',
     basicInformation: 'Basic Information',
     contactInformation: 'Contact Information',
+    contactAndSociety: 'Contact & Society',
     bankInformation: 'Bank Information',
+    bankingDetails: 'Banking Details',
     assignmentInformation: 'Assignment Information',
+    additionalInfo: 'Additional Info',
+    additionalInformation: 'Additional Information',
+    basicDetails: 'Basic Details',
+    contactAndSocietyInfo: 'Contact & Society Information',
+    
+    // Tabs
+    details: 'Basic Details',
+    contact: 'Contact & Society',
+    banking: 'Banking Details',
+    additional: 'Additional Info',
+    
+    // Detail Page Actions
+    backToFarmers: 'Back to Farmers',
+    farmerNotFound: 'Farmer Not Found',
+    farmerNotFoundMessage: 'The requested farmer could not be found.',
+    edit: 'Edit',
+    delete: 'Delete',
+    save: 'Save',
+    cancel: 'Cancel',
+    saveChanges: 'Save Changes',
+    
+    // Detail Page Labels
+    accountNumber: 'Account Number',
+    bonusAmount: 'Bonus Amount',
+    createdAt: 'Created At',
+    lastUpdated: 'Last Updated',
+    noAdditionalNotes: 'No additional notes available.',
+    notAvailable: 'N/A',
+    
+    // Form Actions
+    createFarmer: 'Create Farmer',
+    updateFarmer: 'Update Farmer',
+    
+    // Validation Messages
+    noMachinesForSociety: 'No machines found for this society. You can add machines first from the Machine Management section, or proceed without assigning a machine.',
     
     // Required
     requiredField: '*',

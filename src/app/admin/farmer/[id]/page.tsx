@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -380,6 +381,7 @@ const FarmerDetails = () => {
                   value={formData.farmerId}
                   onChange={(value) => setFormData({ ...formData, farmerId: value })}
                   required
+                  readOnly
                 />
                 <FormInput
                   label="RF-ID"
@@ -458,7 +460,16 @@ const FarmerDetails = () => {
                   label="Contact Number"
                   type="tel"
                   value={formData.contactNumber}
-                  onChange={(value) => setFormData({ ...formData, contactNumber: value })}
+                  onChange={(value) => {
+                    const formatted = formatPhoneInput(value);
+                    setFormData({ ...formData, contactNumber: formatted });
+                  }}
+                  onBlur={() => {
+                    const error = validatePhoneOnBlur(formData.contactNumber);
+                    if (error) {
+                      setError(error);
+                    }
+                  }}
                 />
                 <FormSelect
                   label="SMS Enabled"
@@ -624,19 +635,19 @@ const FarmerDetails = () => {
             
             {isEditing ? (
               <FormTextarea
-                label="Notes"
+                label={t.farmerManagement.notes}
                 value={formData.notes}
                 onChange={(value) => setFormData({ ...formData, notes: value })}
                 rows={4}
-                placeholder="Add any additional notes about this farmer..."
+                placeholder={t.farmerManagement.addAdditionalNotes}
               />
             ) : (
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Notes</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{t.farmerManagement.notes}</p>
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <p className="text-gray-900 dark:text-white whitespace-pre-line">
-                      {farmer.notes || 'No additional notes available.'}
+                      {farmer.notes || t.farmerManagement.noNotesAvailable}
                     </p>
                   </div>
                 </div>

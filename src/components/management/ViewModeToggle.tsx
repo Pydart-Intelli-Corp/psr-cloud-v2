@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Grid3x3, List } from 'lucide-react';
+import { Folder, Grid3x3 } from 'lucide-react';
 
 interface ViewModeToggleProps {
   viewMode: 'folder' | 'list';
@@ -31,7 +31,7 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
         }`}
         title={folderLabel}
       >
-        <Grid3x3 className="w-4 h-4" />
+        <Folder className="w-4 h-4" />
         <span className="hidden sm:inline text-sm font-medium">{folderLabel}</span>
       </button>
       <button
@@ -43,7 +43,7 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({
         }`}
         title={listLabel}
       >
-        <List className="w-4 h-4" />
+        <Grid3x3 className="w-4 h-4" />
         <span className="hidden sm:inline text-sm font-medium">{listLabel}</span>
       </button>
     </div>

@@ -97,7 +97,7 @@ const ItemCard: React.FC<ItemCardProps> = ({
       key={id}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-200 hover:border-green-200 dark:hover:border-green-700 flex flex-col ${selected ? 'ring-2 ring-green-500 border-green-500' : ''} ${className}`}
+      className={`relative bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-200 hover:border-green-200 dark:hover:border-green-700 flex flex-col ${selected ? 'ring-2 ring-green-500 border-green-500' : ''} ${className}`}
     >
       <div className="p-4 sm:p-6 flex flex-col flex-1">
         {/* Header */}

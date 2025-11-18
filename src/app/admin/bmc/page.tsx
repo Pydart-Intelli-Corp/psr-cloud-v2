@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -105,7 +106,11 @@ export default function BMCManagement() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ bmcId?: string; name?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ 
+    bmcId?: string; 
+    name?: string;
+    phone?: string;
+  }>({});
 
   // Fetch dairies for dropdown
   const fetchDairies = useCallback(async () => {
@@ -645,8 +650,20 @@ export default function BMCManagement() {
               label="Phone Number"
               type="tel"
               value={formData.phone}
-              onChange={(value) => handleInputChange('phone', value)}
-              placeholder="+91 1234567890"
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                handleInputChange('phone', formatted);
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.phone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, phone: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, phone: undefined }));
+                }
+              }}
+              placeholder="Enter 10-digit phone number"
+              error={fieldErrors.phone}
               colSpan={1}
             />
 
@@ -779,8 +796,20 @@ export default function BMCManagement() {
               label={t.bmcManagement.phone}
               type="tel"
               value={formData.phone}
-              onChange={(value) => handleInputChange('phone', value)}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                handleInputChange('phone', formatted);
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.phone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, phone: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, phone: undefined }));
+                }
+              }}
               placeholder={t.bmcManagement.enterPhoneNumber}
+              error={fieldErrors.phone}
               colSpan={1}
             />
 

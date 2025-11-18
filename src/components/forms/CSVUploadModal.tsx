@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, X, FileText, AlertCircle, CheckCircle, Download } from 'lucide-react';
 import { FlowerSpinner } from '@/components';
 import { Society } from '@/types';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Machine {
   id: number;
@@ -38,6 +39,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
   societies,
   onUploadComplete
 }) => {
+  const { t } = useLanguage();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedSociety, setSelectedSociety] = useState('');
   const [selectedMachine, setSelectedMachine] = useState('');
@@ -99,7 +101,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
         setSelectedFile(file);
         setError('');
       } else {
-        setError('Please select a CSV file');
+        setError(t.farmerManagement.csvFileOnly);
         setSelectedFile(null);
       }
     }
@@ -107,7 +109,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedSociety || !selectedMachine) {
-      setError('Please select a CSV file, society, and machine');
+      setError(t.farmerManagement.pleaseSelectSocietyAndMachine);
       return;
     }
 
@@ -137,11 +139,11 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
           onUploadComplete();
         }
       } else {
-        setError(data.message || 'Upload failed');
+        setError(data.message || t.farmerManagement.uploadError);
       }
     } catch (error) {
       console.error('Upload error:', error);
-      setError('Failed to upload CSV. Please try again.');
+      setError(t.farmerManagement.uploadError + '. ' + t.farmerManagement.tryAgain);
     } finally {
       setIsUploading(false);
     }
@@ -201,7 +203,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              Upload Farmers CSV
+              {t.farmerManagement.csvUploadTitle}
             </h2>
             <button
               onClick={handleClose}
@@ -215,25 +217,25 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
             {!uploadResult ? (
               <>
                 {/* Instructions */}
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-                    CSV Format Requirements:
+                <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                  <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    {t.farmerManagement.csvFormatRequirements}
                   </h3>
-                  <ul className="text-sm text-blue-700 dark:text-blue-200 space-y-1">
-                    <li>• Headers: ID, RF-ID, NAME, MOBILE, SMS, BONUS (MACHINE-ID optional)</li>
-                    <li>• ID and NAME are required fields</li>
-                    <li>• SMS values: ON or OFF</li>
-                    <li>• BONUS should be a number (default: 0)</li>
-                    <li>• MACHINE-ID is optional - if not provided, selected machine will be used</li>
-                    <li>• RF-ID must be unique across all farmers</li>
-                    <li>• Farmer ID must be unique within the selected society</li>
+                  <ul className="text-xs text-blue-700 dark:text-blue-200 space-y-0.5">
+                    <li>• {t.farmerManagement.csvHeaders}</li>
+                    <li>• {t.farmerManagement.csvIdRequired}</li>
+                    <li>• {t.farmerManagement.csvSmsValues}</li>
+                    <li>• {t.farmerManagement.csvBonusFormat}</li>
+                    <li>• {t.farmerManagement.csvMachineId}</li>
+                    <li>• {t.farmerManagement.csvRfIdUnique}</li>
+                    <li>• {t.farmerManagement.csvFarmerIdUnique}</li>
                   </ul>
                   <button
                     onClick={downloadSampleCSV}
-                    className="mt-3 flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                    className="mt-2 flex items-center text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                   >
-                    <Download className="w-4 h-4 mr-1" />
-                    Download Sample CSV
+                    <Download className="w-3.5 h-3.5 mr-1" />
+                    {t.farmerManagement.downloadSampleTemplate}
                   </button>
                 </div>
 
@@ -243,7 +245,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     {/* Society Selection */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Select Society *
+                        {t.farmerManagement.selectDefaultSociety} <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={selectedSociety}
@@ -256,7 +258,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                         }}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white"
                       >
-                        <option value="">Choose a society...</option>
+                        <option value="">{t.farmerManagement.selectSociety}</option>
                         {societies.map((society) => (
                           <option key={society.id} value={society.id}>
                             {society.name} ({society.society_id})
@@ -268,12 +270,12 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     {/* Machine Selection */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Machine <span className="text-red-500">*</span>
+                        {t.farmerManagement.defaultMachine} <span className="text-red-500">*</span>
                       </label>
                       {machinesLoading ? (
                         <div className="flex items-center px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
                           <FlowerSpinner size={16} isLoading={true} className="mr-2" />
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{t.common.loading}</span>
                         </div>
                       ) : (
                         <select
@@ -282,7 +284,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                           disabled={!selectedSociety}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <option value="">Select Machine</option>
+                          <option value="">{t.farmerManagement.selectMachine}</option>
                           {machines.map((machine) => (
                             <option key={machine.id} value={machine.id}>
                               {machine.machineId} - {machine.machineType}
@@ -299,16 +301,16 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       {machines.length > 0 ? (
                         <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
                           <p className="text-sm text-green-700 dark:text-green-200 mb-1">
-                            {machines.length} machine(s) available for this society
+                            {machines.length} {t.farmerManagement.machine}(s) {t.common.available} for this {t.farmerManagement.society}
                           </p>
                           <p className="text-xs text-green-600 dark:text-green-400">
-                            You can also specify machine IDs directly in your CSV&apos;s MACHINE-ID column
+                            {t.farmerManagement.csvMachineId}
                           </p>
                         </div>
                       ) : (
                         <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
                           <p className="text-sm text-yellow-700 dark:text-yellow-200">
-                            No machines available for this society. You can leave MACHINE-ID empty or add machines first.
+                            {t.farmerManagement.noMachinesAvailable} {t.farmerManagement.addMachinesFirst}
                           </p>
                         </div>
                       )}
@@ -319,7 +321,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                 {/* File Upload */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    CSV File *
+                    {t.farmerManagement.selectCsvFile} <span className="text-red-500">*</span>
                   </label>
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
                     <input
@@ -335,10 +337,10 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     >
                       <Upload className="w-12 h-12 text-gray-400 mb-4" />
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Click to upload CSV file
+                        {t.farmerManagement.selectCsvFile}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-500">
-                        CSV files only, up to 10MB
+                        {t.farmerManagement.csvFilesOnly}, {t.farmerManagement.csvFileSizeLimit}
                       </p>
                     </label>
                   </div>
@@ -370,7 +372,7 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     onClick={handleClose}
                     className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                   >
-                    Cancel
+                    {t.common.cancel}
                   </button>
                   <button
                     onClick={handleUpload}
@@ -380,12 +382,12 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     {isUploading ? (
                       <>
                         <FlowerSpinner size={16} isLoading={isUploading} className="mr-2" />
-                        Uploading...
+                        {t.farmerManagement.uploading}
                       </>
                     ) : (
                       <>
                         <Upload className="w-4 h-4 mr-2" />
-                        Upload CSV
+                        {t.farmerManagement.uploadFarmers}
                       </>
                     )}
                   </button>
@@ -399,10 +401,10 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 mr-3" />
                     <div>
                       <h3 className="font-medium text-green-900 dark:text-green-100">
-                        Upload Completed
+                        {t.farmerManagement.uploadComplete}
                       </h3>
                       <p className="text-sm text-green-700 dark:text-green-200">
-                        {uploadResult.successCount} out of {uploadResult.totalProcessed} farmers imported successfully
+                        {uploadResult.successCount} {t.common.of} {uploadResult.totalProcessed} {t.farmerManagement.farmers} {t.farmerManagement.successful}
                       </p>
                     </div>
                   </div>
@@ -410,12 +412,12 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                   {uploadResult.failedCount > 0 && (
                     <div className="p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
                       <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">
-                        Failed Imports ({uploadResult.failedCount})
+                        {t.farmerManagement.failedFarmers} ({uploadResult.failedCount})
                       </h4>
                       <div className="max-h-40 overflow-y-auto space-y-1">
                         {uploadResult.failedFarmers.map((failed, index) => (
                           <div key={index} className="text-sm text-yellow-700 dark:text-yellow-200">
-                            Row {failed.row}: {failed.name} ({failed.farmerId}) - {failed.error}
+                            {t.farmerManagement.row} {failed.row}: {failed.name} ({failed.farmerId}) - {failed.error}
                           </div>
                         ))}
                       </div>
@@ -427,13 +429,13 @@ const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       onClick={handleReset}
                       className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                     >
-                      Upload Another
+                      {t.farmerManagement.uploadAnother}
                     </button>
                     <button
                       onClick={handleClose}
                       className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
                     >
-                      Done
+                      {t.common.close}
                     </button>
                   </div>
                 </div>

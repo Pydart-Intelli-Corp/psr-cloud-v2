@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -98,6 +99,7 @@ export default function SocietyManagement() {
     societyId?: string;
     name?: string;
     bmcId?: string;
+    contactPhone?: string;
   }>({});
 
   // Fetch societies
@@ -670,8 +672,20 @@ export default function SocietyManagement() {
               label="Contact Phone"
               type="tel"
               value={formData.contactPhone}
-              onChange={(value) => handleInputChange('contactPhone', value)}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                handleInputChange('contactPhone', formatted);
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.contactPhone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: undefined }));
+                }
+              }}
               placeholder="Enter phone number"
+              error={fieldErrors.contactPhone}
               colSpan={1}
             />
 
@@ -773,8 +787,20 @@ export default function SocietyManagement() {
               label="Contact Phone"
               type="tel"
               value={formData.contactPhone}
-              onChange={(value) => handleInputChange('contactPhone', value)}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                handleInputChange('contactPhone', formatted);
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.contactPhone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: undefined }));
+                }
+              }}
               placeholder="Enter contact phone"
+              error={fieldErrors.contactPhone}
               colSpan={1}
             />
 

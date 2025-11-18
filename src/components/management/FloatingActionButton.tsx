@@ -70,16 +70,17 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ actions, di
               animationDelay: isExpanded ? `${index * 50}ms` : '0ms'
             }}
           >
-            {/* Label - Professional Typography */}
-            <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              {action.label}
-            </div>
+            {/* Label - Professional Typography - Only show on hover */}
+            {isExpanded && (
+              <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                {action.label}
+              </div>
+            )}
 
             {/* Action Button - Clean & Professional */}
             <button
               onClick={() => handleActionClick(action)}
               className={`relative w-14 h-14 ${action.color} rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center`}
-              title={action.label}
             >
               <div className="transform group-hover:scale-110 transition-transform duration-200">
                 {action.icon}
