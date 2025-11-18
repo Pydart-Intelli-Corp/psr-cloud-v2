@@ -11,13 +11,15 @@ interface FloatingAction {
 
 interface FloatingActionButtonProps {
   actions: FloatingAction[];
+  directClick?: boolean; // If true and only 1 action, trigger action directly without expanding
 }
 
 /**
  * Floating Action Button (FAB) with expandable menu
  * Shows a flower icon that expands upward to reveal action buttons
+ * If directClick is true and there's only one action, clicking FAB triggers that action directly
  */
-const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ actions }) => {
+const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ actions, directClick = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +43,15 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ actions }) 
   const handleActionClick = (action: FloatingAction) => {
     action.onClick();
     setIsExpanded(false);
+  };
+
+  const handleMainButtonClick = () => {
+    // If directClick is enabled and there's only one action, trigger it directly
+    if (directClick && actions.length === 1) {
+      actions[0].onClick();
+    } else {
+      setIsExpanded(!isExpanded);
+    }
   };
 
   return (
@@ -80,7 +91,7 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ actions }) 
 
       {/* Main FAB - Professional Design */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={handleMainButtonClick}
         className="relative w-16 h-16 bg-gradient-to-br from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-2xl shadow-xl hover:shadow-2xl transform hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center group"
         aria-label="Quick actions menu"
         style={{

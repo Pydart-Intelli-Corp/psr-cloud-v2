@@ -1358,8 +1358,6 @@ export default function MachineManagement() {
         subtitle="Manage dairy equipment and machinery across societies"
         icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6" />}
         onRefresh={fetchMachines}
-        onAdd={openAddModal}
-        addButtonText="Add Machine"
       />
 
         {/* Success/Error Messages */}
@@ -2734,6 +2732,7 @@ export default function MachineManagement() {
             color: 'bg-gradient-to-br from-blue-500 to-blue-600'
           }
         ]}
+        directClick={true}
       />
     </>
   );

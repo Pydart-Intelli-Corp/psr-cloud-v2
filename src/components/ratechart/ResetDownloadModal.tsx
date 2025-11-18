@@ -118,21 +118,21 @@ export default function ResetDownloadModal({
     <FormModal
       isOpen={show}
       onClose={onClose}
-      title={
-        <div className="flex items-center gap-3">
-          <span>Reset Download Status</span>
+      title="Reset Download Status"
+      maxWidth="2xl"
+    >
+      <div className="space-y-6">
+        {/* Channel Badge */}
+        <div className="flex items-center gap-2">
           <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
             channel === 'COW' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
             channel === 'BUF' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
             'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
           }`}>
-            {channel}
+            {channel} Channel
           </span>
         </div>
-      }
-      maxWidth="2xl"
-    >
-      <div className="space-y-6">
+
         {/* File Info */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
           <div className="flex items-center gap-3">

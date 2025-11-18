@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Receipt, Trash2, Eye, FileText } from 'lucide-react';
+import { Receipt, Trash2, Eye, FileText, Upload } from 'lucide-react';
 import { 
   FlowerSpinner,
   StatusMessage,
@@ -12,7 +12,7 @@ import {
   EmptyState,
   LoadingSnackbar
 } from '@/components';
-import { BulkActionsToolbar } from '@/components/management';
+import { BulkActionsToolbar, FloatingActionButton } from '@/components/management';
 import BulkDeleteConfirmModal from '@/components/management/BulkDeleteConfirmModal';
 import RateChartUploadModal from '@/components/ratechart/RateChartUploadModal';
 import RateChartMinimalCard from '@/components/ratechart/RateChartMinimalCard';
@@ -697,41 +697,6 @@ export default function RatechartManagement() {
   const bufCharts = masterCharts.filter(c => c.channel === 'BUF').length;
   const mixCharts = masterCharts.filter(c => c.channel === 'MIX').length;
 
-  // Cleanup orphaned records
-  const handleCleanup = async () => {
-    if (!confirm('This will remove orphaned rate chart records from the database. Continue?')) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) return;
-
-      const response = await fetch('/api/user/ratechart/cleanup', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess(`✅ Cleanup completed: ${data.data.totalCleaned} orphaned records removed`);
-        setTimeout(() => setSuccess(''), 5000);
-        // Refresh the list
-        await fetchRateCharts();
-      } else {
-        setError(data.message || 'Failed to cleanup database');
-        setTimeout(() => setError(''), 5000);
-      }
-    } catch (error) {
-      console.error('Error during cleanup:', error);
-      setError('❌ Error during cleanup. Please try again.');
-      setTimeout(() => setError(''), 5000);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -758,8 +723,6 @@ export default function RatechartManagement() {
         subtitle="Manage rate charts for different milk channels (COW, BUF, MIX)"
         icon={<Receipt className="w-5 h-5 sm:w-6 sm:h-6" />}
         onRefresh={fetchRateCharts}
-        onAdd={() => setShowUploadModal(true)}
-        addButtonText="Upload Rate Chart"
       />
 
       {/* Success/Error Messages */}
@@ -1162,6 +1125,19 @@ export default function RatechartManagement() {
         societies={selectedChartForReset.societies}
       />
     )}
+
+    {/* Floating Action Button */}
+    <FloatingActionButton
+      actions={[
+        {
+          icon: <Upload className="w-6 h-6 text-white" />,
+          label: "Upload Rate Chart",
+          onClick: () => setShowUploadModal(true),
+          color: 'bg-gradient-to-br from-green-500 to-green-600'
+        }
+      ]}
+      directClick={true}
+    />
   </>
   );
 }
