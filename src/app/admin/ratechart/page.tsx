@@ -45,7 +45,7 @@ interface RateChart {
 export default function RatechartManagement() {
   const router = useRouter();
   const { user } = useUser();
-  const { } = useLanguage();
+  const { t } = useLanguage();
   
   // State management
   const [rateCharts, setRateCharts] = useState<RateChart[]>([]);
@@ -132,7 +132,7 @@ export default function RatechartManagement() {
       }
     } catch (error) {
       console.error('Error fetching rate charts:', error);
-      setError('Failed to load rate charts');
+      setError(t.ratechartManagement.failedToLoadCharts);
     } finally {
       setLoading(false);
     }
@@ -200,11 +200,11 @@ export default function RatechartManagement() {
       if (data.success) {
         setRateChartData(data.data || []);
       } else {
-        setError(typeof data.error === 'string' ? data.error : data.error?.message || 'Failed to fetch rate chart data');
+        setError(typeof data.error === 'string' ? data.error : data.error?.message || t.ratechartManagement.failedToFetchData);
       }
     } catch (error) {
       console.error('Error fetching rate chart data:', error);
-      setError('Failed to fetch rate chart data');
+      setError(t.ratechartManagement.failedToFetchData);
     } finally {
       setLoadingChartData(false);
     }
@@ -329,14 +329,14 @@ export default function RatechartManagement() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(`Rate chart status updated to ${newStatus === 1 ? 'active' : 'inactive'}`);
+        setSuccess(`${t.ratechartManagement.statusUpdatedSuccessfully} ${newStatus === 1 ? t.ratechartManagement.active.toLowerCase() : t.ratechartManagement.inactive.toLowerCase()}`);
         fetchRateCharts();
         // Auto-hide success message after 5 seconds
         setTimeout(() => {
           setSuccess('');
         }, 5000);
       } else {
-        setError(data.message || 'Failed to update status');
+        setError(data.message || t.ratechartManagement.failedToUpdateStatus);
         // Auto-hide error message after 5 seconds
         setTimeout(() => {
           setError('');
@@ -344,7 +344,7 @@ export default function RatechartManagement() {
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      setError('Error updating status');
+      setError(t.ratechartManagement.errorUpdatingStatus);
       // Auto-hide error message after 5 seconds
       setTimeout(() => {
         setError('');
@@ -379,19 +379,19 @@ export default function RatechartManagement() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(`✅ ${selectedGroups.length} rate chart${selectedGroups.length !== 1 ? 's' : ''} updated to ${status}`);
+        setSuccess(`✅ ${selectedGroups.length} ${t.ratechartManagement.bulkStatusUpdated} ${status === 'active' ? t.ratechartManagement.active.toLowerCase() : t.ratechartManagement.inactive.toLowerCase()}`);
         setTimeout(() => setSuccess(''), 5000);
         // Clear selection and refresh
         setSelectedCharts(new Set());
         setSelectAll(false);
         await fetchRateCharts();
       } else {
-        setError(data.message || 'Failed to update status');
+        setError(data.message || t.ratechartManagement.failedToUpdateStatus);
         setTimeout(() => setError(''), 5000);
       }
     } catch (error) {
       console.error('Error updating bulk status:', error);
-      setError('❌ Error updating status. Please try again.');
+      setError(t.ratechartManagement.errorUpdatingStatus);
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -710,8 +710,8 @@ export default function RatechartManagement() {
     {/* Loading Snackbar */}
     <LoadingSnackbar
       isVisible={isUploading || isDeletingBulk}
-      message={isDeletingBulk ? "Deleting Rate Charts" : "Uploading Rate Chart"}
-      submessage={isDeletingBulk ? "Please wait while we delete selected rate charts..." : "Please wait while we process your CSV file..."}
+      message={isDeletingBulk ? t.ratechartManagement.deletingRateCharts : t.ratechartManagement.uploadingRateChart}
+      submessage={isDeletingBulk ? t.ratechartManagement.pleaseWaitDeleting : t.ratechartManagement.pleaseWaitUploading}
       progress={uploadProgress}
       showProgress={true}
     />
@@ -719,8 +719,8 @@ export default function RatechartManagement() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:pb-8">
       {/* Page Header */}
       <ManagementPageHeader
-        title="Ratechart Management"
-        subtitle="Manage rate charts for different milk channels (COW, BUF, MIX)"
+        title={t.ratechartManagement.title}
+        subtitle={t.ratechartManagement.subtitle}
         icon={<Receipt className="w-5 h-5 sm:w-6 sm:h-6" />}
         onRefresh={fetchRateCharts}
       />
@@ -738,13 +738,13 @@ export default function RatechartManagement() {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
         <StatsCard
-          title="Unique Charts"
+          title={t.ratechartManagement.uniqueCharts}
           value={uniqueCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="blue"
         />
         <StatsCard
-          title="Total Assignments"
+          title={t.ratechartManagement.totalAssignments}
           value={totalAssignments}
           icon={<Receipt className="w-4 h-4" />}
           color="gray"
@@ -752,19 +752,19 @@ export default function RatechartManagement() {
           clickable={true}
         />
         <StatsCard
-          title="COW Charts"
+          title={t.ratechartManagement.cowCharts}
           value={cowCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="green"
         />
         <StatsCard
-          title="BUFFALO Charts"
+          title={t.ratechartManagement.buffaloCharts}
           value={bufCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="blue"
         />
         <StatsCard
-          title="MIXED Charts"
+          title={t.ratechartManagement.mixedCharts}
           value={mixCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="yellow"
@@ -781,9 +781,9 @@ export default function RatechartManagement() {
         onMachineChange={setChannelFilter}
         societies={societies}
         machines={[
-          { id: 1, machineId: 'COW', machineType: 'COW' },
-          { id: 2, machineId: 'BUF', machineType: 'BUFFALO (BUF)' },
-          { id: 3, machineId: 'MIX', machineType: 'MIXED (MIX)' }
+          { id: 1, machineId: 'COW', machineType: t.ratechartManagement.cow },
+          { id: 2, machineId: 'BUF', machineType: t.ratechartManagement.buffalo },
+          { id: 3, machineId: 'MIX', machineType: t.ratechartManagement.mixed }
         ]}
         filteredCount={Object.keys(groupedCharts).length}
         totalCount={rateCharts.length}
@@ -814,8 +814,8 @@ export default function RatechartManagement() {
             handleBulkStatusUpdate(status);
           }}
           statusOptions={[
-            { status: 'active', label: 'Active', color: 'bg-green-500', bgColor: 'hover:bg-green-50 dark:hover:bg-green-900/30' },
-            { status: 'inactive', label: 'Inactive', color: 'bg-red-500', bgColor: 'hover:bg-red-50 dark:hover:bg-red-900/30' }
+            { status: 'active', label: t.ratechartManagement.active, color: 'bg-green-500', bgColor: 'hover:bg-green-50 dark:hover:bg-green-900/30' },
+            { status: 'inactive', label: t.ratechartManagement.inactive, color: 'bg-red-500', bgColor: 'hover:bg-red-50 dark:hover:bg-red-900/30' }
           ]}
         />
       )}
@@ -825,9 +825,9 @@ export default function RatechartManagement() {
         {Object.keys(groupedCharts).length === 0 ? (
           <EmptyState
             icon={<Receipt className="w-12 h-12" />}
-            title="No Rate Charts Found"
-            message="Upload your first rate chart to get started"
-            actionText="Upload Rate Chart"
+            title={t.ratechartManagement.noRateChartsFound}
+            message={t.ratechartManagement.uploadFirstChart}
+            actionText={t.ratechartManagement.uploadRateChart}
             onAction={() => setShowUploadModal(true)}
             showAction={true}
           />
@@ -1131,7 +1131,7 @@ export default function RatechartManagement() {
       actions={[
         {
           icon: <Upload className="w-6 h-6 text-white" />,
-          label: "Upload Rate Chart",
+          label: t.ratechartManagement.uploadRateChart,
           onClick: () => setShowUploadModal(true),
           color: 'bg-gradient-to-br from-green-500 to-green-600'
         }

@@ -10,6 +10,8 @@ export const ml: TranslationKeys = {
     delete: 'ഇല്ലാതാക്കുക',
     edit: 'എഡിറ്റ് ചെയ്യുക',
     add: 'ചേർക്കുക',
+    view: 'കാണുക',
+    reset: 'റീസെറ്റ് ചെയ്യുക',
     close: 'അടയ്ക്കുക',
     confirm: 'സ്ഥിരീകരിക്കുക',
     yes: 'അതെ',
@@ -24,6 +26,10 @@ export const ml: TranslationKeys = {
     noDataAvailable: 'ഡാറ്റ ലഭ്യമല്ല',
     createdAt: 'സൃഷ്ടിച്ചത്',
     updatedAt: 'അപ്ഡേറ്റ് ചെയ്തത്',
+    selectAll: 'എല്ലാം തിരഞ്ഞെടുക്കുക',
+    clearAll: 'എല്ലാം മായ്ക്കുക',
+    selected: 'തിരഞ്ഞെടുത്തത്',
+    upload: 'അപ്‌ലോഡ്',
   },
 
   // നാവിഗേഷൻ
@@ -333,6 +339,139 @@ export const ml: TranslationKeys = {
     // ആവശ്യമായ
     requiredField: '*',
     required: 'ആവശ്യമാണ്',
+  },
+
+  // റേറ്റ് ചാർട്ട് മാനേജ്മെന്റ്
+  ratechartManagement: {
+    title: 'റേറ്റ് ചാർട്ട് മാനേജ്മെന്റ്',
+    subtitle: 'വ്യത്യസ്ത പാൽ ചാനലുകൾക്ക് (COW, BUF, MIX) റേറ്റ് ചാർട്ടുകൾ കൈകാര്യം ചെയ്യുക',
+    
+    // പ്രവർത്തനങ്ങൾ
+    uploadRateChart: 'റേറ്റ് ചാർട്ട് അപ്‌ലോഡ് ചെയ്യുക',
+    close: 'അടയ്ക്കുക',
+    refresh: 'പുതുക്കുക',
+    
+    // സ്ഥിതിവിവരക്കണക്കുകൾ
+    uniqueCharts: 'അദ്വിതീയ ചാർട്ടുകൾ',
+    totalAssignments: 'മൊത്തം നിയോഗങ്ങൾ',
+    cowCharts: 'പശു ചാർട്ടുകൾ',
+    buffaloCharts: 'എരുമ ചാർട്ടുകൾ',
+    mixedCharts: 'മിക്സഡ് ചാർട്ടുകൾ',
+    
+    // ചാനലുകൾ
+    cow: 'പശു',
+    buffalo: 'എരുമ (BUF)',
+    buf: 'BUF',
+    mixed: 'മിക്സഡ് (MIX)',
+    mix: 'MIX',
+    
+    // അവസ്ഥ
+    active: 'സജീവം',
+    inactive: 'നിഷ്ക്രിയം',
+    
+    // ശൂന്യ അവസ്ഥകൾ
+    noRateChartsFound: 'റേറ്റ് ചാർട്ടുകളൊന്നും കണ്ടെത്തിയില്ല',
+    uploadFirstChart: 'ആരംഭിക്കാൻ നിങ്ങളുടെ ആദ്യ റേറ്റ് ചാർട്ട് അപ്‌ലോഡ് ചെയ്യുക',
+    noMatchingRecords: 'പൊരുത്തപ്പെടുന്ന രേഖകളൊന്നും കണ്ടെത്തിയില്ല',
+    noDataAvailable: 'ഈ റേറ്റ് ചാർട്ടിന് ഡാറ്റയൊന്നും ലഭ്യമല്ല',
+    
+    // വിജയ സന്ദേശങ്ങൾ
+    chartDeletedSuccessfully: 'റേറ്റ് ചാർട്ട് വിജയകരമായി ഇല്ലാതാക്കി',
+    statusUpdatedSuccessfully: 'റേറ്റ് ചാർട്ട് അവസ്ഥ അപ്‌ഡേറ്റ് ചെയ്തു',
+    bulkStatusUpdated: 'റേറ്റ് ചാർട്ടുകൾ അപ്‌ഡേറ്റ് ചെയ്തു',
+    chartsDeletedSuccessfully: 'വിജയകരമായി ഇല്ലാതാക്കി',
+    chartAssignedSuccessfully: 'വിജയകരമായി ചാർട്ട് നിയോഗിച്ചു',
+    downloadResetSuccessfully: 'വിജയകരമായി പുനഃസജ്ജീകരിച്ചു',
+    channelDownloadStatus: 'ചാനൽ ഡൗൺലോഡ് സ്റ്റാറ്റസ്',
+    canBeRedownloaded: 'ചാർട്ട് "{fileName}" ഇപ്പോൾ തിരഞ്ഞെടുത്ത മെഷീനുകൾക്ക് വീണ്ടും ഡൗൺലോഡ് ചെയ്യാനാകും.',
+    societyRemovedSuccessfully: 'വിജയകരമായി {societyName} റേറ്റ് ചാർട്ടിൽ നിന്ന് നീക്കം ചെയ്തു',
+    
+    // പിശക് സന്ദേശങ്ങൾ
+    failedToLoadCharts: 'റേറ്റ് ചാർട്ടുകൾ ലോഡ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു',
+    failedToDeleteChart: 'റേറ്റ് ചാർട്ട് ഇല്ലാതാക്കുന്നതിൽ പരാജയപ്പെട്ടു',
+    errorDeletingChart: 'റേറ്റ് ചാർട്ട് ഇല്ലാതാക്കുന്നതിൽ പിശക്',
+    failedToUpdateStatus: 'അവസ്ഥ അപ്‌ഡേറ്റ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു',
+    errorUpdatingStatus: 'അവസ്ഥ അപ്‌ഡേറ്റ് ചെയ്യുന്നതിൽ പിശക്. ദയവായി വീണ്ടും ശ്രമിക്കുക.',
+    errorDeletingCharts: 'തിരഞ്ഞെടുത്ത റേറ്റ് ചാർട്ടുകൾ ഇല്ലാതാക്കുന്നതിൽ പിശക്',
+    failedToFetchData: 'റേറ്റ് ചാർട്ട് ഡാറ്റ ലഭ്യമാക്കുന്നതിൽ പരാജയപ്പെട്ടു',
+    failedToAssignChart: 'സൊസൈറ്റികൾക്ക് ചാർട്ട് നിയോഗിക്കുന്നതിൽ പരാജയപ്പെട്ടു',
+    errorAssigningChart: 'സൊസൈറ്റികൾക്ക് ചാർട്ട് നിയോഗിക്കുന്നതിൽ പിശക്',
+    failedToResetDownload: 'ഡൗൺലോഡ് ചരിത്രം പുനഃസജ്ജീകരിക്കുന്നതിൽ പരാജയപ്പെട്ടു',
+    errorResettingDownload: 'ഡൗൺലോഡ് ചരിത്രം പുനഃസജ്ജീകരിക്കുന്നതിൽ പിശക്. ദയവായി വീണ്ടും ശ്രമിക്കുക.',
+    failedToRemoveSociety: 'സൊസൈറ്റി നീക്കം ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു',
+    errorRemovingSociety: 'സൊസൈറ്റി നീക്കം ചെയ്യുന്നതിൽ പിശക്. ദയവായി വീണ്ടും ശ്രമിക്കുക.',
+    
+    // ലോഡിംഗ് സന്ദേശങ്ങൾ
+    deletingRateCharts: 'റേറ്റ് ചാർട്ടുകൾ ഇല്ലാതാക്കുന്നു',
+    pleaseWaitDeleting: 'ഞങ്ങൾ തിരഞ്ഞെടുത്ത റേറ്റ് ചാർട്ടുകൾ ഇല്ലാതാക്കുന്നതിനിടയിൽ ദയവായി കാത്തിരിക്കുക...',
+    uploadingRateChart: 'റേറ്റ് ചാർട്ട് അപ്‌ലോഡ് ചെയ്യുന്നു',
+    pleaseWaitUploading: 'ഞങ്ങൾ നിങ്ങളുടെ CSV ഫയൽ പ്രോസസ് ചെയ്യുന്നതിനിടയിൽ ദയവായി കാത്തിരിക്കുക...',
+    
+    // ഫോം ലേബലുകളും പ്ലെയ്സ്ഹോൾഡറുകളും
+    searchFat: 'FAT തിരയുക',
+    searchSnf: 'SNF തിരയുക',
+    searchClr: 'CLR തിരയുക',
+    fileName: 'ഫയൽ പേര്',
+    fatPlaceholder: 'ഉദാ., 3.5',
+    snfPlaceholder: 'ഉദാ., 8.5',
+    clrPlaceholder: 'ഉദാ., 25.0',
+    
+    // പട്ടിക തലക്കെട്ടുകൾ
+    fat: 'FAT',
+    snf: 'SNF',
+    clr: 'CLR',
+    rate: 'നിരക്ക്',
+    
+    // മോഡൽ തലക്കെട്ടുകൾ
+    rateChartChannel: 'റേറ്റ് ചാർട്ട് - {channel} ചാനൽ',
+    
+    // മറ്റുള്ളവ
+    showing: 'കാണിക്കുന്നു',
+    of: 'ൽ നിന്ന്',
+    records: 'രേഖകൾ',
+    assignedToSocietyIds: 'സൊസൈറ്റി IDകൾക്ക് നിയോഗിച്ചു',
+    society: 'സൊസൈറ്റി',
+    societies: 'സൊസൈറ്റികൾ',
+    machine: 'മെഷീൻ',
+    machines: 'മെഷീനുകൾ',
+    rateChart: 'റേറ്റ് ചാർട്ട്',
+    
+    // അപ്‌ലോഡ് ഫോം
+    csvFormatRequirements: 'CSV ഫോർമാറ്റ് ആവശ്യകതകൾ',
+    headersRequired: 'തലക്കെട്ടുകൾ',
+    clrDescription: 'CLR',
+    colorDegreeNumeric: 'നിറം/ഡിഗ്രി (സംഖ്യാത്മകം)',
+    fatDescription: 'FAT',
+    fatPercentageNumeric: 'കൊഴുപ്പ് ശതമാനം (സംഖ്യാത്മകം, ദശാംശം ഉണ്ടാകാം)',
+    snfDescription: 'SNF',
+    snfPercentageNumeric: 'ഖര-അല്ലാത്ത-കൊഴുപ്പ് ശതമാനം (സംഖ്യാത്മകം, ദശാംശം ഉണ്ടാകാം)',
+    rateDescription: 'RATE',
+    ratePerLiterNumeric: 'ലിറ്ററിന് നിരക്ക് (സംഖ്യാത്മകം, ദശാംശം ഉണ്ടാകാം)',
+    fileEncodingUTF8: 'ഫയൽ UTF-8 എൻകോഡ് ചെയ്തിരിക്കണം',
+    downloadSampleCSV: 'സാമ്പിൾ CSV ഡൗൺലോഡ് ചെയ്യുക',
+    noSocietiesAvailable: 'സൊസൈറ്റികൾ ലഭ്യമല്ല',
+    selectSociety: 'സൊസൈറ്റി തിരഞ്ഞെടുക്കുക',
+    milkChannel: 'പാൽ ചാനൽ',
+    selectChannel: 'ചാനൽ തിരഞ്ഞെടുക്കുക',
+    csvFile: 'CSV ഫയൽ',
+    clickToUploadCSV: 'CSV ഫയൽ അപ്‌ലോഡ് ചെയ്യാൻ ക്ലിക്ക് ചെയ്യുക',
+    orDragAndDrop: 'അല്ലെങ്കിൽ ഡ്രാഗ് ആൻഡ് ഡ്രോപ്പ് ചെയ്യുക',
+    
+    // റീസെറ്റ് ഡൗൺലോഡ് മോഡൽ
+    channel: 'ചാനൽ',
+    rateChartFile: 'റേറ്റ് ചാർട്ട് ഫയൽ',
+    selectMachinesToReset: 'അവർ റീസെറ്റ് ചെയ്യാൻ മെഷീനുകൾ തിരഞ്ഞെടുക്കുക',
+    downloadStatusAllowRedownload: 'ഡൗൺലോഡ് സ്ഥിതി. ഇത് അവരെ ഈ റേറ്റ് ചാർട്ട് വീണ്ടും ഡൗൺലോഡ് ചെയ്യാൻ അനുവദിക്കും',
+    milkType: 'പാലിന്റെ തരം',
+    filterBySociety: 'സൊസൈറ്റി അനുസരിച്ച് ഫിൽട്ടർ ചെയ്യുക',
+    allSocieties: 'എല്ലാ സൊസൈറ്റികളും',
+    loadingMachines: 'മെഷീനുകൾ ലോഡ് ചെയ്യുന്നു...',
+    noMachinesFound: 'മെഷീനുകൾ കണ്ടെത്തിയില്ല',
+    tryChangingSocietyFilter: 'സൊസൈറ്റി ഫിൽട്ടർ മാറ്റാൻ ശ്രമിക്കുക',
+    download: 'ഡൗൺലോഡ്',
+    selectMachines: 'മെഷീനുകൾ തിരഞ്ഞെടുക്കുക',
+    resetting: 'റീസെറ്റ് ചെയ്യുന്നു',
+    resetDownload: 'ഡൗൺലോഡ് റീസെറ്റ് ചെയ്യുക',
   },
 
   // അറിയിപ്പുകൾ

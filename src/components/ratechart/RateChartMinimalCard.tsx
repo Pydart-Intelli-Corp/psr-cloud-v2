@@ -3,6 +3,7 @@
 import React from 'react';
 import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X, MoreVertical, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
 import { ConfirmDeleteModal } from '@/components/management';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -66,6 +67,7 @@ export default function RateChartMinimalCard({
   onRemoveSociety,
   searchQuery = '',
 }: RateChartMinimalCardProps) {
+  const { t } = useLanguage();
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
   const [showSocietiesDropdown, setShowSocietiesDropdown] = React.useState(false);
   const [societyToRemove, setSocietyToRemove] = React.useState<{ chartRecordId: number; societyId: number; societyName: string } | null>(null);
@@ -130,7 +132,7 @@ export default function RateChartMinimalCard({
                   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
               }`}>
-                {status === 1 ? 'Active' : 'Inactive'}
+                {status === 1 ? t.ratechartManagement.active : t.ratechartManagement.inactive}
               </span>
             </div>
           </div>
@@ -157,7 +159,7 @@ export default function RateChartMinimalCard({
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span>View Chart Data</span>
+                <span>{t.common.view || 'View'} {t.ratechartManagement.rateChart}</span>
               </button>
               <button
                 onClick={() => {
@@ -167,7 +169,7 @@ export default function RateChartMinimalCard({
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <UserPlus className="w-4 h-4 text-green-600 dark:text-green-400" />
-                <span>Assign to Societies</span>
+                <span>{t.common.add} {t.ratechartManagement.societies}</span>
               </button>
               <button
                 onClick={() => {
@@ -177,7 +179,7 @@ export default function RateChartMinimalCard({
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <RefreshCw className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span>Reset Download</span>
+                <span>{t.ratechartManagement.resetDownload}</span>
               </button>
               <button
                 onClick={() => {
@@ -189,12 +191,12 @@ export default function RateChartMinimalCard({
                 {status === 1 ? (
                   <>
                     <PowerOff className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    <span>Deactivate Chart</span>
+                    <span>{t.ratechartManagement.inactive}</span>
                   </>
                 ) : (
                   <>
                     <Power className="w-4 h-4 text-green-600 dark:text-green-400" />
-                    <span>Activate Chart</span>
+                    <span>{t.ratechartManagement.active}</span>
                   </>
                 )}
               </button>
@@ -207,7 +209,7 @@ export default function RateChartMinimalCard({
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Delete Chart</span>
+                <span>{t.common.delete}</span>
               </button>
             </div>
           )}
@@ -238,7 +240,7 @@ export default function RateChartMinimalCard({
         >
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-green-600 dark:text-green-400" />
-            <span>Assigned Societies ({societies.length})</span>
+            <span>{t.ratechartManagement.societies} ({societies.length})</span>
           </div>
           {showSocietiesDropdown ? (
             <ChevronUp className="w-4 h-4" />
@@ -309,10 +311,10 @@ export default function RateChartMinimalCard({
           setSocietyToRemove(null);
         }}
         itemName={societyToRemove?.societyName || ''}
-        itemType="society"
-        title="Remove Society Assignment"
-        message="Are you sure you want to remove"
-        confirmText="Remove Society"
+        itemType={t.ratechartManagement.society}
+        title={`${t.common.delete} ${t.ratechartManagement.society}`}
+        message={t.common.confirm}
+        confirmText={`${t.common.delete} ${t.ratechartManagement.society}`}
       />
     </div>
   );

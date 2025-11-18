@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Upload, Download } from 'lucide-react';
 import { FormModal, FormSelect, FormActions } from '@/components';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Society {
   id: number;
@@ -38,6 +39,7 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
   onUploadEnd,
   onProgressUpdate
 }) => {
+  const { t } = useLanguage();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedSocieties, setSelectedSocieties] = useState<number[]>([]);
   const [channel, setChannel] = useState<ChannelType | ''>('');
@@ -166,30 +168,30 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
     <FormModal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Upload Rate Chart"
+      title={t.ratechartManagement.uploadRateChart}
       maxWidth="lg"
     >
       <form onSubmit={handleUpload} className="space-y-4 sm:space-y-6">
         {/* Instructions */}
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-            CSV Format Requirements:
+          <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2 text-sm">
+            {t.ratechartManagement.csvFormatRequirements}:
           </h3>
-          <ul className="list-disc list-inside space-y-1 text-sm text-blue-800 dark:text-blue-200">
-            <li>Headers: CLR, FAT, SNF, RATE (required)</li>
-            <li>CLR: Color/Degree (numeric)</li>
-            <li>FAT: Fat percentage (numeric, can have decimals)</li>
-            <li>SNF: Solids-Not-Fat percentage (numeric, can have decimals)</li>
-            <li>RATE: Rate per liter (numeric, can have decimals)</li>
-            <li>File should be UTF-8 encoded</li>
+          <ul className="list-disc list-inside space-y-1 text-xs text-blue-800 dark:text-blue-200">
+            <li>{t.ratechartManagement.headersRequired}: CLR, FAT, SNF, RATE</li>
+            <li>{t.ratechartManagement.clrDescription}: {t.ratechartManagement.colorDegreeNumeric}</li>
+            <li>{t.ratechartManagement.fatDescription}: {t.ratechartManagement.fatPercentageNumeric}</li>
+            <li>{t.ratechartManagement.snfDescription}: {t.ratechartManagement.snfPercentageNumeric}</li>
+            <li>{t.ratechartManagement.rateDescription}: {t.ratechartManagement.ratePerLiterNumeric}</li>
+            <li>{t.ratechartManagement.fileEncodingUTF8}</li>
           </ul>
           <button
             type="button"
             onClick={downloadSampleCSV}
-            className="mt-3 flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            className="mt-3 flex items-center text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
             <Download className="w-4 h-4 mr-1" />
-            Download Sample CSV
+            {t.ratechartManagement.downloadSampleCSV}
           </button>
         </div>
 
@@ -197,20 +199,20 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
         <div>
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Select Societies *
+              {t.ratechartManagement.selectSociety} <span className="text-red-500">*</span>
             </label>
             <button
               type="button"
               onClick={handleSelectAll}
               className="text-sm text-green-600 dark:text-green-400 hover:underline"
             >
-              {selectedSocieties.length === societies.length ? 'Deselect All' : 'Select All'}
+              {selectedSocieties.length === societies.length ? t.common.clearAll : t.common.selectAll}
             </button>
           </div>
           <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
             {societies.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                No societies available
+                {t.ratechartManagement.noSocietiesAvailable}
               </p>
             ) : (
               societies.map(society => (
@@ -233,28 +235,28 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
           </div>
           {selectedSocieties.length > 0 && (
             <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-              {selectedSocieties.length} {selectedSocieties.length === 1 ? 'society' : 'societies'} selected
+              {selectedSocieties.length} {selectedSocieties.length === 1 ? t.ratechartManagement.society : t.ratechartManagement.societies} {t.common.selected}
             </p>
           )}
         </div>
 
         <FormSelect
-          label="Milk Channel"
+          label={t.ratechartManagement.milkChannel}
           value={channel}
           onChange={(value) => setChannel(value as ChannelType)}
           options={[
-            { value: 'COW', label: 'COW' },
-            { value: 'BUF', label: 'BUFFALO (BUF)' },
-            { value: 'MIX', label: 'MIXED (MIX)' }
+            { value: 'COW', label: t.ratechartManagement.cow },
+            { value: 'BUF', label: t.ratechartManagement.buffalo },
+            { value: 'MIX', label: t.ratechartManagement.mixed }
           ]}
-          placeholder="Select Channel"
+          placeholder={t.ratechartManagement.selectChannel}
           required
         />
 
         {/* File Upload */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            CSV File *
+            {t.ratechartManagement.csvFile} <span className="text-red-500">*</span>
           </label>
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-green-400 dark:hover:border-green-500 transition-colors">
             <input
@@ -281,10 +283,10 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
               ) : (
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    Click to upload CSV file
+                    {t.ratechartManagement.clickToUploadCSV}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    or drag and drop
+                    {t.ratechartManagement.orDragAndDrop}
                   </p>
                 </div>
               )}
@@ -294,7 +296,7 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
 
         <FormActions
           onCancel={handleClose}
-          submitText={`Upload to ${selectedSocieties.length} ${selectedSocieties.length === 1 ? 'Society' : 'Societies'}`}
+          submitText={`${t.common.upload} to ${selectedSocieties.length} ${selectedSocieties.length === 1 ? t.ratechartManagement.society : t.ratechartManagement.societies}`}
           isLoading={isUploading}
           isSubmitDisabled={selectedSocieties.length === 0 || !channel || !selectedFile}
           submitType="submit"

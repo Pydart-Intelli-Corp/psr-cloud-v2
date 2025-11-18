@@ -8,6 +8,8 @@ export const en = {
     delete: 'Delete',
     edit: 'Edit',
     add: 'Add',
+    view: 'View',
+    reset: 'Reset',
     close: 'Close',
     confirm: 'Confirm',
     yes: 'Yes',
@@ -22,6 +24,10 @@ export const en = {
     noDataAvailable: 'No data available',
     createdAt: 'Created',
     updatedAt: 'Updated',
+    selectAll: 'Select All',
+    clearAll: 'Clear All',
+    selected: 'selected',
+    upload: 'Upload',
   },
 
   // Navigation
@@ -331,6 +337,139 @@ export const en = {
     // Required
     requiredField: '*',
     required: 'Required',
+  },
+
+  // Rate Chart Management
+  ratechartManagement: {
+    title: 'Ratechart Management',
+    subtitle: 'Manage rate charts for different milk channels (COW, BUF, MIX)',
+    
+    // Actions
+    uploadRateChart: 'Upload Rate Chart',
+    close: 'Close',
+    refresh: 'Refresh',
+    
+    // Stats
+    uniqueCharts: 'Unique Charts',
+    totalAssignments: 'Total Assignments',
+    cowCharts: 'COW Charts',
+    buffaloCharts: 'BUFFALO Charts',
+    mixedCharts: 'MIXED Charts',
+    
+    // Channels
+    cow: 'COW',
+    buffalo: 'BUFFALO (BUF)',
+    buf: 'BUF',
+    mixed: 'MIXED (MIX)',
+    mix: 'MIX',
+    
+    // Status
+    active: 'Active',
+    inactive: 'Inactive',
+    
+    // Empty States
+    noRateChartsFound: 'No Rate Charts Found',
+    uploadFirstChart: 'Upload your first rate chart to get started',
+    noMatchingRecords: 'No matching records found',
+    noDataAvailable: 'No data available for this rate chart',
+    
+    // Success Messages
+    chartDeletedSuccessfully: 'Rate chart deleted successfully',
+    statusUpdatedSuccessfully: 'Rate chart status updated to',
+    bulkStatusUpdated: 'rate chart(s) updated to',
+    chartsDeletedSuccessfully: 'Successfully deleted',
+    chartAssignedSuccessfully: 'Successfully assigned chart to',
+    downloadResetSuccessfully: 'Successfully reset',
+    channelDownloadStatus: 'channel download status for',
+    canBeRedownloaded: 'Chart "{fileName}" can now be re-downloaded by selected machines.',
+    societyRemovedSuccessfully: 'Successfully removed {societyName} from rate chart',
+    
+    // Error Messages
+    failedToLoadCharts: 'Failed to load rate charts',
+    failedToDeleteChart: 'Failed to delete rate chart',
+    errorDeletingChart: 'Error deleting rate chart',
+    failedToUpdateStatus: 'Failed to update status',
+    errorUpdatingStatus: 'Error updating status. Please try again.',
+    errorDeletingCharts: 'Error deleting selected rate charts',
+    failedToFetchData: 'Failed to fetch rate chart data',
+    failedToAssignChart: 'Failed to assign chart to societies',
+    errorAssigningChart: 'Error assigning chart to societies',
+    failedToResetDownload: 'Failed to reset download history',
+    errorResettingDownload: 'Error resetting download history. Please try again.',
+    failedToRemoveSociety: 'Failed to remove society',
+    errorRemovingSociety: 'Error removing society. Please try again.',
+    
+    // Loading Messages
+    deletingRateCharts: 'Deleting Rate Charts',
+    pleaseWaitDeleting: 'Please wait while we delete selected rate charts...',
+    uploadingRateChart: 'Uploading Rate Chart',
+    pleaseWaitUploading: 'Please wait while we process your CSV file...',
+    
+    // Form Labels & Placeholders
+    searchFat: 'Search FAT',
+    searchSnf: 'Search SNF',
+    searchClr: 'Search CLR',
+    fileName: 'File Name',
+    fatPlaceholder: 'e.g., 3.5',
+    snfPlaceholder: 'e.g., 8.5',
+    clrPlaceholder: 'e.g., 25.0',
+    
+    // Table Headers
+    fat: 'FAT',
+    snf: 'SNF',
+    clr: 'CLR',
+    rate: 'Rate',
+    
+    // Modal Titles
+    rateChartChannel: 'Rate Chart - {channel} Channel',
+    
+    // Misc
+    showing: 'Showing',
+    of: 'of',
+    records: 'records',
+    assignedToSocietyIds: 'Assigned to society IDs',
+    society: 'society',
+    societies: 'societies',
+    machine: 'machine',
+    machines: 'machines',
+    rateChart: 'rate chart',
+    
+    // Upload Form
+    csvFormatRequirements: 'CSV Format Requirements',
+    headersRequired: 'Headers',
+    clrDescription: 'CLR',
+    colorDegreeNumeric: 'Color/Degree (numeric)',
+    fatDescription: 'FAT',
+    fatPercentageNumeric: 'Fat percentage (numeric, can have decimals)',
+    snfDescription: 'SNF',
+    snfPercentageNumeric: 'Solids-Not-Fat percentage (numeric, can have decimals)',
+    rateDescription: 'RATE',
+    ratePerLiterNumeric: 'Rate per liter (numeric, can have decimals)',
+    fileEncodingUTF8: 'File should be UTF-8 encoded',
+    downloadSampleCSV: 'Download Sample CSV',
+    noSocietiesAvailable: 'No societies available',
+    selectSociety: 'Select Society',
+    milkChannel: 'Milk Channel',
+    selectChannel: 'Select Channel',
+    csvFile: 'CSV File',
+    clickToUploadCSV: 'Click to upload CSV file',
+    orDragAndDrop: 'or drag and drop',
+    
+    // Reset Download Modal
+    channel: 'Channel',
+    rateChartFile: 'Rate Chart File',
+    selectMachinesToReset: 'Select machines to reset their',
+    downloadStatusAllowRedownload: 'download status. This will allow them to re-download this rate chart for the',
+    milkType: 'milk type',
+    filterBySociety: 'Filter by Society',
+    allSocieties: 'All Societies',
+    loadingMachines: 'Loading machines...',
+    noMachinesFound: 'No machines found',
+    tryChangingSocietyFilter: 'Try changing the society filter',
+    download: 'Download',
+    selectMachines: 'Select Machines',
+    resetting: 'Resetting',
+    resetDownload: 'Reset Download',
   },
 
   // Notifications

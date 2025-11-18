@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Plus, AlertTriangle } from 'lucide-react';
 import { FormModal, FormActions } from '@/components/forms';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Society {
   id: number;
@@ -29,6 +30,7 @@ export default function AssignSocietyModal({
   currentSocieties,
   allSocieties,
 }: AssignSocietyModalProps) {
+  const { t } = useLanguage();
   const [selectedSocieties, setSelectedSocieties] = useState<Set<number>>(new Set());
   const [isAssigning, setIsAssigning] = useState(false);
   const [conflicts, setConflicts] = useState<Array<{
@@ -114,7 +116,7 @@ export default function AssignSocietyModal({
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
-        title="Assign to Societies"
+        title={t.ratechartManagement.chartAssignedSuccessfully.split(' ')[0] + ' ' + t.ratechartManagement.societies}
         maxWidth="2xl"
       >
         <div className="space-y-6">

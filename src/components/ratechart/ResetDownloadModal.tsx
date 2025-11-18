@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { FlowerSpinner } from '@/components';
 import { FormModal, FormActions, FormSelect } from '@/components/forms';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Machine {
   id: number;
@@ -34,6 +35,7 @@ export default function ResetDownloadModal({
   channel,
   societies
 }: ResetDownloadModalProps) {
+  const { t } = useLanguage();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedMachines, setSelectedMachines] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -118,7 +120,7 @@ export default function ResetDownloadModal({
     <FormModal
       isOpen={show}
       onClose={onClose}
-      title="Reset Download Status"
+      title={`${t.common.reset} ${t.ratechartManagement.channelDownloadStatus}`}
       maxWidth="2xl"
     >
       <div className="space-y-6">
@@ -129,7 +131,7 @@ export default function ResetDownloadModal({
             channel === 'BUF' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
             'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
           }`}>
-            {channel} Channel
+            {channel} {t.ratechartManagement.channel}
           </span>
         </div>
 
@@ -140,7 +142,7 @@ export default function ResetDownloadModal({
               <RefreshCw className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-0.5">Rate Chart File</p>
+              <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-0.5">{t.ratechartManagement.rateChartFile}</p>
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" title={fileName}>
                 {fileName}
               </p>
@@ -150,16 +152,16 @@ export default function ResetDownloadModal({
 
         {/* Info Text */}
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Select machines to reset their <span className="font-semibold text-gray-900 dark:text-gray-100">{channel} channel</span> download status. This will allow them to re-download this rate chart for the {channel} milk type.
+          {t.ratechartManagement.selectMachinesToReset} <span className="font-semibold text-gray-900 dark:text-gray-100">{channel} {t.ratechartManagement.channel}</span> {t.ratechartManagement.downloadStatusAllowRedownload} {channel} {t.ratechartManagement.milkType}.
         </p>
 
         {/* Society Filter */}
         <FormSelect
-          label="Filter by Society"
+          label={t.ratechartManagement.filterBySociety}
           value={societyFilter.toString()}
           onChange={(value) => setSocietyFilter(value === 'all' ? 'all' : parseInt(value))}
           options={[
-            { value: 'all', label: 'All Societies' },
+            { value: 'all', label: t.ratechartManagement.allSocieties },
             ...societies.map(society => ({
               value: society.societyId.toString(),
               label: society.societyName
@@ -178,7 +180,7 @@ export default function ResetDownloadModal({
                 className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2 cursor-pointer transition-all"
               />
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                Select All ({filteredMachines.length})
+                {t.common.selectAll} ({filteredMachines.length})
               </span>
             </label>
             {selectedMachines.size > 0 && (
@@ -199,13 +201,13 @@ export default function ResetDownloadModal({
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12">
               <FlowerSpinner size={32} />
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">Loading machines...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">{t.ratechartManagement.loadingMachines}</p>
             </div>
           ) : filteredMachines.length === 0 ? (
             <div className="text-center py-12">
               <RefreshCw className="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500" />
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No machines found</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Try changing the society filter</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t.ratechartManagement.noMachinesFound}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t.ratechartManagement.tryChangingSocietyFilter}</p>
             </div>
           ) : (
             filteredMachines.map(machine => (
@@ -260,10 +262,10 @@ export default function ResetDownloadModal({
         <FormActions
           onCancel={onClose}
           onSubmit={handleSubmit}
-          submitText={selectedMachines.size > 0 ? `Reset ${channel} Download (${selectedMachines.size})` : 'Select Machines'}
+          submitText={selectedMachines.size > 0 ? `${t.common.reset} ${channel} ${t.ratechartManagement.download} (${selectedMachines.size})` : t.ratechartManagement.selectMachines}
           isLoading={submitting}
           isSubmitDisabled={selectedMachines.size === 0}
-          loadingText={`Resetting ${channel}...`}
+          loadingText={`${t.ratechartManagement.resetting} ${channel}...`}
           submitIcon={<RefreshCw className="w-4 h-4" />}
           submitType="button"
         />

@@ -275,7 +275,7 @@ export default function AddEntityModal({ isOpen, onClose, type, onSuccess }: Add
             {/* Entity ID */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {getIdLabel()} *
+                {getIdLabel()} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"

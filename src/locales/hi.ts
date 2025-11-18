@@ -10,9 +10,11 @@ export const hi: TranslationKeys = {
     delete: 'हटाएं',
     edit: 'संपादित करें',
     add: 'जोड़ें',
+    view: 'देखें',
+    reset: 'रीसेट करें',
     close: 'बंद करें',
     confirm: 'पुष्टि करें',
-    yes: 'हां',
+    yes: 'हाँ',
     no: 'नहीं',
     submit: 'जमा करें',
     back: 'पीछे',
@@ -24,6 +26,10 @@ export const hi: TranslationKeys = {
     noDataAvailable: 'कोई डेटा उपलब्ध नहीं है',
     createdAt: 'बनाया गया',
     updatedAt: 'अपडेट किया गया',
+    selectAll: 'सभी चुनें',
+    clearAll: 'सभी साफ़ करें',
+    selected: 'चयनित',
+    upload: 'अपलोड',
   },
 
   // नेविगेशन
@@ -333,6 +339,139 @@ export const hi: TranslationKeys = {
     // आवश्यक
     requiredField: '*',
     required: 'आवश्यक',
+  },
+
+  // रेट चार्ट प्रबंधन
+  ratechartManagement: {
+    title: 'रेट चार्ट प्रबंधन',
+    subtitle: 'विभिन्न दूध चैनल (COW, BUF, MIX) के लिए रेट चार्ट प्रबंधित करें',
+    
+    // कार्रवाइयां
+    uploadRateChart: 'रेट चार्ट अपलोड करें',
+    close: 'बंद करें',
+    refresh: 'ताज़ा करें',
+    
+    // आंकड़े
+    uniqueCharts: 'अद्वितीय चार्ट',
+    totalAssignments: 'कुल असाइनमेंट',
+    cowCharts: 'गाय चार्ट',
+    buffaloCharts: 'भैंस चार्ट',
+    mixedCharts: 'मिश्रित चार्ट',
+    
+    // चैनल
+    cow: 'गाय',
+    buffalo: 'भैंस (BUF)',
+    buf: 'BUF',
+    mixed: 'मिश्रित (MIX)',
+    mix: 'MIX',
+    
+    // स्थिति
+    active: 'सक्रिय',
+    inactive: 'निष्क्रिय',
+    
+    // खाली स्थिति
+    noRateChartsFound: 'कोई रेट चार्ट नहीं मिला',
+    uploadFirstChart: 'शुरू करने के लिए अपना पहला रेट चार्ट अपलोड करें',
+    noMatchingRecords: 'कोई मेल खाता रिकॉर्ड नहीं मिला',
+    noDataAvailable: 'इस रेट चार्ट के लिए कोई डेटा उपलब्ध नहीं है',
+    
+    // सफलता संदेश
+    chartDeletedSuccessfully: 'रेट चार्ट सफलतापूर्वक हटाया गया',
+    statusUpdatedSuccessfully: 'रेट चार्ट स्थिति अपडेट की गई',
+    bulkStatusUpdated: 'रेट चार्ट अपडेट किए गए',
+    chartsDeletedSuccessfully: 'सफलतापूर्वक हटाया गया',
+    chartAssignedSuccessfully: 'सफलतापूर्वक चार्ट असाइन किया गया',
+    downloadResetSuccessfully: 'सफलतापूर्वक रीसेट किया गया',
+    channelDownloadStatus: 'चैनल डाउनलोड स्थिति',
+    canBeRedownloaded: 'चार्ट "{fileName}" अब चयनित मशीनों द्वारा पुनः डाउनलोड किया जा सकता है।',
+    societyRemovedSuccessfully: 'सफलतापूर्वक {societyName} को रेट चार्ट से हटाया गया',
+    
+    // त्रुटि संदेश
+    failedToLoadCharts: 'रेट चार्ट लोड करने में विफल',
+    failedToDeleteChart: 'रेट चार्ट हटाने में विफल',
+    errorDeletingChart: 'रेट चार्ट हटाने में त्रुटि',
+    failedToUpdateStatus: 'स्थिति अपडेट करने में विफल',
+    errorUpdatingStatus: 'स्थिति अपडेट करने में त्रुटि। कृपया पुनः प्रयास करें।',
+    errorDeletingCharts: 'चयनित रेट चार्ट हटाने में त्रुटि',
+    failedToFetchData: 'रेट चार्ट डेटा प्राप्त करने में विफल',
+    failedToAssignChart: 'सोसायटी को चार्ट असाइन करने में विफल',
+    errorAssigningChart: 'सोसायटी को चार्ट असाइन करने में त्रुटि',
+    failedToResetDownload: 'डाउनलोड इतिहास रीसेट करने में विफल',
+    errorResettingDownload: 'डाउनलोड इतिहास रीसेट करने में त्रुटि। कृपया पुनः प्रयास करें।',
+    failedToRemoveSociety: 'सोसायटी हटाने में विफल',
+    errorRemovingSociety: 'सोसायटी हटाने में त्रुटि। कृपया पुनः प्रयास करें।',
+    
+    // लोडिंग संदेश
+    deletingRateCharts: 'रेट चार्ट हटाए जा रहे हैं',
+    pleaseWaitDeleting: 'कृपया प्रतीक्षा करें जब तक हम चयनित रेट चार्ट हटाते हैं...',
+    uploadingRateChart: 'रेट चार्ट अपलोड किया जा रहा है',
+    pleaseWaitUploading: 'कृपया प्रतीक्षा करें जब तक हम आपकी CSV फ़ाइल प्रोसेस करते हैं...',
+    
+    // फॉर्म लेबल और प्लेसहोल्डर
+    searchFat: 'FAT खोजें',
+    searchSnf: 'SNF खोजें',
+    searchClr: 'CLR खोजें',
+    fileName: 'फ़ाइल का नाम',
+    fatPlaceholder: 'जैसे, 3.5',
+    snfPlaceholder: 'जैसे, 8.5',
+    clrPlaceholder: 'जैसे, 25.0',
+    
+    // टेबल हेडर
+    fat: 'FAT',
+    snf: 'SNF',
+    clr: 'CLR',
+    rate: 'दर',
+    
+    // मॉडल शीर्षक
+    rateChartChannel: 'रेट चार्ट - {channel} चैनल',
+    
+    // विविध
+    showing: 'दिखाया जा रहा है',
+    of: 'में से',
+    records: 'रिकॉर्ड',
+    assignedToSocietyIds: 'सोसायटी IDs को असाइन किया गया',
+    society: 'सोसायटी',
+    societies: 'सोसायटी',
+    machine: 'मशीन',
+    machines: 'मशीनें',
+    rateChart: 'रेट चार्ट',
+    
+    // अपलोड फॉर्म
+    csvFormatRequirements: 'CSV फॉर्मेट आवश्यकताएं',
+    headersRequired: 'हेडर्स',
+    clrDescription: 'CLR',
+    colorDegreeNumeric: 'रंग/डिग्री (संख्यात्मक)',
+    fatDescription: 'FAT',
+    fatPercentageNumeric: 'वसा प्रतिशत (संख्यात्मक, दशमलव हो सकता है)',
+    snfDescription: 'SNF',
+    snfPercentageNumeric: 'ठोस-गैर-वसा प्रतिशत (संख्यात्मक, दशमलव हो सकता है)',
+    rateDescription: 'RATE',
+    ratePerLiterNumeric: 'प्रति लीटर दर (संख्यात्मक, दशमलव हो सकता है)',
+    fileEncodingUTF8: 'फ़ाइल UTF-8 एन्कोडेड होनी चाहिए',
+    downloadSampleCSV: 'नमूना CSV डाउनलोड करें',
+    noSocietiesAvailable: 'कोई सोसायटी उपलब्ध नहीं',
+    selectSociety: 'सोसायटी चुनें',
+    milkChannel: 'दूध चैनल',
+    selectChannel: 'चैनल चुनें',
+    csvFile: 'CSV फ़ाइल',
+    clickToUploadCSV: 'CSV फ़ाइल अपलोड करने के लिए क्लिक करें',
+    orDragAndDrop: 'या ड्रैग एंड ड्रॉप करें',
+    
+    // रीसेट डाउनलोड मॉडल
+    channel: 'चैनल',
+    rateChartFile: 'रेट चार्ट फ़ाइल',
+    selectMachinesToReset: 'उनकी रीसेट करने के लिए मशीनें चुनें',
+    downloadStatusAllowRedownload: 'डाउनलोड स्थिति। यह उन्हें इस रेट चार्ट को पुनः डाउनलोड करने की अनुमति देगा',
+    milkType: 'दूध प्रकार',
+    filterBySociety: 'सोसायटी से फ़िल्टर करें',
+    allSocieties: 'सभी सोसायटी',
+    loadingMachines: 'मशीनें लोड हो रही हैं...',
+    noMachinesFound: 'कोई मशीन नहीं मिली',
+    tryChangingSocietyFilter: 'सोसायटी फ़िल्टर बदलने का प्रयास करें',
+    download: 'डाउनलोड',
+    selectMachines: 'मशीनें चुनें',
+    resetting: 'रीसेट कर रहा है',
+    resetDownload: 'डाउनलोड रीसेट करें',
   },
 
   // सूचनाएं
