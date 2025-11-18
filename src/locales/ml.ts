@@ -469,9 +469,13 @@ export const ml: TranslationKeys = {
     noMachinesFound: 'മെഷീനുകൾ കണ്ടെത്തിയില്ല',
     tryChangingSocietyFilter: 'സൊസൈറ്റി ഫിൽട്ടർ മാറ്റാൻ ശ്രമിക്കുക',
     download: 'ഡൗൺലോഡ്',
-    selectMachines: 'മെഷീനുകൾ തിരഞ്ഞെടുക്കുക',
+    selectMachines: 'മെഷീൻ തിരഞ്ഞെടുക്കുക',
     resetting: 'റീസെറ്റ് ചെയ്യുന്നു',
     resetDownload: 'ഡൗൺലോഡ് റീസെറ്റ് ചെയ്യുക',
+    allRateChartAssignments: 'എല്ലാ സൊസൈറ്റികളിലെയും റേറ്റ് ചാർട്ട് അസൈൻമെന്റുകൾ',
+    noAssignmentsFound: 'അസൈൻമെന്റുകൾ കണ്ടെത്തിയില്ല',
+    tryChangingFilter: 'ഫിൽട്ടർ മാറ്റാൻ ശ്രമിക്കുക',
+    assignments: 'അസൈൻമെന്റുകൾ',
   },
 
   // അറിയിപ്പുകൾ

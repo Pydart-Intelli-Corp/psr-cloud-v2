@@ -469,9 +469,13 @@ export const hi: TranslationKeys = {
     noMachinesFound: 'कोई मशीन नहीं मिली',
     tryChangingSocietyFilter: 'सोसायटी फ़िल्टर बदलने का प्रयास करें',
     download: 'डाउनलोड',
-    selectMachines: 'मशीनें चुनें',
-    resetting: 'रीसेट कर रहा है',
+    selectMachines: 'मशीन चुनें',
+    resetting: 'रीसेट हो रहा है',
     resetDownload: 'डाउनलोड रीसेट करें',
+    allRateChartAssignments: 'सभी सोसाइटी में रेट चार्ट असाइनमेंट',
+    noAssignmentsFound: 'कोई असाइनमेंट नहीं मिला',
+    tryChangingFilter: 'फिल्टर बदलने का प्रयास करें',
+    assignments: 'असाइनमेंट',
   },
 
   // सूचनाएं

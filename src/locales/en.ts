@@ -470,6 +470,10 @@ export const en = {
     selectMachines: 'Select Machines',
     resetting: 'Resetting',
     resetDownload: 'Reset Download',
+    allRateChartAssignments: 'All rate chart assignments across societies',
+    noAssignmentsFound: 'No assignments found',
+    tryChangingFilter: 'Try changing the filter',
+    assignments: 'assignments',
   },
 
   // Notifications
