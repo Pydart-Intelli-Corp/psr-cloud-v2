@@ -526,3 +526,5 @@ export const hi: TranslationKeys = {
     justNow: 'अभी',
   },
 };
+
+export default hi;

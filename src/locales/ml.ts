@@ -602,3 +602,5 @@ export const ml: TranslationKeys = {
     justNow: 'ഇപ്പോൾ',
   },
 };
+
+export default ml;
