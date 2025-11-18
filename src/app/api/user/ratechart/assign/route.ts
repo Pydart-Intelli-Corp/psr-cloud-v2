@@ -102,14 +102,107 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
-    // If replaceExisting is true, delete the old assignments first
+    // If replaceExisting is true, handle the old assignments properly
     if (replaceExisting && conflictingAssignments.length > 0) {
-      const conflictingSocietyIds = conflictingAssignments.map(row => row.societyId as number);
+      const transaction = await sequelize.transaction();
       
-      await sequelize.query(`
-        DELETE FROM ${schemaName}.rate_charts 
-        WHERE society_id IN (?) AND channel = ?
-      `, { replacements: [conflictingSocietyIds, master.channel] });
+      try {
+        for (const conflict of conflictingAssignments) {
+          const conflictChartId = conflict.id as number;
+          const conflictSocietyId = conflict.societyId as number;
+          const conflictMasterChartId = conflict.masterChartId as number;
+          const isConflictMaster = conflict.shared_chart_id === null;
+
+          if (isConflictMaster) {
+            // Check if other societies are using this master chart
+            const [sharedUsage] = await sequelize.query(`
+              SELECT COUNT(*) as count FROM ${schemaName}.rate_charts
+              WHERE shared_chart_id = ?
+            `, { 
+              replacements: [conflictChartId],
+              transaction 
+            });
+
+            const sharedCount = (sharedUsage[0] as { count: number }).count;
+
+            if (sharedCount > 0) {
+              // Transfer ownership to first shared society
+              const [firstShared] = await sequelize.query(`
+                SELECT id FROM ${schemaName}.rate_charts
+                WHERE shared_chart_id = ?
+                ORDER BY id ASC LIMIT 1
+              `, { 
+                replacements: [conflictChartId],
+                transaction 
+              });
+
+              const newMasterId = (firstShared[0] as { id: number }).id;
+
+              // Transfer data ownership
+              await sequelize.query(`
+                UPDATE ${schemaName}.rate_chart_data
+                SET rate_chart_id = ?
+                WHERE rate_chart_id = ?
+              `, { 
+                replacements: [newMasterId, conflictChartId],
+                transaction 
+              });
+
+              // Promote shared chart to master
+              await sequelize.query(`
+                UPDATE ${schemaName}.rate_charts
+                SET shared_chart_id = NULL
+                WHERE id = ?
+              `, { 
+                replacements: [newMasterId],
+                transaction 
+              });
+
+              // Update other shared charts
+              await sequelize.query(`
+                UPDATE ${schemaName}.rate_charts
+                SET shared_chart_id = ?
+                WHERE shared_chart_id = ? AND id != ?
+              `, { 
+                replacements: [newMasterId, conflictChartId, newMasterId],
+                transaction 
+              });
+            } else {
+              // No shared usage - delete data
+              await sequelize.query(`
+                DELETE FROM ${schemaName}.rate_chart_data
+                WHERE rate_chart_id = ?
+              `, { 
+                replacements: [conflictChartId],
+                transaction 
+              });
+            }
+          }
+
+          // Delete download history
+          await sequelize.query(`
+            DELETE FROM ${schemaName}.rate_chart_download_history
+            WHERE rate_chart_id = ?
+          `, { 
+            replacements: [conflictChartId],
+            transaction 
+          });
+
+          // Delete the chart record
+          await sequelize.query(`
+            DELETE FROM ${schemaName}.rate_charts
+            WHERE id = ?
+          `, { 
+            replacements: [conflictChartId],
+            transaction 
+          });
+        }
+
+        await transaction.commit();
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
     }
 
     // Check which societies already have this exact chart assigned (after potential deletions)

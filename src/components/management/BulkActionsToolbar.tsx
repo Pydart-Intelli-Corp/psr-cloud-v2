@@ -14,6 +14,12 @@ interface BulkActionsToolbarProps {
   showStatusUpdate?: boolean;
   currentBulkStatus?: string;
   onBulkStatusChange?: (status: string) => void;
+  statusOptions?: Array<{
+    status: string;
+    label: string;
+    color: string;
+    bgColor: string;
+  }>;
 }
 
 /**
@@ -29,9 +35,10 @@ const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
   itemType,
   showStatusUpdate = true,
   currentBulkStatus = 'active',
-  onBulkStatusChange
+  onBulkStatusChange,
+  statusOptions
 }) => {
-  if (selectedCount <= 1) return null;
+  if (selectedCount === 0) return null;
 
   return (
     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 px-6 py-4">
@@ -65,6 +72,7 @@ const BulkActionsToolbar: React.FC<BulkActionsToolbarProps> = ({
                     onBulkStatusUpdate(status);
                   }
                 }}
+                options={statusOptions}
                 compact
               />
             </div>

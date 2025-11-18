@@ -81,6 +81,9 @@ export default function RatechartManagement() {
     societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>;
   } | null>(null);
 
+  // Bulk status
+  const [bulkStatus, setBulkStatus] = useState<string>('active');
+
   // Total assignments modal
   const [showAssignmentsModal, setShowAssignmentsModal] = useState(false);
 
@@ -346,6 +349,50 @@ export default function RatechartManagement() {
       setTimeout(() => {
         setError('');
       }, 5000);
+    }
+  };
+
+  // Handle bulk status update
+  const handleBulkStatusUpdate = async (status: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const newStatus = status === 'active' ? 1 : 0;
+      
+      // Get all chart IDs from selected groups
+      const selectedGroups = Object.values(groupedCharts).filter(group => 
+        group.chartRecordIds.some(id => selectedCharts.has(id))
+      );
+
+      const allChartIds = selectedGroups.flatMap(group => group.chartRecordIds);
+
+      const response = await fetch('/api/user/ratechart/status', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ chartIds: allChartIds, status: newStatus })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(`✅ ${selectedGroups.length} rate chart${selectedGroups.length !== 1 ? 's' : ''} updated to ${status}`);
+        setTimeout(() => setSuccess(''), 5000);
+        // Clear selection and refresh
+        setSelectedCharts(new Set());
+        setSelectAll(false);
+        await fetchRateCharts();
+      } else {
+        setError(data.message || 'Failed to update status');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error updating bulk status:', error);
+      setError('❌ Error updating status. Please try again.');
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -644,10 +691,46 @@ export default function RatechartManagement() {
 
   // Calculate stats - only count unique master charts
   const uniqueCharts = Object.keys(groupedCharts).length;
-  const totalAssignments = rateCharts.length; // Total number of society assignments
+  // Count only valid assignments (those with a master chart or valid shared reference)
+  const totalAssignments = filteredRateCharts.length;
   const cowCharts = masterCharts.filter(c => c.channel === 'COW').length;
   const bufCharts = masterCharts.filter(c => c.channel === 'BUF').length;
   const mixCharts = masterCharts.filter(c => c.channel === 'MIX').length;
+
+  // Cleanup orphaned records
+  const handleCleanup = async () => {
+    if (!confirm('This will remove orphaned rate chart records from the database. Continue?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/ratechart/cleanup', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(`✅ Cleanup completed: ${data.data.totalCleaned} orphaned records removed`);
+        setTimeout(() => setSuccess(''), 5000);
+        // Refresh the list
+        await fetchRateCharts();
+      } else {
+        setError(data.message || 'Failed to cleanup database');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+      setError('❌ Error during cleanup. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
 
   if (loading) {
     return (
@@ -747,21 +830,32 @@ export default function RatechartManagement() {
       />
 
       {/* Bulk Actions Toolbar */}
-      <BulkActionsToolbar
-        selectedCount={(() => {
-          const selectedGroupCount = Object.values(groupedCharts).filter(group => 
-            group.chartRecordIds.some(id => selectedCharts.has(id))
-          ).length;
-          return selectedGroupCount;
-        })()}
-        onBulkDelete={() => setShowDeleteConfirm(true)}
-        onClearSelection={() => {
-          setSelectedCharts(new Set());
-          setSelectAll(false);
-        }}
-        itemType="rate chart"
-        showStatusUpdate={false}
-      />
+      {selectedCharts.size > 0 && (
+        <BulkActionsToolbar
+          selectedCount={(() => {
+            const selectedGroupCount = Object.values(groupedCharts).filter(group => 
+              group.chartRecordIds.some(id => selectedCharts.has(id))
+            ).length;
+            return selectedGroupCount;
+          })()}
+          onBulkDelete={() => setShowDeleteConfirm(true)}
+          onClearSelection={() => {
+            setSelectedCharts(new Set());
+            setSelectAll(false);
+          }}
+          itemType="rate chart"
+          showStatusUpdate={true}
+          currentBulkStatus={bulkStatus}
+          onBulkStatusChange={(status) => {
+            setBulkStatus(status);
+            handleBulkStatusUpdate(status);
+          }}
+          statusOptions={[
+            { status: 'active', label: 'Active', color: 'bg-green-500', bgColor: 'hover:bg-green-50 dark:hover:bg-green-900/30' },
+            { status: 'inactive', label: 'Inactive', color: 'bg-red-500', bgColor: 'hover:bg-red-50 dark:hover:bg-red-900/30' }
+          ]}
+        />
+      )}
 
       {/* Rate Charts Display */}
       <div className="space-y-6">

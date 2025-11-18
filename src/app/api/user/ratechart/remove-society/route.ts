@@ -95,26 +95,16 @@ export async function POST(request: NextRequest) {
       if (Array.isArray(sharedCharts) && sharedCharts.length > 0) {
         const sharedChart = sharedCharts[0] as { id: number; society_id: number };
         
-        // Step 1: Update all OTHER shared charts to point to the promoted chart as new master
+        // Step 1: Transfer rate_chart_data ownership from old master to new master
         await sequelize.query(`
-          UPDATE \`${schemaName}\`.rate_charts
-          SET shared_chart_id = ?
-          WHERE shared_chart_id = ? AND id != ?
-        `, {
-          replacements: [sharedChart.id, chartId, sharedChart.id]
-        });
-
-        // Step 2: Copy rate chart data from old master to promoted chart
-        await sequelize.query(`
-          INSERT INTO \`${schemaName}\`.rate_chart_data (rate_chart_id, clr, fat, snf, rate, created_at)
-          SELECT ?, clr, fat, snf, rate, created_at
-          FROM \`${schemaName}\`.rate_chart_data
+          UPDATE \`${schemaName}\`.rate_chart_data
+          SET rate_chart_id = ?
           WHERE rate_chart_id = ?
         `, {
           replacements: [sharedChart.id, chartId]
         });
 
-        // Step 3: Promote the selected shared chart to master (set shared_chart_id to NULL)
+        // Step 2: Promote the selected shared chart to master (set shared_chart_id to NULL)
         await sequelize.query(`
           UPDATE \`${schemaName}\`.rate_charts
           SET shared_chart_id = NULL
@@ -123,18 +113,27 @@ export async function POST(request: NextRequest) {
           replacements: [sharedChart.id]
         });
 
-        // Step 4: Delete the old master chart (CASCADE will delete its data)
+        // Step 3: Update all OTHER shared charts to point to the promoted chart as new master
         await sequelize.query(`
-          DELETE FROM \`${schemaName}\`.rate_charts
-          WHERE id = ?
+          UPDATE \`${schemaName}\`.rate_charts
+          SET shared_chart_id = ?
+          WHERE shared_chart_id = ? AND id != ?
+        `, {
+          replacements: [sharedChart.id, chartId, sharedChart.id]
+        });
+
+        // Step 4: Clean up download history for the removed master chart
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.rate_chart_download_history
+          WHERE rate_chart_id = ?
         `, {
           replacements: [chartId]
         });
 
-        // Step 5: Clean up download history for the removed master chart
+        // Step 5: Delete the old master chart record
         await sequelize.query(`
-          DELETE FROM \`${schemaName}\`.rate_chart_download_history
-          WHERE rate_chart_id = ?
+          DELETE FROM \`${schemaName}\`.rate_charts
+          WHERE id = ?
         `, {
           replacements: [chartId]
         });

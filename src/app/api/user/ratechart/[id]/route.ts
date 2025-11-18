@@ -61,6 +61,25 @@ export async function DELETE(
       const isMasterChart = chart.shared_chart_id === null;
 
       if (isMasterChart) {
+        // Get all chart IDs that will be deleted (master + shared)
+        const [chartIdsToDelete] = await sequelize.query(`
+          SELECT id FROM ${schemaName}.rate_charts
+          WHERE id = :id OR shared_chart_id = :id
+        `, {
+          replacements: { id },
+          transaction
+        }) as [Array<{ id: number }>, unknown];
+
+        const idsToDelete = chartIdsToDelete.map(c => c.id);
+
+        // Delete download history for all affected charts
+        if (idsToDelete.length > 0) {
+          await sequelize.query(`
+            DELETE FROM ${schemaName}.rate_chart_download_history
+            WHERE rate_chart_id IN (${idsToDelete.join(',')})
+          `, { transaction });
+        }
+
         // This is a master chart - delete all shared charts that reference it
         await sequelize.query(`
           DELETE FROM ${schemaName}.rate_charts
@@ -79,8 +98,15 @@ export async function DELETE(
           transaction
         });
       } else {
-        // This is a shared chart - only delete this chart record (not the shared data)
-        // The data belongs to the master chart
+        // This is a shared chart - delete its download history
+        await sequelize.query(`
+          DELETE FROM ${schemaName}.rate_chart_download_history
+          WHERE rate_chart_id = :id
+        `, {
+          replacements: { id },
+          transaction
+        });
+        // The data belongs to the master chart, so we don't delete data
       }
 
       // Delete the chart record itself

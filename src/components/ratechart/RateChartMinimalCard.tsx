@@ -231,7 +231,7 @@ export default function RateChartMinimalCard({
       </div>
 
       {/* Societies Section */}
-      <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+      <div className="relative bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
         <button
           onClick={() => setShowSocietiesDropdown(!showSocietiesDropdown)}
           className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
@@ -246,96 +246,54 @@ export default function RateChartMinimalCard({
             <ChevronDown className="w-4 h-4" />
           )}
         </button>
-      </div>
 
-      {/* Societies Dropdown Overlay */}
-      {showSocietiesDropdown && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 animate-fadeIn"
-            onClick={() => setShowSocietiesDropdown(false)}
-          />
-          
-          {/* Dropdown Content */}
-          <div className="absolute left-0 right-0 bottom-full mb-1 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-slideUp">
-            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-green-500 dark:bg-green-600 rounded-lg">
-                    <Building2 className="w-4 h-4 text-white" />
+        {/* Societies Dropdown */}
+        {showSocietiesDropdown && (
+          <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 overflow-hidden max-h-64 overflow-y-auto">
+            {societies.map((society) => (
+              <div
+                key={society.societyId}
+                className="group flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-green-700 dark:text-green-300">
+                      {society.societyName.charAt(0).toUpperCase()}
+                    </span>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      Assigned Societies
-                    </h4>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      {societies.length} {societies.length === 1 ? 'society' : 'societies'} assigned
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowSocietiesDropdown(false)}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="max-h-64 overflow-y-auto p-3 space-y-2">
-              {societies.map((society, index) => (
-                <div
-                  key={society.societyId}
-                  className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-md transition-all duration-300 overflow-hidden animate-fadeInUp"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-green-500/0 via-green-500/5 to-green-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
-                  <div className="relative flex items-center justify-between p-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                        <span className="text-sm font-bold text-green-700 dark:text-green-300">
-                          {society.societyName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors" title={society.societyName}>
-                          {highlightText(society.societyName, searchQuery)}
-                        </p>
-                        {society.societyIdentifier && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                              {highlightText(society.societyIdentifier, searchQuery)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {onRemoveSociety && societies.length > 1 && (
-                      <button
-                        onClick={() => {
-                          setSocietyToRemove({
-                            chartRecordId: society.chartRecordId,
-                            societyId: society.societyId,
-                            societyName: society.societyName
-                          });
-                        }}
-                        className="ml-2 p-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-300 hover:rotate-90"
-                        title={`Remove ${society.societyName}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={society.societyName}>
+                      {highlightText(society.societyName, searchQuery)}
+                    </p>
+                    {society.societyIdentifier && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {highlightText(society.societyIdentifier, searchQuery)}
+                      </p>
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
+                
+                {onRemoveSociety && societies.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setSocietyToRemove({
+                        chartRecordId: society.chartRecordId,
+                        societyId: society.societyId,
+                        societyName: society.societyName
+                      });
+                    }}
+                    className="ml-2 p-1.5 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    title={`Remove ${society.societyName}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       {/* Remove Society Confirmation Modal */}
       <ConfirmDeleteModal

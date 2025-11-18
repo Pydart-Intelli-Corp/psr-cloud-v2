@@ -6,7 +6,7 @@ import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response
 /**
  * Update rate chart status (active/inactive)
  * PATCH /api/user/ratechart/status
- * Body: { chartId: number, status: number }
+ * Body: { chartId: number, status: number } OR { chartIds: number[], status: number }
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -41,10 +41,10 @@ export async function PATCH(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { chartId, status } = body;
+    const { chartId, chartIds, status } = body;
 
-    if (!chartId || status === undefined) {
-      return createErrorResponse('Chart ID and status are required', 400);
+    if ((!chartId && !chartIds) || status === undefined) {
+      return createErrorResponse('Chart ID(s) and status are required', 400);
     }
 
     // Validate status value (0 or 1)
@@ -52,7 +52,18 @@ export async function PATCH(request: NextRequest) {
       return createErrorResponse('Status must be 0 (inactive) or 1 (active)', 400);
     }
 
-    // Update status
+    // Handle bulk update
+    if (chartIds && Array.isArray(chartIds) && chartIds.length > 0) {
+      await sequelize.query(
+        `UPDATE ${schemaName}.rate_charts SET status = ? WHERE id IN (${chartIds.join(',')})`,
+        { replacements: [status] }
+      );
+
+      const statusText = status === 1 ? 'active' : 'inactive';
+      return createSuccessResponse(`${chartIds.length} rate charts updated to ${statusText}`, { chartIds, status });
+    }
+
+    // Handle single update
     await sequelize.query(
       `UPDATE ${schemaName}.rate_charts SET status = ? WHERE id = ?`,
       { replacements: [status, chartId] }

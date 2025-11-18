@@ -156,21 +156,75 @@ export async function POST(request: NextRequest) {
           
           if (chart.shared_chart_id !== null) {
             // Society was using a shared chart - only delete its chart record
+            // This won't affect other societies using the same shared chart
             await sequelize.query(`
               DELETE FROM ${schemaName}.rate_charts
               WHERE id = ${chart.id}
             `, { transaction });
           } else {
-            // Society had its own chart - delete both chart and data
-            await sequelize.query(`
-              DELETE FROM ${schemaName}.rate_chart_data
-              WHERE rate_chart_id = ${chart.id}
+            // Society is the master of this chart - check if other societies are using it
+            const [sharedUsage] = await sequelize.query(`
+              SELECT COUNT(*) as count FROM ${schemaName}.rate_charts
+              WHERE shared_chart_id = ${chart.id}
             `, { transaction });
 
-            await sequelize.query(`
-              DELETE FROM ${schemaName}.rate_charts
-              WHERE id = ${chart.id}
-            `, { transaction });
+            const sharedCount = (sharedUsage as Array<{ count: number }>)[0].count;
+
+            if (sharedCount > 0) {
+              // Other societies are using this chart - transfer ownership to first shared society
+              const [firstShared] = await sequelize.query(`
+                SELECT id, society_id FROM ${schemaName}.rate_charts
+                WHERE shared_chart_id = ${chart.id}
+                ORDER BY id ASC
+                LIMIT 1
+              `, { transaction });
+
+              const newMaster = (firstShared as Array<{ id: number; society_id: number }>)[0];
+
+              // Step 1: Transfer rate_chart_data ownership to new master
+              await sequelize.query(`
+                UPDATE ${schemaName}.rate_chart_data
+                SET rate_chart_id = ${newMaster.id}
+                WHERE rate_chart_id = ${chart.id}
+              `, { transaction });
+
+              // Step 2: Promote first shared chart to master
+              await sequelize.query(`
+                UPDATE ${schemaName}.rate_charts
+                SET shared_chart_id = NULL
+                WHERE id = ${newMaster.id}
+              `, { transaction });
+
+              // Step 3: Update other shared charts to point to new master
+              await sequelize.query(`
+                UPDATE ${schemaName}.rate_charts
+                SET shared_chart_id = ${newMaster.id}
+                WHERE shared_chart_id = ${chart.id} AND id != ${newMaster.id}
+              `, { transaction });
+
+              // Step 4: Delete download history for old master
+              await sequelize.query(`
+                DELETE FROM ${schemaName}.rate_chart_download_history
+                WHERE rate_chart_id = ${chart.id}
+              `, { transaction });
+
+              // Step 5: Delete the old master chart record
+              await sequelize.query(`
+                DELETE FROM ${schemaName}.rate_charts
+                WHERE id = ${chart.id}
+              `, { transaction });
+            } else {
+              // No other societies using this chart - delete both chart and data
+              await sequelize.query(`
+                DELETE FROM ${schemaName}.rate_chart_data
+                WHERE rate_chart_id = ${chart.id}
+              `, { transaction });
+
+              await sequelize.query(`
+                DELETE FROM ${schemaName}.rate_charts
+                WHERE id = ${chart.id}
+              `, { transaction });
+            }
           }
         }
       } else {
