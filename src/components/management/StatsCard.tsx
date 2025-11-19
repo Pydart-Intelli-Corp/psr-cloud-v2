@@ -91,17 +91,17 @@ const StatsCard: React.FC<StatsCardProps> = ({
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => e.key === 'Enter' && onClick?.() : undefined}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 truncate">
+          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 leading-tight h-8 flex items-center">
             {title}
           </p>
-          <p className={`text-lg sm:text-xl lg:text-2xl font-bold mt-1 ${colorClasses.valueText}`}>
+          <p className={`text-lg sm:text-xl lg:text-2xl font-bold ${colorClasses.valueText}`}>
             {value}
           </p>
         </div>
-        <div className={`p-2 sm:p-3 rounded-lg ${colorClasses.bg} ml-2 flex-shrink-0`}>
-          <div className={`w-4 h-4 sm:w-5 sm:h-5 ${colorClasses.text}`}>
+        <div className={`p-1.5 sm:p-2 rounded-lg ${colorClasses.bg} flex-shrink-0`}>
+          <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${colorClasses.text}`}>
             {icon}
           </div>
         </div>

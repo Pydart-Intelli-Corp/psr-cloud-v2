@@ -19,6 +19,7 @@ export { default as FolderView } from './FolderView';
 export { default as FolderControls } from './FolderControls';
 export { default as FilterSection } from './FilterSection';
 export { default as FilterDropdown } from './FilterDropdown';
+export { default as StatisticsFilterDropdown } from './StatisticsFilterDropdown';
 export { default as StatsGrid } from './StatsGrid';
 export { default as BulkSelectionBar } from './BulkSelectionBar';
 export { default as ManagementPageHeader } from './ManagementPageHeader';

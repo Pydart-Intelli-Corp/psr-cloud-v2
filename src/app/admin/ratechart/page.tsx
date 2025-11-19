@@ -317,13 +317,17 @@ export default function RatechartManagement() {
 
       const newStatus = currentStatus === 1 ? 0 : 1;
 
+      // Find the group and get all chart record IDs (master + shared)
+      const group = Object.values(groupedCharts).find(g => g.chartId === chartId);
+      const chartIds = group?.chartRecordIds || [chartId];
+
       const response = await fetch('/api/user/ratechart/status', {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ chartId, status: newStatus })
+        body: JSON.stringify({ chartIds, status: newStatus })
       });
 
       const data = await response.json();

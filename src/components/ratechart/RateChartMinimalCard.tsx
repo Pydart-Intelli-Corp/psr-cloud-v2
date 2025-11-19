@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X, MoreVertical, ChevronDown, ChevronUp, Building2 } from 'lucide-react';
+import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X, MoreVertical, ChevronDown, ChevronUp, Building2, CheckCircle } from 'lucide-react';
 import { ConfirmDeleteModal } from '@/components/management';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -21,6 +21,27 @@ const highlightText = (text: string, searchQuery: string) => {
       part
     )
   );
+};
+
+// Helper function to render status indicator
+const getStatusIndicator = (status: number) => {
+  if (status === 1) {
+    // Active - Ready to download (amber color)
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready</span>
+      </div>
+    );
+  } else {
+    // Inactive - Downloaded (green color with checkmark)
+    return (
+      <div className="flex items-center gap-1.5">
+        <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+        <span className="text-xs font-medium text-green-600 dark:text-green-400">Downloaded</span>
+      </div>
+    );
+  }
 };
 
 interface Society {
@@ -127,13 +148,15 @@ export default function RateChartMinimalCard({
               }`}>
                 {highlightText(channel, searchQuery)}
               </span>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+              
+              {/* Status Indicator */}
+              <div className={`inline-flex items-center px-2.5 py-0.5 rounded-md ${
                 status === 1 
-                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' 
+                  : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
               }`}>
-                {status === 1 ? t.ratechartManagement.active : t.ratechartManagement.inactive}
-              </span>
+                {getStatusIndicator(status)}
+              </div>
             </div>
           </div>
         </div>

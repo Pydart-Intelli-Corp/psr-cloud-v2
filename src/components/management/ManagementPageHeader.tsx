@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Download, Upload, Plus, RefreshCw } from 'lucide-react';
+import { Download, Upload, Plus, RefreshCw, BarChart3 } from 'lucide-react';
 
 interface ManagementPageHeaderProps {
   title: string;
@@ -11,6 +11,7 @@ interface ManagementPageHeaderProps {
   onDownload?: () => void;
   onUpload?: () => void;
   onAdd?: () => void;
+  onStatistics?: () => void;
   isDownloading?: boolean;
   hasData?: boolean;
   addButtonText?: string;
@@ -28,6 +29,7 @@ const ManagementPageHeader: React.FC<ManagementPageHeaderProps> = ({
   onDownload,
   onUpload,
   onAdd,
+  onStatistics,
   isDownloading = false,
   hasData = true,
   addButtonText = 'Add Farmer'
@@ -58,6 +60,16 @@ const ManagementPageHeader: React.FC<ManagementPageHeaderProps> = ({
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
         </button>
+        
+        {onStatistics && (
+          <button
+            onClick={onStatistics}
+            className="flex items-center justify-center w-full sm:w-auto px-4 py-2.5 text-sm sm:text-base text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-600 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors shadow-sm"
+          >
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Statistics
+          </button>
+        )}
         
         {onDownload && (
           <button

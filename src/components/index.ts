@@ -5,6 +5,7 @@ export { default as EmailVerificationPrompt } from './auth/EmailVerificationProm
 export { default as Skeleton, CardSkeleton, TableSkeleton, ListSkeleton } from './ui/Skeleton';
 export { default as ThemeToggle } from './ui/ThemeToggle';
 export { default as PSRColorShowcase } from './ui/PSRColorShowcase';
+export { default as Badge } from './ui/Badge';
 
 // Loading Components  
 export { default as LoadingSpinner } from './loading/LoadingSpinner';

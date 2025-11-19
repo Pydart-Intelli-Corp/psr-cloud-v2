@@ -1573,6 +1573,7 @@ export default function MachineManagement() {
         subtitle="Manage dairy equipment and machinery across societies"
         icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
         onRefresh={fetchMachines}
+        onStatistics={() => router.push('/admin/machine/statistics')}
         hasData={filteredMachines.length > 0}
       />
 
@@ -1793,10 +1794,14 @@ export default function MachineManagement() {
                                     
                                     if (pending.length > 0) {
                                       details.push({
-                                        icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                                        icon: (
+                                          <div className="flex items-center gap-1">
+                                            <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+                                          </div>
+                                        ),
                                         text: (
-                                          <div className="flex flex-wrap gap-1">
-                                            <span className="text-xs font-medium">Pending:</span>
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready:</span>
                                             {pending.map((chart, idx) => (
                                               <button
                                                 key={idx}
@@ -1807,15 +1812,16 @@ export default function MachineManagement() {
                                               </button>
                                             ))}
                                           </div>
-                                        )
+                                        ),
+                                        className: 'text-amber-600 dark:text-amber-400'
                                       });
                                     }
                                     
                                     if (downloaded.length > 0) {
                                       details.push({
-                                        icon: <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                                        icon: <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
                                         text: (
-                                          <div className="flex flex-wrap gap-1">
+                                          <div className="flex flex-wrap items-center gap-1.5">
                                             <span className="text-xs font-medium">Downloaded:</span>
                                             {downloaded.map((chart, idx) => (
                                               <button
@@ -1916,10 +1922,14 @@ export default function MachineManagement() {
                       
                       if (pending.length > 0) {
                         details.push({
-                          icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                          icon: (
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+                            </div>
+                          ),
                           text: (
-                            <div className="flex flex-wrap gap-1">
-                              <span className="text-xs font-medium">Pending:</span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready:</span>
                               {pending.map((chart, idx) => (
                                 <button
                                   key={idx}
@@ -1930,15 +1940,16 @@ export default function MachineManagement() {
                                 </button>
                               ))}
                             </div>
-                          )
+                          ),
+                          className: 'text-amber-600 dark:text-amber-400'
                         });
                       }
                       
                       if (downloaded.length > 0) {
                         details.push({
-                          icon: <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                          icon: <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
                           text: (
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <span className="text-xs font-medium">Downloaded:</span>
                               {downloaded.map((chart, idx) => (
                                 <button
