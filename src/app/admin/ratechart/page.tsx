@@ -399,7 +399,19 @@ export default function RatechartManagement() {
   // Filter rate charts
   const filteredRateCharts = rateCharts.filter(chart => {
     if (societyFilter !== 'all' && chart.societyId.toString() !== societyFilter) return false;
-    if (channelFilter !== 'all' && chart.channel !== channelFilter) return false;
+    
+    // Handle channel filter including 'unique' option
+    if (channelFilter !== 'all') {
+      if (channelFilter === 'unique') {
+        // For unique filter, only show charts that are not shared
+        // This means: shared_chart_id is null AND no other charts reference this chart
+        const isShared = rateCharts.some(c => c.shared_chart_id === chart.id);
+        if (chart.shared_chart_id !== null || isShared) return false;
+      } else {
+        // For specific channel filters (COW, BUF, MIX)
+        if (chart.channel !== channelFilter) return false;
+      }
+    }
     
     // Search functionality
     if (searchQuery !== '') {
@@ -742,32 +754,48 @@ export default function RatechartManagement() {
           value={uniqueCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="blue"
+          onClick={() => setChannelFilter('unique')}
+          clickable={true}
+          isActive={channelFilter === 'unique'}
         />
         <StatsCard
           title={t.ratechartManagement.totalAssignments}
           value={totalAssignments}
           icon={<Receipt className="w-4 h-4" />}
           color="gray"
-          onClick={() => setShowAssignmentsModal(true)}
+          onClick={() => {
+            setChannelFilter('all');
+            setShowAssignmentsModal(true);
+          }}
           clickable={true}
+          isActive={channelFilter === 'all'}
         />
         <StatsCard
           title={t.ratechartManagement.cowCharts}
           value={cowCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="green"
+          onClick={() => setChannelFilter('COW')}
+          clickable={true}
+          isActive={channelFilter === 'COW'}
         />
         <StatsCard
           title={t.ratechartManagement.buffaloCharts}
           value={bufCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="blue"
+          onClick={() => setChannelFilter('BUF')}
+          clickable={true}
+          isActive={channelFilter === 'BUF'}
         />
         <StatsCard
           title={t.ratechartManagement.mixedCharts}
           value={mixCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="yellow"
+          onClick={() => setChannelFilter('MIX')}
+          clickable={true}
+          isActive={channelFilter === 'MIX'}
         />
       </div>
 
