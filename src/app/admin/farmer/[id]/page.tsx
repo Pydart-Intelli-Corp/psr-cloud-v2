@@ -26,6 +26,7 @@ import FormTextarea from '@/components/forms/FormTextarea';
 import FormGrid from '@/components/forms/FormGrid';
 import { LoadingOverlay } from '@/components';
 import StatusDropdown from '@/components/management/StatusDropdown';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface Society {
   id: number;
@@ -57,6 +58,7 @@ const FarmerDetails = () => {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useLanguage();
   const farmerId = params?.id as string;
   const isEditMode = searchParams?.get('edit') === 'true';
 
@@ -66,6 +68,8 @@ const FarmerDetails = () => {
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(isEditMode);
   const [activeTab, setActiveTab] = useState('details');
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({});
 
   // Form state
   const [formData, setFormData] = useState({
@@ -463,13 +467,20 @@ const FarmerDetails = () => {
                   onChange={(value) => {
                     const formatted = formatPhoneInput(value);
                     setFormData({ ...formData, contactNumber: formatted });
-                  }}
-                  onBlur={() => {
-                    const error = validatePhoneOnBlur(formData.contactNumber);
-                    if (error) {
-                      setError(error);
+                    // Clear error when user types
+                    if (fieldErrors.contactNumber) {
+                      setFieldErrors({ ...fieldErrors, contactNumber: '' });
                     }
                   }}
+                  onBlur={() => {
+                    const validationError = validatePhoneOnBlur(formData.contactNumber);
+                    if (validationError) {
+                      setFieldErrors({ ...fieldErrors, contactNumber: validationError });
+                    } else {
+                      setFieldErrors({ ...fieldErrors, contactNumber: '' });
+                    }
+                  }}
+                  error={fieldErrors.contactNumber}
                 />
                 <FormSelect
                   label="SMS Enabled"
