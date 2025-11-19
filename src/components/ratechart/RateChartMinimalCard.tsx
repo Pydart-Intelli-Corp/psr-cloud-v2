@@ -1,9 +1,32 @@
 'use client';
 
 import React from 'react';
-import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X, MoreVertical, ChevronDown, ChevronUp, Building2, CheckCircle } from 'lucide-react';
+import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X, MoreVertical, ChevronDown, ChevronUp, Building2, CheckCircle, Download, Clock } from 'lucide-react';
 import { ConfirmDeleteModal } from '@/components/management';
 import { useLanguage } from '@/contexts/LanguageContext';
+
+interface DownloadStatus {
+  allDownloaded: boolean;
+  totalMachines: number;
+  totalDownloaded: number;
+  totalPending: number;
+  societies: Record<number, {
+    societyId: number;
+    societyName: string;
+    societyIdentifier: string;
+    totalMachines: number;
+    downloadedMachines: number;
+    pendingMachines: number;
+    machines: Array<{
+      id: number;
+      machineId: string;
+      machineType: string;
+      location: string | null;
+      downloaded: boolean;
+      downloadedAt: string | null;
+    }>;
+  }>;
+}
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -23,25 +46,71 @@ const highlightText = (text: string, searchQuery: string) => {
   );
 };
 
-// Helper function to render status indicator
-const getStatusIndicator = (status: number) => {
-  if (status === 1) {
-    // Active - Ready to download (amber color)
+// Helper function to render status indicator with download info
+const getStatusIndicator = (status: number, downloadStatus: DownloadStatus | null, isLoading: boolean) => {
+  if (isLoading) {
     return (
       <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
-        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready</span>
-      </div>
-    );
-  } else {
-    // Inactive - Downloaded (green color with checkmark)
-    return (
-      <div className="flex items-center gap-1.5">
-        <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-        <span className="text-xs font-medium text-green-600 dark:text-green-400">Downloaded</span>
+        <div className="w-2 h-2 rounded-full bg-gray-400 dark:bg-gray-500 animate-pulse" />
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Loading...</span>
       </div>
     );
   }
+
+  // Status 0 means chart is inactive
+  if (status === 0) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400" />
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Inactive</span>
+      </div>
+    );
+  }
+
+  // If we have download status data
+  if (downloadStatus) {
+    const { allDownloaded, totalDownloaded, totalMachines, totalPending } = downloadStatus;
+
+    if (totalMachines === 0) {
+      // No machines assigned
+      return (
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+          <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready</span>
+        </div>
+      );
+    }
+
+    if (allDownloaded) {
+      // All machines have downloaded
+      return (
+        <div className="flex items-center gap-1.5">
+          <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+          <span className="text-xs font-medium text-green-600 dark:text-green-400">
+            Downloaded ({totalDownloaded}/{totalMachines})
+          </span>
+        </div>
+      );
+    } else {
+      // Partial downloads
+      return (
+        <div className="flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+            Pending ({totalDownloaded}/{totalMachines})
+          </span>
+        </div>
+      );
+    }
+  }
+
+  // Fallback to old behavior
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready</span>
+    </div>
+  );
 };
 
 interface Society {
@@ -91,8 +160,41 @@ export default function RateChartMinimalCard({
   const { t } = useLanguage();
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
   const [showSocietiesDropdown, setShowSocietiesDropdown] = React.useState(false);
+  const [showMachineStatusDropdown, setShowMachineStatusDropdown] = React.useState(false);
   const [societyToRemove, setSocietyToRemove] = React.useState<{ chartRecordId: number; societyId: number; societyName: string } | null>(null);
+  const [downloadStatus, setDownloadStatus] = React.useState<DownloadStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+
+  // Fetch download status when component mounts or chartId changes
+  React.useEffect(() => {
+    const fetchDownloadStatus = async () => {
+      if (status === 0) return; // Don't fetch if chart is inactive
+      
+      setLoadingStatus(true);
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const response = await fetch(`/api/user/ratechart/download-status?chartId=${chartId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          setDownloadStatus(data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching download status:', error);
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+
+    fetchDownloadStatus();
+  }, [chartId, status]);
 
   // Close menu when clicking outside
   React.useEffect(() => {
@@ -151,11 +253,15 @@ export default function RateChartMinimalCard({
               
               {/* Status Indicator */}
               <div className={`inline-flex items-center px-2.5 py-0.5 rounded-md ${
-                status === 1 
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' 
-                  : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                status === 0
+                  ? 'bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800'
+                  : downloadStatus?.allDownloaded
+                  ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                  : downloadStatus?.totalMachines === 0
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
+                  : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
               }`}>
-                {getStatusIndicator(status)}
+                {getStatusIndicator(status, downloadStatus, loadingStatus)}
               </div>
             </div>
           </div>
@@ -256,7 +362,7 @@ export default function RateChartMinimalCard({
       </div>
 
       {/* Societies Section */}
-      <div className="relative bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+      <div className="relative bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700 mb-3">
         <button
           onClick={() => setShowSocietiesDropdown(!showSocietiesDropdown)}
           className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
@@ -319,6 +425,122 @@ export default function RateChartMinimalCard({
           </div>
         )}
       </div>
+
+      {/* Machine Download Status Section */}
+      {status === 1 && downloadStatus && downloadStatus.totalMachines > 0 && !downloadStatus.allDownloaded && (
+        <div className="relative bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+          <button
+            onClick={() => setShowMachineStatusDropdown(!showMachineStatusDropdown)}
+            className="w-full flex items-center justify-between text-sm font-medium text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              <span>Machine Status: {downloadStatus.totalDownloaded} of {downloadStatus.totalMachines} downloaded</span>
+            </div>
+            {showMachineStatusDropdown ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Machine Status Dropdown */}
+          {showMachineStatusDropdown && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden max-h-96 overflow-y-auto">
+              {Object.values(downloadStatus.societies).map((societyStatus) => (
+                <div key={societyStatus.societyId} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                  <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {societyStatus.societyName}
+                      </span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {societyStatus.downloadedMachines}/{societyStatus.totalMachines}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {societyStatus.machines.length > 0 ? (
+                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {/* Downloaded Machines */}
+                      {societyStatus.machines.filter(m => m.downloaded).length > 0 && (
+                        <div>
+                          <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20">
+                            <span className="text-xs font-medium text-green-700 dark:text-green-300">
+                              ✓ Downloaded ({societyStatus.machines.filter(m => m.downloaded).length})
+                            </span>
+                          </div>
+                          {societyStatus.machines.filter(m => m.downloaded).map((machine) => (
+                            <div
+                              key={machine.id}
+                              className="px-4 py-2 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                      {machine.machineId}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      {machine.machineType} {machine.location && `• ${machine.location}`}
+                                    </p>
+                                  </div>
+                                </div>
+                                {machine.downloadedAt && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(machine.downloadedAt).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric'
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Pending Machines */}
+                      {societyStatus.machines.filter(m => !m.downloaded).length > 0 && (
+                        <div>
+                          <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20">
+                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                              ⏳ Pending ({societyStatus.machines.filter(m => !m.downloaded).length})
+                            </span>
+                          </div>
+                          {societyStatus.machines.filter(m => !m.downloaded).map((machine) => (
+                            <div
+                              key={machine.id}
+                              className="px-4 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    {machine.machineId}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {machine.machineType} {machine.location && `• ${machine.location}`}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+                      No machines assigned
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Remove Society Confirmation Modal */}
       <ConfirmDeleteModal
