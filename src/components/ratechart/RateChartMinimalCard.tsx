@@ -282,7 +282,7 @@ export default function RateChartMinimalCard({
                     downloadStatus && downloadStatus.totalMachines > 0
                       ? () => setShowMachineStatusDropdown(!showMachineStatusDropdown)
                       : undefined,
-                    downloadStatus && downloadStatus.totalMachines > 0
+                    !!(downloadStatus && downloadStatus.totalMachines > 0)
                   )}
                 </div>
 
