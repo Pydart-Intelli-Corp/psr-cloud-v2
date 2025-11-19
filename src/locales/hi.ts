@@ -30,6 +30,8 @@ export const hi: TranslationKeys = {
     clearAll: 'सभी साफ़ करें',
     selected: 'चयनित',
     upload: 'अपलोड',
+    available: 'उपलब्ध',
+    of: 'का',
   },
 
   // नेविगेशन
@@ -251,6 +253,7 @@ export const hi: TranslationKeys = {
     society: 'सोसायटी',
     machine: 'मशीन',
     status: 'स्थिति',
+    notes: 'टिप्पणियां',
     
     // स्थिति मान
     active: 'सक्रिय',
@@ -266,6 +269,7 @@ export const hi: TranslationKeys = {
     viewMode: 'देखने का मोड',
     listView: 'सूची दृश्य',
     gridView: 'ग्रिड दृश्य',
+    folderView: 'फ़ोल्डर दृश्य',
     
     // बल्क कार्रवाइयां
     updateStatus: 'स्थिति अपडेट करें',
@@ -277,6 +281,8 @@ export const hi: TranslationKeys = {
     noMatchingFarmers: 'कोई किसान आपके फ़िल्टर से मेल नहीं खाता',
     tryChangingFilters: 'अधिक परिणाम देखने के लिए फ़िल्टर बदलने का प्रयास करें',
     getStartedMessage: 'अपना पहला किसान जोड़कर शुरुआत करें',
+    deletedSuccessfully: 'किसान सफलतापूर्वक हटाया गया',
+    deleteError: 'किसान हटाने में विफल। कृपया पुनः प्रयास करें।',
     
     // लोडिंग स्थितियां
     addingFarmer: 'किसान जोड़ा जा रहा है...',
@@ -285,6 +291,9 @@ export const hi: TranslationKeys = {
     updatingFarmers: 'किसान अपडेट किए जा रहे हैं...',
     updatingStatus: 'स्थिति अपडेट की जा रही है...',
     pleaseWait: 'कृपया प्रतीक्षा करें',
+    loading: 'लोड हो रहा है...',
+    saving: 'सहेजा जा रहा है...',
+    uploading: 'अपलोड किया जा रहा है...',
     
     // फॉर्म लेबल
     enterFarmerId: 'किसान आईडी दर्ज करें',
@@ -299,9 +308,20 @@ export const hi: TranslationKeys = {
     selectSociety: 'सोसायटी चुनें',
     selectMachine: 'मशीन चुनें',
     selectStatus: 'स्थिति चुनें',
+    enterNotes: 'अतिरिक्त टिप्पणियां दर्ज करें (वैकल्पिक)',
+    enterMobileNumber: 'मोबाइल नंबर दर्ज करें',
+    
+    // Placeholder Text
+    enterUniqueFarmerId: 'विशिष्ट किसान आईडी दर्ज करें (जैसे, F001, FA-2024-001)',
+    enterFarmerFullName: 'किसान का पूरा नाम दर्ज करें',
+    enterFarmerAddress: 'किसान का पता दर्ज करें',
+    enterRfIdOptional: 'आरएफ आईडी दर्ज करें (वैकल्पिक)',
+    addAdditionalNotes: 'इस किसान के बारे में कोई अतिरिक्त टिप्पणी जोड़ें...',
+    noNotesAvailable: 'कोई अतिरिक्त टिप्पणी उपलब्ध नहीं है।',
     
     // पुष्टि
     confirmDelete: 'क्या आप वाकई हटाना चाहते हैं',
+    confirmDeleteThis: 'क्या आप वाकई इस किसान को हटाना चाहते हैं?',
     confirmBulkDelete: 'चयनित किसान हटाएं',
     deleteWarning: 'यह क्रिया पूर्ववत नहीं की जा सकती।',
     itemsFromFiltered: 'फ़िल्टर किए गए परिणामों से',
@@ -313,30 +333,110 @@ export const hi: TranslationKeys = {
     showing: 'दिखाया जा रहा है',
     of: 'में से',
     farmers: 'किसान',
+    farmer: 'किसान',
     
     // CSV अपलोड
     csvUploadTitle: 'किसान CSV अपलोड करें',
     csvUploadDescription: 'कई किसानों को जोड़ने के लिए CSV फ़ाइल अपलोड करें',
     selectFile: 'फ़ाइल चुनें',
+    selectCsvFile: 'CSV फ़ाइल चुनें',
     downloadTemplate: 'टेम्पलेट डाउनलोड करें',
+    downloadSampleTemplate: 'नमूना टेम्पलेट डाउनलोड करें',
     upload: 'अपलोड करें',
+    uploadFarmers: 'किसान अपलोड करें',
     uploadSuccess: 'CSV अपलोड सफलतापूर्वक पूर्ण हुआ!',
     uploadError: 'CSV अपलोड विफल',
+    uploadComplete: 'अपलोड पूर्ण',
+    csvFormatRequirements: 'CSV प्रारूप आवश्यकताएं',
+    selectDefaultSociety: 'डिफ़ॉल्ट सोसायटी चुनें',
+    selectDefaultMachine: 'डिफ़ॉल्ट मशीन चुनें',
+    defaultSociety: 'डिफ़ॉल्ट सोसायटी',
+    defaultMachine: 'डिफ़ॉल्ट मशीन',
+    societyForFarmers: 'CSV में सभी किसानों के लिए सोसायटी',
+    machineForFarmers: 'CSV में सभी किसानों के लिए मशीन',
+    uploadResults: 'अपलोड परिणाम',
+    totalProcessed: 'कुल प्रोसेस किए गए',
+    successful: 'सफल',
+    failed: 'विफल',
+    failedFarmers: 'विफल किसान',
+    row: 'पंक्ति',
+    error: 'त्रुटि',
+    tryAgain: 'पुनः प्रयास करें',
+    uploadAnother: 'एक और अपलोड करें',
+    pleaseSelectCsv: 'कृपया एक CSV फ़ाइल चुनें',
+    pleaseSelectSocietyAndMachine: 'कृपया CSV फ़ाइल, सोसायटी और मशीन चुनें',
+    csvFileOnly: 'कृपया एक CSV फ़ाइल चुनें',
+    
+    // CSV Format
+    csvHeaders: 'हेडर: ID, RF-ID, NAME, MOBILE, SMS, BONUS (न्यूनतम)',
+    csvOptionalFields: 'वैकल्पिक: ADDRESS, BANK_NAME, ACCOUNT_NUMBER, IFSC_CODE, SOCIETY_ID, MACHINE-ID',
+    csvIdRequired: 'ID और NAME आवश्यक फ़ील्ड हैं',
+    csvSmsValues: 'SMS मान: ON या OFF',
+    csvBonusFormat: 'BONUS एक संख्या होनी चाहिए (डिफ़ॉल्ट: 0)',
+    csvMachineId: 'MACHINE-ID वैकल्पिक है - यदि प्रदान नहीं किया गया, तो चयनित मशीन का उपयोग किया जाएगा',
+    csvRfIdUnique: 'RF-ID सभी किसानों में विशिष्ट होनी चाहिए',
+    csvFarmerIdUnique: 'किसान आईडी चयनित सोसायटी के भीतर विशिष्ट होनी चाहिए',
+    csvSocietyRequirement: 'सभी किसानों के पास सोसायटी होनी चाहिए - या तो CSV SOCIETY_ID से या ऊपर दिए गए डिफ़ॉल्ट से',
+    csvUtf8Encoding: 'फ़ाइल UTF-8 एन्कोडेड होनी चाहिए',
+    csvFilesOnly: 'केवल CSV फ़ाइलें',
+    csvFileSizeLimit: '10MB तक',
+    csvSocietyAssignment: 'यह सोसायटी उन सभी किसानों को सौंपी जाएगी जिनके पास CSV में society_id नहीं है',
+    csvMachineAssignment: 'यह मशीन CSV में सभी किसानों को सौंपी जाएगी',
     
     // फ़िल्टर
     filterBySociety: 'सोसायटी द्वारा फ़िल्टर करें',
     filterByMachine: 'मशीन द्वारा फ़िल्टर करें',
     filterByStatus: 'स्थिति द्वारा फ़िल्टर करें',
     unassigned: 'असाइन नहीं किया गया',
+    noMachineAssigned: 'कोई मशीन असाइन नहीं की गई',
+    noMachinesAvailable: 'कोई मशीन उपलब्ध नहीं है',
+    addMachinesFirst: 'कृपया पहले मशीनें जोड़ें।',
     
-    // विवरण देखें
+    // View Details (Farmer Detail Page)
     farmerDetails: 'किसान विवरण',
     basicInformation: 'बुनियादी जानकारी',
     contactInformation: 'संपर्क जानकारी',
+    contactAndSociety: 'संपर्क और सोसायटी',
     bankInformation: 'बैंक जानकारी',
+    bankingDetails: 'बैंकिंग विवरण',
     assignmentInformation: 'असाइनमेंट जानकारी',
+    additionalInfo: 'अतिरिक्त जानकारी',
+    additionalInformation: 'अतिरिक्त जानकारी',
+    basicDetails: 'बुनियादी विवरण',
+    contactAndSocietyInfo: 'संपर्क और सोसायटी जानकारी',
     
-    // आवश्यक
+    // Tabs
+    details: 'बुनियादी विवरण',
+    contact: 'संपर्क और सोसायटी',
+    banking: 'बैंकिंग विवरण',
+    additional: 'अतिरिक्त जानकारी',
+    
+    // Detail Page Actions
+    backToFarmers: 'किसानों की सूची में वापस जाएं',
+    farmerNotFound: 'किसान नहीं मिला',
+    farmerNotFoundMessage: 'अनुरोधित किसान नहीं मिला।',
+    edit: 'संपादित करें',
+    delete: 'हटाएं',
+    save: 'सहेजें',
+    cancel: 'रद्द करें',
+    saveChanges: 'परिवर्तन सहेजें',
+    
+    // Detail Page Labels
+    accountNumber: 'खाता संख्या',
+    bonusAmount: 'बोनस राशि',
+    createdAt: 'बनाया गया',
+    lastUpdated: 'अंतिम अपडेट',
+    noAdditionalNotes: 'कोई अतिरिक्त टिप्पणी उपलब्ध नहीं है।',
+    notAvailable: 'उपलब्ध नहीं',
+    
+    // Form Actions
+    createFarmer: 'किसान बनाएं',
+    updateFarmer: 'किसान अपडेट करें',
+    
+    // Validation Messages
+    noMachinesForSociety: 'इस सोसायटी के लिए कोई मशीन नहीं मिली। आप मशीन प्रबंधन अनुभाग से पहले मशीनें जोड़ सकते हैं, या बिना मशीन असाइन किए आगे बढ़ सकते हैं।',
+    
+    // Required
     requiredField: '*',
     required: 'आवश्यक',
   },

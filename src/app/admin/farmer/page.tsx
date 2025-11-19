@@ -404,21 +404,6 @@ const FarmerManagement = () => {
     });
   };
 
-  // Expand all societies
-  const expandAllSocieties = () => {
-    const allSocietyIds = new Set(
-      farmers
-        .filter(f => f.societyId)
-        .map(f => f.societyId as number)
-    );
-    setExpandedSocieties(allSocietyIds);
-  };
-
-  // Collapse all societies
-  const collapseAllSocieties = () => {
-    setExpandedSocieties(new Set());
-  };
-
   // Toggle society selection
   const toggleSocietySelection = (societyId: number, farmerIds: number[]) => {
     setSelectedSocieties(prev => {
@@ -1565,7 +1550,7 @@ const FarmerManagement = () => {
               if (error) {
                 setFieldErrors(prev => ({ ...prev, contactNumber: error }));
               } else {
-                const { contactNumber, ...rest } = fieldErrors;
+                const { contactNumber: _removed, ...rest } = fieldErrors;
                 setFieldErrors(rest);
               }
             }}

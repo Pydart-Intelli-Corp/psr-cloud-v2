@@ -392,18 +392,42 @@ export const ml: TranslationKeys = {
     noMachinesAvailable: 'മെഷീനുകൾ ലഭ്യമല്ല',
     addMachinesFirst: 'ദയവായി ആദ്യം മെഷീനുകൾ ചേർക്കുക.',
     
-    // വിശദാംശങ്ങൾ കാണുക
+    // വിശദാംശങ്ങൾ കാണുക (കർഷക വിശദാംശങ്ങൾ പേജ്)
     farmerDetails: 'കർഷക വിശദാംശങ്ങൾ',
-    basicDetails: 'അടിസ്ഥാന വിശദാംശങ്ങൾ',
     basicInformation: 'അടിസ്ഥാന വിവരം',
-    contactAndSocietyInfo: 'ബന്ധപ്പെടാനുള്ള വിവരങ്ങളും സൊസൈറ്റി വിവരവും',
     contactInformation: 'ബന്ധപ്പെടാനുള്ള വിവരങ്ങൾ',
-    bankingDetails: 'ബാങ്കിംഗ് വിശദാംശങ്ങൾ',
+    contactAndSociety: 'ബന്ധപ്പെടാനുള്ള വിവരവും സൊസൈറ്റിയും',
     bankInformation: 'ബാങ്ക് വിവരങ്ങൾ',
-    additionalInfo: 'അധിക വിവരങ്ങൾ',
+    bankingDetails: 'ബാങ്കിംഗ് വിശദാംശങ്ങൾ',
     assignmentInformation: 'നിയമന വിവരങ്ങൾ',
-    backToList: 'പട്ടികയിലേക്ക് തിരിച്ചുപോകുക',
-    editThisFarmer: 'ഈ കർഷകനെ എഡിറ്റ് ചെയ്യുക',
+    additionalInfo: 'അധിക വിവരങ്ങൾ',
+    additionalInformation: 'അധിക വിവരങ്ങൾ',
+    basicDetails: 'അടിസ്ഥാന വിശദാംശങ്ങൾ',
+    contactAndSocietyInfo: 'ബന്ധപ്പെടാനുള്ള വിവരങ്ങളും സൊസൈറ്റി വിവരവും',
+    
+    // ടാബുകൾ
+    details: 'അടിസ്ഥാന വിശദാംശങ്ങൾ',
+    contact: 'ബന്ധപ്പെടാനുള്ള വിവരവും സൊസൈറ്റിയും',
+    banking: 'ബാങ്കിംഗ് വിശദാംശങ്ങൾ',
+    additional: 'അധിക വിവരങ്ങൾ',
+    
+    // വിശദാംശങ്ങൾ പേജ് പ്രവർത്തനങ്ങൾ
+    backToFarmers: 'കർഷകരിലേക്ക് മടങ്ങുക',
+    farmerNotFound: 'കർഷകനെ കണ്ടെത്തിയില്ല',
+    farmerNotFoundMessage: 'അഭ്യർത്ഥിച്ച കർഷകനെ കണ്ടെത്താനായില്ല.',
+    edit: 'എഡിറ്റ് ചെയ്യുക',
+    delete: 'ഇല്ലാതാക്കുക',
+    save: 'സംരക്ഷിക്കുക',
+    cancel: 'റദ്ദാക്കുക',
+    saveChanges: 'മാറ്റങ്ങൾ സംരക്ഷിക്കുക',
+    
+    // വിശദാംശങ്ങൾ പേജ് ലേബലുകൾ
+    accountNumber: 'അക്കൗണ്ട് നമ്പർ',
+    bonusAmount: 'ബോണസ് തുക',
+    createdAt: 'സൃഷ്ടിച്ചത്',
+    lastUpdated: 'അവസാനം അപ്‌ഡേറ്റ് ചെയ്തത്',
+    noAdditionalNotes: 'അധിക കുറിപ്പുകളൊന്നും ലഭ്യമല്ല.',
+    notAvailable: 'ലഭ്യമല്ല',
     
     // ഫോം പ്രവർത്തനങ്ങൾ
     createFarmer: 'കർഷകനെ സൃഷ്ടിക്കുക',
