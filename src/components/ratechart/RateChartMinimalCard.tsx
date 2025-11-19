@@ -316,7 +316,7 @@ export default function RateChartMinimalCard({
                               {societyName}
                             </h5>
                             <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              {societyData.downloaded}/{societyData.total}
+                              {societyData.downloadedMachines}/{societyData.totalMachines}
                             </span>
                           </div>
 
