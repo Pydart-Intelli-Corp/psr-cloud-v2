@@ -26,7 +26,7 @@ interface MachineResult {
  * - societyId: Society identifier (e.g., S-101)
  * - machineType: Machine type (e.g., LSE-SVWTBQ-12AH)
  * - version: Machine version (e.g., LE3.36)
- * - machineId: Machine identifier (e.g., Mm00102)
+ * - machineId: Machine identifier (e.g., MM223202)
  * - T30: Total tests count
  * - D1: Daily cleaning count
  * - W1: Weekly cleaning count
@@ -89,7 +89,7 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
-    // Parse input string format: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00102|T30|D1|W1|S8|G2|ENABLE|D2025-11-15_12:31:04
+    // Parse input string format: S-101|LSE-SVWTBQ-12AH|LE3.36|MM223202|T30|D1|W1|S8|G2|ENABLE|D2025-11-15_12:31:04
     const inputParts = inputString.split('|');
     
     if (inputParts.length !== 11) {

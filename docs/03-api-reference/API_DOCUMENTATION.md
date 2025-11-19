@@ -572,7 +572,7 @@ Get machines for current admin. **Requires: admin role**
   "data": [
     {
       "id": 1,
-      "machineId": "MCH001",
+      "machineId": "M2232",
       "machineType": "Milk Collection Unit",
       "societyId": 1,
       "societyName": "Farmers Cooperative Society",
@@ -603,7 +603,7 @@ Get machines filtered by society ID. **Requires: admin role**
   "data": [
     {
       "id": 1,
-      "machineId": "MCH001",
+      "machineId": "M2232",
       "machineType": "Milk Collection Unit",
       "societyId": 1,
       "societyName": "Farmers Cooperative Society",
@@ -712,7 +712,7 @@ Get farmers for current admin. **Requires: admin role**
       "societyId": 1,
       "societyName": "Farmers Cooperative Society",
       "machineId": 1,
-      "machineName": "MCH001 - Milk Collection Unit",
+      "machineName": "M2232 - Milk Collection Unit",
       "bmcId": 1,
       "bmcName": "Central BMC Unit",
       "cattleCount": 25,
@@ -1240,7 +1240,7 @@ All external API endpoints support both **numeric** and **alphanumeric** machine
 
 #### Numeric Machine IDs
 - **Format**: `M` followed by digits only
-- **Examples**: `M00001`, `M00123`, `M99999`
+- **Examples**: `M00001`, `M223223`, `M99999`
 - **Processing**: Leading zeros removed, parsed as integer
 - **Database Matching**: Direct integer comparison (`id = 1`)
 

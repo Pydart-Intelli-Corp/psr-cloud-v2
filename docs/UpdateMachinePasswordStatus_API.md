@@ -27,7 +27,7 @@ societyId|machineType|version|machineId|passwordType
 | **passwordType** | Password type to reset | `U` or `S` | Required |
 
 ### Machine ID Format
-- **Numeric**: `M00001`, `M00123` - Parsed as integer, matched by `id` field
+- **Numeric**: `M00001`, `M223223` - Parsed as integer, matched by `id` field
 - **Alphanumeric**: `M0000df`, `Mabc123` - Creates variants for flexible matching
 - **Variant Matching**: `M0000df` matches both `0000df` and `df` in database
 - **Validation**: Must start with `M`, followed by alphanumeric characters only

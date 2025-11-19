@@ -463,7 +463,7 @@ Final variants array: ["0000df", "df"]
 ### Supported Formats
 
 ✅ **Numeric**:
-- M00001, M00123, M01234
+- M00001, M223223, M01234
 - Automatically strips leading zeros
 - Converts to integer for matching
 
@@ -1165,7 +1165,7 @@ curl -X POST https://test.psr-v4.com/api/INVALID/MachineCorrection/GetLatestMach
 
 ### Integration Testing Checklist
 
-- [ ] Test with numeric machine IDs (M00001, M00123)
+- [ ] Test with numeric machine IDs (M00001, M223223)
 - [ ] Test with alphanumeric machine IDs (M0000df, M0001ab)
 - [ ] Test error handling for invalid IDs
 - [ ] Test error handling for network failures

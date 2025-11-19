@@ -42,11 +42,11 @@ interface MachineResult {
  * - D = Date/Timestamp (e.g., D2025-11-17_15:32:42)
  * 
  * Examples (Format 1 with double pipe): 
- * S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101||1|F+0.00|S+0.00|C+0.03|T+0.00|W+0.00|P+0.00|D2025-11-17_15:32:42
+ * S-101|LSE-SVWTBQ-12AH|LE3.36|MM223201||1|F+0.00|S+0.00|C+0.03|T+0.00|W+0.00|P+0.00|D2025-11-17_15:32:42
  * 2121|ECOD-G|LE2.00|M00000003||2|F+0.16|S-1.00|C+0.00|T+0.00|W+00|P+0.00|D2025-11-06_01:04:05
  * 
  * Examples (Format 2 without double pipe): 
- * S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101|1|F+0.00|S+0.00|C+0.03|T+0.00|W+0.00|P+0.00|D2025-11-17_15:32:42
+ * S-101|LSE-SVWTBQ-12AH|LE3.36|MM223201|1|F+0.00|S+0.00|C+0.03|T+0.00|W+0.00|P+0.00|D2025-11-17_15:32:42
  * 2121|ECOD-G|LE2.00|M00000003|2|F+0.16|S-1.00|C+0.00|T+0.00|W+00|P+0.00|D2025-11-06_01:04:05
  * 
  * Endpoint: GET/POST /api/[db-key]/MachineCorrection/SaveMachineCorrectionFromMachine
@@ -116,12 +116,12 @@ async function handleRequest(
     
     if (inputParts.length >= 13) {
       // Format 1: Has empty field between machineId and channel (double pipe ||)
-      // Example: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101||2|F+0.00|S+0.00|...
+      // Example: S-101|LSE-SVWTBQ-12AH|LE3.36|MM223201||2|F+0.00|S+0.00|...
       [societyIdStr, machineType, machineModel, machineId, , channelStr, fatStr, snfStr, clrStr, tempStr, waterStr, proteinStr, timestampStr] = inputParts;
       console.log(`📋 Using Format 1 (with double pipe): ${inputParts.length} parts`);
     } else if (inputParts.length >= 12) {
       // Format 2: No empty field (single pipe between machineId and channel)
-      // Example: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00101|2|F+0.00|S+0.00|...
+      // Example: S-101|LSE-SVWTBQ-12AH|LE3.36|MM223201|2|F+0.00|S+0.00|...
       [societyIdStr, machineType, machineModel, machineId, channelStr, fatStr, snfStr, clrStr, tempStr, waterStr, proteinStr, timestampStr] = inputParts;
       console.log(`📋 Using Format 2 (without double pipe): ${inputParts.length} parts`);
     } else {

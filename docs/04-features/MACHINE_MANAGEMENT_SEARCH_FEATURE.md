@@ -21,7 +21,7 @@ Added advanced search functionality to Machine Management, matching the same cap
 
 ### 2. Multi-Field Search
 Searches across the following machine fields:
-- ✅ Machine ID (e.g., "M001", "AMC-2024-001")
+- ✅ Machine ID (e.g., "M2232", "AMC-2024-001")
 - ✅ Machine Type (e.g., "AMCUPro", "Lactoscan")
 - ✅ Society Name (e.g., "Green Valley Dairy")
 - ✅ Society Identifier (e.g., "GVD001")
@@ -188,9 +188,9 @@ const filteredMachines = machines.filter(machine => {
 
 ### Example 1: Search by Machine ID
 ```
-Search: "M001"
-Results: All machines with "M001" in their ID
-Highlight: Machine ID field shows "M001" highlighted
+Search: "M2232"
+Results: All machines with "M2232" in their ID
+Highlight: Machine ID field shows "M2232" highlighted
 ```
 
 ### Example 2: Search by Operator
@@ -358,7 +358,7 @@ Font: Inherits from parent
 ### Potential Improvements
 1. **Advanced Search**
    - Regex pattern support
-   - Field-specific search (e.g., "id:M001")
+   - Field-specific search (e.g., "id:M2232")
    - Date range filtering
 
 2. **Search History**

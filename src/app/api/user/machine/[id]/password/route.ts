@@ -48,6 +48,9 @@ export async function PUT(
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
     // Determine password status based on provided passwords
+    // Status 1 = Password set (ready to inject)
+    // Status 0 = No password OR password already injected (managed by ESP32)
+    // When setting a new password, we set status to 1 so ESP32 knows to download it
     const statusU = userPassword ? 1 : 0;
     const statusS = supervisorPassword ? 1 : 0;
 
@@ -65,8 +68,8 @@ export async function PUT(
 
     const [results] = await sequelize.query(updateQuery, {
       replacements: [
-        userPassword,  // Store for external API access
-        supervisorPassword,  // Store for external API access
+        userPassword || null,  // Store for external API access
+        supervisorPassword || null,  // Store for external API access
         statusU,
         statusS,
         id

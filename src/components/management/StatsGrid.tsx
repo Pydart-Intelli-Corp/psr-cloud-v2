@@ -31,15 +31,18 @@ const StatsGrid = <T extends ItemWithStatus>({
     return items.filter(item => item.status === status).length;
   };
 
-  const formatValue = (filteredCount: number, totalCount: number) => {
-    return hasFilters ? `${filteredCount}/${totalCount}` : totalCount;
-  };
+  // Always use allItems for constant display values
+  const totalCount = allItems.length;
+  const activeCount = getStatusCount(allItems, 'active');
+  const inactiveCount = getStatusCount(allItems, 'inactive');
+  const suspendedCount = getStatusCount(allItems, 'suspended');
+  const maintenanceCount = getStatusCount(allItems, 'maintenance');
 
   return (
     <div className="grid grid-cols-2 xs:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
       <StatsCard
         title="Total"
-        value={hasFilters ? `${filteredItems.length}/${allItems.length}` : allItems.length}
+        value={totalCount}
         icon={<Users className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="green"
         className="p-2 sm:p-3"
@@ -50,10 +53,7 @@ const StatsGrid = <T extends ItemWithStatus>({
       
       <StatsCard
         title="Active"
-        value={formatValue(
-          getStatusCount(filteredItems, 'active'),
-          getStatusCount(allItems, 'active')
-        )}
+        value={activeCount}
         icon={<UserCheck className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="green"
         className="p-2 sm:p-3"
@@ -64,10 +64,7 @@ const StatsGrid = <T extends ItemWithStatus>({
 
       <StatsCard
         title="Inactive"
-        value={formatValue(
-          getStatusCount(filteredItems, 'inactive'),
-          getStatusCount(allItems, 'inactive')
-        )}
+        value={inactiveCount}
         icon={<UserX className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="red"
         className="p-2 sm:p-3"
@@ -78,10 +75,7 @@ const StatsGrid = <T extends ItemWithStatus>({
 
       <StatsCard
         title="Suspended"
-        value={formatValue(
-          getStatusCount(filteredItems, 'suspended'),
-          getStatusCount(allItems, 'suspended')
-        )}
+        value={suspendedCount}
         icon={<AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="yellow"
         className="p-2 sm:p-3"
@@ -92,10 +86,7 @@ const StatsGrid = <T extends ItemWithStatus>({
 
       <StatsCard
         title="Maintenance"
-        value={formatValue(
-          getStatusCount(filteredItems, 'maintenance'),
-          getStatusCount(allItems, 'maintenance')
-        )}
+        value={maintenanceCount}
         icon={<AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />}
         color="blue"
         className="p-2 sm:p-3"

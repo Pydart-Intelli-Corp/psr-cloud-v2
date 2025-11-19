@@ -301,7 +301,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
   "success": true,
   "data": {
     "id": 1,
-    "machineId": "MCH001",
+    "machineId": "M2232",
     "activeChartsCount": 2,
     "chartDetails": "COW:price_chart_cow.csv:pending|||BUF:price_chart_buf.csv:downloaded"
   }

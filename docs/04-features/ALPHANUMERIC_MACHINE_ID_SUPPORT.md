@@ -19,7 +19,7 @@ All external API endpoints now support both **numeric** (e.g., `M00001`) and **a
 ## Machine ID Format
 
 ### Valid Formats
-1. **Numeric**: `M00001`, `M00123`, `M99999`
+1. **Numeric**: `M00001`, `M223223`, `M99999`
    - Must start with `M` followed by digits only
    - Leading zeros are preserved in database matching
    - Parsed as integer for backward compatibility

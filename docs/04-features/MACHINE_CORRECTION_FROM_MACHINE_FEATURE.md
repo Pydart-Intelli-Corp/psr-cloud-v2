@@ -42,7 +42,7 @@ Day 2 (Jan 16):
   "data": [
     {
       "id": 123,
-      "machineId": "M001",
+      "machineId": "M2232",
       "channel1": { "fat": "0.10", "snf": "-0.05", ... },
       "channel2": { ... },
       "channel3": { ... },
@@ -52,7 +52,7 @@ Day 2 (Jan 16):
     },
     {
       "id": 122,
-      "machineId": "M001",
+      "machineId": "M2232",
       "date": "1/14/2025",
       ...
     }

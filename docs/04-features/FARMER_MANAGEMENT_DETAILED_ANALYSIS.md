@@ -291,7 +291,7 @@ interface Farmer {
       societyName: "Green Valley Dairy",
       societyIdentifier: "GVD001",
       machineId: 3,
-      machineName: "M001",
+      machineName: "M2232",
       machineType: "AMCUPro",
       status: "active",
       notes: "Premium farmer",
@@ -1880,7 +1880,7 @@ const fetchMachinesBySociety = async (societyId: string) => {
 
 ```typescript
 // Farmers can be queried by external systems
-// GET /api/external/farmer?machineId=M001&farmerId=F001
+// GET /api/external/farmer?machineId=M2232&farmerId=F001
 // Authentication: db-key header + machineId validation
 
 // Used by milk collection machines for:

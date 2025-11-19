@@ -117,7 +117,7 @@ Consistent form buttons with loading states.
         label="Machine ID"
         value={formData.machineId}
         onChange={(value) => setFormData({ ...formData, machineId: value })}
-        placeholder="e.g., MCH001"
+        placeholder="e.g., M2232"
         required
         error={fieldErrors.machineId}
         colSpan={2}

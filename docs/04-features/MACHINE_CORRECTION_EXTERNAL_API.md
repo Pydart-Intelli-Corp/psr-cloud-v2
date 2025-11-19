@@ -32,7 +32,7 @@ societyId|machineType|version|machineId
 | `machineId` | Machine ID with M prefix | `M00001`, `M0000df` | Supports alphanumeric |
 
 ### Machine ID Format
-- **Numeric**: `M00001`, `M00123` - Parsed as integer, backward compatible
+- **Numeric**: `M00001`, `M223223` - Parsed as integer, backward compatible
 - **Alphanumeric**: `M0000df`, `Mabc123` - Creates variants for flexible matching
 - **Variant Matching**: `M0000df` matches both `0000df` and `df` in database
 - **Validation**: Must start with `M`, followed by letters/numbers only

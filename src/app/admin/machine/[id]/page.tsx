@@ -2197,7 +2197,7 @@ export default function MachineDetails() {
               label="Machine ID"
               value={formData.machineId}
               onChange={(value) => setFormData({ ...formData, machineId: value })}
-              placeholder="e.g., MCH001, BMU-2024-001"
+              placeholder="e.g., M2232, S3232"
               required
               error={fieldErrors.machineId}
               colSpan={2}

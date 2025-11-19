@@ -23,7 +23,7 @@
 ## 📋 What You Can Search
 
 ### Machine Information
-- **Machine ID**: "M001", "AMC-2024-001"
+- **Machine ID**: "M2232", "AMC-2024-001"
 - **Machine Type**: "AMCUPro", "Lactoscan", "Ultrasonic"
 
 ### Society & Location
@@ -44,8 +44,8 @@
 
 ### Basic Search
 ```
-Search: "M001"
-→ Finds all machines with "M001" in any field
+Search: "M2232"
+→ Finds all machines with "M2232" in any field
 ```
 
 ### Partial Matching
@@ -168,9 +168,9 @@ When you search, matching text appears with:
 
 ### Find Specific Machine
 ```
-Goal: Find machine "M001"
+Goal: Find machine "M2232"
 Steps:
-1. Search: "M001"
+1. Search: "M2232"
 2. Click on the machine card
 Result: Machine details page opens
 ```

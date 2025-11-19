@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { 
   Settings, 
   MapPin,
@@ -46,7 +47,11 @@ import {
   BulkActionsToolbar,
   BulkDeleteConfirmModal,
   LoadingSnackbar,
-  FloatingActionButton
+  FloatingActionButton,
+  ViewModeToggle,
+  ManagementPageHeader,
+  FilterDropdown,
+  StatsGrid
 } from '@/components/management';
 
 interface Machine {
@@ -168,6 +173,7 @@ export default function MachineManagement() {
     machineId?: string;
     machineType?: string;
     societyId?: string;
+    contactPhone?: string;
   }>({});
 
   // Folder view state
@@ -895,83 +901,125 @@ export default function MachineManagement() {
 
   // Handle bulk delete
   const handleBulkDelete = async () => {
+    if (selectedMachines.size === 0) return;
+
+    // Close the confirmation modal immediately and show LoadingSnackbar
+    setShowDeleteConfirm(false);
     setIsDeletingBulk(true);
+    setUpdateProgress(0);
+    
     try {
       const token = localStorage.getItem('authToken');
-      if (!token) return;
+      setUpdateProgress(10);
+      
+      const ids = Array.from(selectedMachines);
+      setUpdateProgress(20);
+      
+      const response = await fetch(`/api/user/machine?ids=${encodeURIComponent(JSON.stringify(ids))}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setUpdateProgress(60);
 
-      const machineIds = Array.from(selectedMachines);
-      const deletePromises = machineIds.map(id =>
-        fetch(`/api/user/machine/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      );
-
-      const results = await Promise.allSettled(deletePromises);
-      const successCount = results.filter(r => r.status === 'fulfilled').length;
-      const failCount = results.filter(r => r.status === 'rejected').length;
-
-      if (successCount > 0) {
-        setSuccess(`Successfully deleted ${successCount} machine${successCount > 1 ? 's' : ''}`);
-        fetchMachines();
+      if (response.ok) {
+        setUpdateProgress(80);
+        await fetchMachines(); // Refresh the list
+        setUpdateProgress(95);
+        setSelectedMachines(new Set());
+        setSelectedSocieties(new Set());
+        setSelectAll(false);
+        setSuccess(`Successfully deleted ${ids.length} machine(s)${(statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''}`);
+        setError('');
+        setUpdateProgress(100);
+      } else {
+        const data = await response.json();
+        setError(data.message || 'Failed to delete selected machines');
+        setSuccess('');
       }
-      if (failCount > 0) {
-        setError(`Failed to delete ${failCount} machine${failCount > 1 ? 's' : ''}`);
-      }
-
-      setSelectedMachines(new Set());
-      setSelectAll(false);
-      setShowDeleteConfirm(false);
     } catch (error) {
-      console.error('Error in bulk delete:', error);
-      setError('Failed to delete machines');
+      console.error('Error deleting machines:', error);
+      setError('Error deleting selected machines');
+      setSuccess('');
     } finally {
       setIsDeletingBulk(false);
+      setUpdateProgress(0);
     }
   };
 
 
 
   // Handle bulk status update
-  const handleBulkStatusUpdate = async () => {
+  const handleBulkStatusUpdate = async (newStatus?: string) => {
+    if (selectedMachines.size === 0) return;
+
+    const statusToUpdate = newStatus || bulkStatus;
     setIsUpdatingStatus(true);
     setUpdateProgress(0);
+
     try {
+      // Step 1: Get token (5%)
       const token = localStorage.getItem('authToken');
-      if (!token) return;
-
+      setUpdateProgress(5);
+      
+      // Step 2: Prepare machine IDs (10%)
       const machineIds = Array.from(selectedMachines);
-      const total = machineIds.length;
-      let completed = 0;
+      const totalMachines = machineIds.length;
+      setUpdateProgress(10);
+      
+      console.log(`🔄 Bulk updating ${totalMachines} machines to status: ${statusToUpdate}`);
+      
+      // Step 3: Single bulk update API call (10% to 90%)
+      setUpdateProgress(30);
+      const response = await fetch('/api/user/machine', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bulkStatusUpdate: true,
+          machineIds: machineIds,
+          status: statusToUpdate
+        })
+      });
 
-      for (const id of machineIds) {
-        try {
-          await fetch(`/api/user/machine/${id}/status`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ status: bulkStatus })
-          });
-          completed++;
-          setUpdateProgress(Math.round((completed / total) * 100));
-        } catch (err) {
-          console.error(`Failed to update machine ${id}:`, err);
-        }
+      setUpdateProgress(70);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update machine status');
       }
 
-      setSuccess(`Successfully updated ${completed} machine${completed > 1 ? 's' : ''} to ${bulkStatus}`);
-      fetchMachines();
+      const result = await response.json();
+      const updatedCount = result.data?.updated || totalMachines;
+      
+      // Step 4: Refresh data (90%)
+      setUpdateProgress(90);
+      await fetchMachines();
+      
+      // Step 5: Finalize (100%)
+      setUpdateProgress(100);
       setSelectedMachines(new Set());
+      setSelectedSocieties(new Set());
       setSelectAll(false);
+      
+      console.log(`✅ Successfully updated ${updatedCount} machines`);
+      
+      setSuccess(
+        `Successfully updated status to "${statusToUpdate}" for ${updatedCount} machine(s)${
+          (statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''
+        }`
+      );
+      setError('');
+
     } catch (error) {
-      console.error('Error in bulk status update:', error);
-      setError('Failed to update machine statuses');
+      console.error('Error updating machine status:', error);
+      setUpdateProgress(100);
+      setError(error instanceof Error ? error.message : 'Error updating machine status. Please try again.');
+      setSuccess('');
     } finally {
       setIsUpdatingStatus(false);
-      setUpdateProgress(0);
     }
   };
 
@@ -1088,16 +1136,61 @@ export default function MachineManagement() {
   };
 
   // Utility functions
-  const getPasswordStatusDisplay = (statusU: 0 | 1, statusS: 0 | 1) => {
-    if (statusU === 1 && statusS === 1) {
-      return { icon: <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: 'Both passwords set', className: 'text-green-600 dark:text-green-400' };
-    } else if (statusU === 1 && statusS === 0) {
-      return { icon: <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: 'User password only', className: 'text-yellow-600 dark:text-yellow-400' };
-    } else if (statusU === 0 && statusS === 1) {
-      return { icon: <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: 'Supervisor password only', className: 'text-blue-600 dark:text-blue-400' };
-    } else {
-      return { icon: <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: 'No passwords set', className: 'text-red-600 dark:text-red-400' };
+  const getPasswordStatusDisplay = (statusU: 0 | 1, statusS: 0 | 1, userPassword?: string, supervisorPassword?: string) => {
+    // Check if both passwords are set (not null/empty)
+    const hasUserPassword = userPassword && userPassword.trim() !== '';
+    const hasSupervisorPassword = supervisorPassword && supervisorPassword.trim() !== '';
+    
+    // Build status messages based on what's set
+    const statuses: string[] = [];
+    let icon = <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+    let className = 'text-red-600 dark:text-red-400';
+    
+    // Check user password
+    if (hasUserPassword) {
+      if (statusU === 1) {
+        statuses.push('User');
+        className = 'text-amber-600 dark:text-amber-400';
+        icon = <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+      } else {
+        statuses.push('User ✓');
+        className = 'text-green-600 dark:text-green-400';
+        icon = <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+      }
     }
+    
+    // Check supervisor password
+    if (hasSupervisorPassword) {
+      if (statusS === 1) {
+        statuses.push('Supervisor');
+        className = 'text-amber-600 dark:text-amber-400';
+        icon = hasUserPassword ? <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+      } else {
+        statuses.push('Supervisor ✓');
+        className = 'text-green-600 dark:text-green-400';
+        icon = hasUserPassword ? <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+      }
+    }
+    
+    // If both are set to inject, use amber color
+    if (hasUserPassword && hasSupervisorPassword && statusU === 1 && statusS === 1) {
+      className = 'text-amber-600 dark:text-amber-400';
+      icon = <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+    }
+    // If both are injected, use green color
+    else if (hasUserPassword && hasSupervisorPassword && statusU === 0 && statusS === 0) {
+      className = 'text-green-600 dark:text-green-400';
+      icon = <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+    }
+    // If mixed statuses, use amber (waiting for injection)
+    else if (hasUserPassword && hasSupervisorPassword && (statusU === 1 || statusS === 1)) {
+      className = 'text-amber-600 dark:text-amber-400';
+      icon = <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
+    }
+    
+    const text = statuses.length > 0 ? statuses.join(' | ') : 'No passwords';
+    
+    return { icon, text, className };
   };
 
   // Modal management
@@ -1197,6 +1290,9 @@ export default function MachineManagement() {
     e.preventDefault();
     if (!selectedMachine) return;
 
+    // Clear previous errors
+    setError('');
+
     // Check for live validation errors
     const hasErrors = Object.values(passwordErrors).some(error => error !== '');
     if (hasErrors) {
@@ -1215,9 +1311,38 @@ export default function MachineManagement() {
       return;
     }
 
+    if (passwordData.userPassword && passwordData.confirmUserPassword && 
+        passwordData.userPassword !== passwordData.confirmUserPassword) {
+      setError('User passwords do not match');
+      return;
+    }
+
     if (passwordData.supervisorPassword && !passwordData.confirmSupervisorPassword) {
       setError('Please confirm the supervisor password');
       return;
+    }
+
+    if (passwordData.supervisorPassword && passwordData.confirmSupervisorPassword && 
+        passwordData.supervisorPassword !== passwordData.confirmSupervisorPassword) {
+      setError('Supervisor passwords do not match');
+      return;
+    }
+
+    // Validate password format (must be 6 digits)
+    if (passwordData.userPassword) {
+      const userPwdError = validatePasswordFormat(passwordData.userPassword);
+      if (userPwdError) {
+        setError(`User password: ${userPwdError}`);
+        return;
+      }
+    }
+
+    if (passwordData.supervisorPassword) {
+      const supervisorPwdError = validatePasswordFormat(passwordData.supervisorPassword);
+      if (supervisorPwdError) {
+        setError(`Supervisor password: ${supervisorPwdError}`);
+        return;
+      }
     }
 
     // Check if applying to others and validate selection
@@ -1351,13 +1476,14 @@ export default function MachineManagement() {
       </div>
     )}
     
-    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 lg:pb-8">
+    <div className="p-3 xs:p-4 sm:p-6 lg:p-8 space-y-3 xs:space-y-4 sm:space-y-6 lg:pb-8">
       {/* Page Header */}
-      <PageHeader
+      <ManagementPageHeader
         title="Machine Management"
         subtitle="Manage dairy equipment and machinery across societies"
-        icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6" />}
+        icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
         onRefresh={fetchMachines}
+        hasData={filteredMachines.length > 0}
       />
 
         {/* Success/Error Messages */}
@@ -1367,219 +1493,60 @@ export default function MachineManagement() {
         />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
-          <StatsCard
-            title="Total Machines"
-            value={societyFilter !== 'all' || machineFilter !== 'all' ? 
-              `${filteredMachines.length}/${machines.length}` :
-              machines.length
-            }
-            icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="green"
-          />
-          
-          <StatsCard
-            title="Active"
-            value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-              `${filteredMachines.filter(m => m.status === 'active').length}/${machines.filter(m => m.status === 'active').length}` :
-              machines.filter(m => m.status === 'active').length
-            }
-            icon={<Wrench className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="green"
-          />
-
-          <StatsCard
-            title="Inactive"
-            value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-              `${filteredMachines.filter(m => m.status === 'inactive').length}/${machines.filter(m => m.status === 'inactive').length}` :
-              machines.filter(m => m.status === 'inactive').length
-            }
-            icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="red"
-          />
-
-          <StatsCard
-            title="Maintenance"
-            value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-              `${filteredMachines.filter(m => m.status === 'maintenance').length}/${machines.filter(m => m.status === 'maintenance').length}` :
-              machines.filter(m => m.status === 'maintenance').length
-            }
-            icon={<RefreshCw className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="yellow"
-          />
-
-          <StatsCard
-            title="Suspended"
-            value={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' ? 
-              `${filteredMachines.filter(m => m.status === 'suspended').length}/${machines.filter(m => m.status === 'suspended').length}` :
-              machines.filter(m => m.status === 'suspended').length
-            }
-            icon={<AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="yellow"
-          />
-        </div>
+        <StatsGrid
+          allItems={machines}
+          filteredItems={filteredMachines}
+          hasFilters={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all'}
+          onStatusFilterChange={(status) => setStatusFilter(status)}
+          currentStatusFilter={statusFilter}
+        />
 
         {/* Filter Controls */}
-        <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
-          {/* Header Info */}
-          <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
-            <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-              <Settings className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="font-medium text-xs sm:text-sm">{`${filteredMachines.length}/${machines.length} machines`}</span>
-            </div>
-            {searchQuery && (
-              <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-700 dark:text-blue-300 text-xs font-medium">
-                <span>&ldquo;{searchQuery}&rdquo;</span>
-              </div>
-            )}
-          </div>
-          
-          {/* Filters Grid - Mobile First */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-            {/* Status Filter */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-xs sm:text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="suspended">Suspended</option>
-              </select>
-            </div>
+        <FilterDropdown
+          statusFilter={statusFilter}
+          onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
+          societyFilter={societyFilter}
+          onSocietyChange={setSocietyFilter}
+          machineFilter={machineFilter}
+          onMachineChange={setMachineFilter}
+          societies={societies}
+          machines={machineTypes.map(mt => ({ id: mt.id, machineId: mt.machineType, machineType: mt.machineType }))}
+          filteredCount={filteredMachines.length}
+          totalCount={machines.length}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          icon={<Settings className="w-5 h-5" />}
+        />
 
-            {/* Society Filter */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                Society
-              </label>
-              <select
-                value={societyFilter}
-                onChange={(e) => setSocietyFilter(e.target.value)}
-                className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-xs sm:text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-              >
-                <option value="all">All Societies</option>
-                {societies.map(society => (
-                  <option key={society.id} value={society.id.toString()}>
-                    {society.name} ({society.society_id})
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Select All and View Mode Controls */}
+      {filteredMachines.length > 0 && (
+        <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+          {/* Select All Control - Left Side */}
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectAll}
+              onChange={handleSelectAll}
+              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Select All {filteredMachines.length} {filteredMachines.length === 1 ? 'machine' : 'machines'}
+              {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') && ` (filtered)`}
+            </span>
+          </label>
 
-            {/* Machine Filter - Shows only machines from selected society */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                Machine
-              </label>
-              <select
-                value={machineFilter}
-                onChange={(e) => setMachineFilter(e.target.value)}
-                className="w-full px-2 sm:px-3 py-1.5 sm:py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-xs sm:text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-              >
-                <option value="all">All Machines</option>
-                {machines
-                  .filter(machine => 
-                    societyFilter === 'all' || 
-                    machine.societyId?.toString() === societyFilter
-                  )
-                  .map(machine => (
-                    <option key={machine.id} value={machine.id.toString()}>
-                      {machine.machineId} - {machine.machineType}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {/* Clear Filters Button */}
-            <div className="flex items-end">
-              {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' || searchQuery) && (
-                <button
-                  onClick={() => {
-                    setStatusFilter('all');
-                    setSocietyFilter('all');
-                    setMachineFilter('all');
-                    setSearchQuery('');
-                  }}
-                  className="w-full xs:w-auto px-3 py-1.5 sm:py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                >
-                  Clear Filters
-                </button>
-              )}
-            </div>
+          {/* View Mode Toggle - Right Side */}
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            <ViewModeToggle
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              folderLabel="Folder View"
+              listLabel="Grid View"
+            />
           </div>
         </div>
-
-        {/* View Mode Toggle and Folder Controls */}
-        {filteredMachines.length > 0 && (
-          <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Select All Checkbox */}
-              <label className="flex items-center space-x-2 cursor-pointer px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={selectAll}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select All ({filteredMachines.length})
-                </span>
-              </label>
-
-              {/* Selected Count and Deselect All */}
-              {selectedMachines.size > 0 && (
-                <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
-                  <span className="text-xs sm:text-sm text-green-600 dark:text-green-400 font-medium">
-                    {selectedMachines.size} selected
-                  </span>
-                  <button
-                    onClick={() => {
-                      setSelectedMachines(new Set());
-                      setSelectedSocieties(new Set());
-                      setSelectAll(false);
-                    }}
-                    className="px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                  >
-                    Deselect All
-                  </button>
-                </div>
-              )}
-
-              {/* View Mode Toggle */}
-              <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('folder')}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
-                    viewMode === 'folder'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Folder className="w-4 h-4" />
-                  <span>Folder View</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>List View</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+      )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12 sm:py-20">
@@ -1624,11 +1591,11 @@ export default function MachineManagement() {
                   return (
                     <div 
                       key={society.id} 
-                      className={`bg-white dark:bg-gray-800 rounded-lg border ${
+                      className={`relative bg-white dark:bg-gray-800 rounded-lg border-2 transition-colors hover:z-10 ${
                         isSocietySelected 
                           ? 'border-blue-500 dark:border-blue-400' 
                           : 'border-gray-200 dark:border-gray-700'
-                      } overflow-hidden`}
+                      }`}
                     >
                       {/* Society Folder Header */}
                       <div className="flex items-center">
@@ -1706,8 +1673,8 @@ export default function MachineManagement() {
                         <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
                           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {society.machines.map((machine) => (
+                              <div key={machine.id} className="relative hover:z-20">
                               <ItemCard
-                                key={machine.id}
                                 id={machine.id}
                                 name={machine.machineId}
                                 identifier={machine.machineType}
@@ -1779,7 +1746,7 @@ export default function MachineManagement() {
                                   })(),
                                   // Password Status Display
                                   (() => {
-                                    const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS);
+                                    const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword);
                                     return { 
                                       icon: passwordDisplay.icon, 
                                       text: passwordDisplay.text,
@@ -1793,6 +1760,7 @@ export default function MachineManagement() {
                                 onStatusChange={(status) => handleStatusChange(machine, status as 'active' | 'inactive' | 'maintenance' | 'suspended')}
                                 viewText="View"
                               />
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -1886,7 +1854,7 @@ export default function MachineManagement() {
                     })(),
                     // Password Status Display
                     (() => {
-                      const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS);
+                      const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword);
                       return { 
                         icon: passwordDisplay.icon, 
                         text: passwordDisplay.text,
@@ -1931,7 +1899,7 @@ export default function MachineManagement() {
               label="Machine ID"
               value={formData.machineId}
               onChange={(value) => setFormData({ ...formData, machineId: value })}
-              placeholder="e.g., MCH001, BMU-2024-001"
+              placeholder="e.g., M2232, S3232"
               required
               error={fieldErrors.machineId}
               colSpan={2}
@@ -1994,8 +1962,21 @@ export default function MachineManagement() {
               label="Contact Phone"
               type="tel"
               value={formData.contactPhone}
-              onChange={(value) => setFormData({ ...formData, contactPhone: value })}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                setFormData({ ...formData, contactPhone: formatted });
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.contactPhone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: error }));
+                } else {
+                  const { contactPhone: _removed, ...rest } = fieldErrors;
+                  setFieldErrors(rest);
+                }
+              }}
               placeholder="Operator contact number"
+              error={fieldErrors.contactPhone}
             />
 
             <FormSelect
@@ -2154,10 +2135,11 @@ export default function MachineManagement() {
               label="Machine ID"
               value={formData.machineId}
               onChange={(value) => setFormData({ ...formData, machineId: value })}
-              placeholder="e.g., MCH001, BMU-2024-001"
+              placeholder="e.g., M2232, S3232"
               required
               error={fieldErrors.machineId}
               colSpan={2}
+              readOnly
             />
 
             <FormSelect
@@ -2170,7 +2152,7 @@ export default function MachineManagement() {
               }))}
               placeholder="Select Machine Type"
               required
-              disabled={machineTypesLoading}
+              disabled={true}
               error={fieldErrors.machineType}
             />
 
@@ -2184,7 +2166,7 @@ export default function MachineManagement() {
               }))}
               placeholder="Select Society"
               required
-              disabled={societiesLoading}
+              disabled={true}
               error={fieldErrors.societyId}
             />
 
@@ -2213,8 +2195,21 @@ export default function MachineManagement() {
               label="Contact Phone"
               type="tel"
               value={formData.contactPhone}
-              onChange={(value) => setFormData({ ...formData, contactPhone: value })}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                setFormData({ ...formData, contactPhone: formatted });
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.contactPhone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: error }));
+                } else {
+                  const { contactPhone: _removed, ...rest } = fieldErrors;
+                  setFieldErrors(rest);
+                }
+              }}
               placeholder="Operator contact number"
+              error={fieldErrors.contactPhone}
             />
 
             <FormSelect

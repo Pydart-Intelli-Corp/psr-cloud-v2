@@ -38,7 +38,7 @@ interface MachineResult {
  * 
  * Purpose: Download rate chart data as CSV file
  * InputString format: societyId|machineType|version|machineId|channel
- * Example: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00102|COW
+ * Example: S-101|LSE-SVWTBQ-12AH|LE3.36|MM223202|COW
  * 
  * Response: CSV file with headers: Clr,Fat,Snf,Rate
  * 
@@ -96,7 +96,7 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
     }
 
-    // Parse input string format: S-101|LSE-SVWTBQ-12AH|LE3.36|Mm00102|COW
+    // Parse input string format: S-101|LSE-SVWTBQ-12AH|LE3.36|MM223202|COW
     const inputParts = inputString.split('|');
     
     if (inputParts.length !== 5) {

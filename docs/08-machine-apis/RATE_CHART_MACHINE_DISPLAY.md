@@ -142,7 +142,7 @@ The rate chart information appears in the machine card details section:
 ### Machine Card with Pending Charts
 ```
 ┌─────────────────────────────────────┐
-│ 🔧 MCH001                    Active │
+│ 🔧 M2232                    Active │
 │                                      │
 │ 📍 Main Hall                        │
 │ 👤 John Doe                         │

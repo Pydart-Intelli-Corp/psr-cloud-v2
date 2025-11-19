@@ -335,7 +335,9 @@ export async function GET(request: NextRequest) {
       status: machine.status,
       notes: machine.notes,
       isMasterMachine: machine.is_master_machine === 1,
-      // Don't include actual passwords in response for security
+      // Include passwords for admin to check if they're set (needed for ESP32 download too)
+      userPassword: machine.user_password,
+      supervisorPassword: machine.supervisor_password,
       statusU: machine.statusU,
       statusS: machine.statusS,
       createdAt: machine.created_at,
@@ -373,11 +375,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, machineId, machineType, societyId, location, installationDate, operatorName, contactPhone, status, notes } = body;
-
-    if (!id) {
-      return createErrorResponse('Machine ID is required', 400);
-    }
 
     await connectDB();
     const { getModels } = await import('@/models');
@@ -392,6 +389,49 @@ export async function PUT(request: NextRequest) {
     // Generate schema name
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+    // Check if this is a bulk status update
+    if (body.bulkStatusUpdate && Array.isArray(body.machineIds)) {
+      const { machineIds, status: newStatus } = body;
+      
+      if (!newStatus || machineIds.length === 0) {
+        return createErrorResponse('Status and machine IDs are required for bulk update', 400);
+      }
+
+      console.log(`🔄 Processing bulk status update for ${machineIds.length} machines to status: ${newStatus}`);
+
+      // Use a single UPDATE query with IN clause for better performance
+      const placeholders = machineIds.map(() => '?').join(',');
+      const query = `
+        UPDATE \`${schemaName}\`.machines 
+        SET status = ?, updated_at = NOW()
+        WHERE id IN (${placeholders})
+      `;
+
+      const replacements = [newStatus, ...machineIds];
+      const [result] = await sequelize.query(query, { replacements });
+
+      // Check affected rows
+      const affectedRows = (result as any).affectedRows || 0;
+      
+      console.log(`✅ Successfully updated status for ${affectedRows} machines in schema: ${schemaName}`);
+      
+      if (affectedRows === 0) {
+        return createErrorResponse('No machines were updated', 404);
+      }
+
+      return createSuccessResponse(
+        `Successfully updated status to "${newStatus}" for ${affectedRows} machine(s)`, 
+        { updated: affectedRows }
+      );
+    }
+
+    // Single machine update
+    const { id, machineId, machineType, societyId, location, installationDate, operatorName, contactPhone, status, notes } = body;
+
+    if (!id) {
+      return createErrorResponse('Machine ID is required', 400);
+    }
 
     // Check if machine exists
     const existsQuery = `
@@ -487,9 +527,10 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const idsParam = searchParams.get('ids');
 
-    if (!id) {
-      return createErrorResponse('Machine ID is required', 400);
+    if (!id && !idsParam) {
+      return createErrorResponse('Machine ID(s) required', 400);
     }
 
     await connectDB();
@@ -506,32 +547,58 @@ export async function DELETE(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Check if machine exists
-    const existsQuery = `
-      SELECT id FROM \`${schemaName}\`.machines 
-      WHERE id = ? LIMIT 1
-    `;
-    
-    const [exists] = await sequelize.query(existsQuery, {
-      replacements: [id]
-    });
+    if (idsParam) {
+      // Bulk delete
+      const ids = JSON.parse(idsParam).map((id: string) => parseInt(id)).filter((id: number) => !isNaN(id));
+      
+      if (ids.length === 0) {
+        return createErrorResponse('No valid machine IDs provided', 400);
+      }
 
-    if (exists.length === 0) {
-      return createErrorResponse('Machine not found', 404);
+      // First verify all machines exist
+      const placeholders = ids.map(() => '?').join(',');
+      const verifyQuery = `SELECT id FROM \`${schemaName}\`.machines WHERE id IN (${placeholders})`;
+      const [verification] = await sequelize.query(verifyQuery, { replacements: ids });
+      
+      if (!Array.isArray(verification) || verification.length !== ids.length) {
+        return createErrorResponse('One or more machines not found', 404);
+      }
+
+      // Delete the machines
+      const deleteQuery = `DELETE FROM \`${schemaName}\`.machines WHERE id IN (${placeholders})`;
+      await sequelize.query(deleteQuery, { replacements: ids });
+
+      console.log(`✅ Successfully deleted ${ids.length} machines from schema: ${schemaName}`);
+      return createSuccessResponse(`Successfully deleted ${ids.length} machines`, null);
+    } else {
+      // Single delete
+      // Check if machine exists
+      const existsQuery = `
+        SELECT id FROM \`${schemaName}\`.machines 
+        WHERE id = ? LIMIT 1
+      `;
+      
+      const [exists] = await sequelize.query(existsQuery, {
+        replacements: [id]
+      });
+
+      if (exists.length === 0) {
+        return createErrorResponse('Machine not found', 404);
+      }
+
+      // Delete machine
+      const deleteQuery = `
+        DELETE FROM \`${schemaName}\`.machines 
+        WHERE id = ?
+      `;
+
+      await sequelize.query(deleteQuery, {
+        replacements: [id]
+      });
+
+      console.log(`✅ Machine deleted successfully from schema: ${schemaName}`);
+      return createSuccessResponse('Machine deleted successfully');
     }
-
-    // Delete machine
-    const deleteQuery = `
-      DELETE FROM \`${schemaName}\`.machines 
-      WHERE id = ?
-    `;
-
-    await sequelize.query(deleteQuery, {
-      replacements: [id]
-    });
-
-    console.log(`✅ Machine deleted successfully from schema: ${schemaName}`);
-    return createSuccessResponse('Machine deleted successfully');
 
   } catch (error) {
     console.error('Error deleting machine:', error);

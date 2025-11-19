@@ -702,12 +702,13 @@ export default function RatechartManagement() {
   };
 
   // Calculate stats - only count unique master charts
-  const uniqueCharts = Object.keys(groupedCharts).length;
+  const allMasterCharts = rateCharts.filter(chart => chart.shared_chart_id === null);
+  const uniqueCharts = allMasterCharts.length;
   // Count only valid assignments (those with a master chart or valid shared reference)
-  const totalAssignments = filteredRateCharts.length;
-  const cowCharts = masterCharts.filter(c => c.channel === 'COW').length;
-  const bufCharts = masterCharts.filter(c => c.channel === 'BUF').length;
-  const mixCharts = masterCharts.filter(c => c.channel === 'MIX').length;
+  const totalAssignments = rateCharts.length;
+  const cowCharts = allMasterCharts.filter(c => c.channel === 'COW').length;
+  const bufCharts = allMasterCharts.filter(c => c.channel === 'BUF').length;
+  const mixCharts = allMasterCharts.filter(c => c.channel === 'MIX').length;
 
   if (loading) {
     return (
