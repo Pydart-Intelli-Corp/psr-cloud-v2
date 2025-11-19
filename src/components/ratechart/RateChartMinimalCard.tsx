@@ -47,7 +47,13 @@ const highlightText = (text: string, searchQuery: string) => {
 };
 
 // Helper function to render status indicator with download info
-const getStatusIndicator = (status: number, downloadStatus: DownloadStatus | null, isLoading: boolean) => {
+const getStatusIndicator = (
+  status: number, 
+  downloadStatus: DownloadStatus | null, 
+  isLoading: boolean,
+  onClick?: () => void,
+  hasDropdown?: boolean
+) => {
   if (isLoading) {
     return (
       <div className="flex items-center gap-1.5">
@@ -69,7 +75,7 @@ const getStatusIndicator = (status: number, downloadStatus: DownloadStatus | nul
 
   // If we have download status data
   if (downloadStatus) {
-    const { allDownloaded, totalDownloaded, totalMachines, totalPending } = downloadStatus;
+    const { allDownloaded, totalDownloaded, totalMachines } = downloadStatus;
 
     if (totalMachines === 0) {
       // No machines assigned
@@ -81,24 +87,31 @@ const getStatusIndicator = (status: number, downloadStatus: DownloadStatus | nul
       );
     }
 
+    const baseClasses = "flex items-center gap-1.5";
+    const clickableClasses = onClick 
+      ? "cursor-pointer hover:opacity-80 transition-opacity" 
+      : "";
+
     if (allDownloaded) {
       // All machines have downloaded
       return (
-        <div className="flex items-center gap-1.5">
+        <div className={`${baseClasses} ${clickableClasses}`} onClick={onClick}>
           <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
           <span className="text-xs font-medium text-green-600 dark:text-green-400">
             Downloaded ({totalDownloaded}/{totalMachines})
           </span>
+          {hasDropdown && <ChevronDown className="w-3 h-3 text-green-600 dark:text-green-400" />}
         </div>
       );
     } else {
       // Partial downloads
       return (
-        <div className="flex items-center gap-1.5">
+        <div className={`${baseClasses} ${clickableClasses}`} onClick={onClick}>
           <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
             Pending ({totalDownloaded}/{totalMachines})
           </span>
+          {hasDropdown && <ChevronDown className="w-3 h-3 text-blue-600 dark:text-blue-400" />}
         </div>
       );
     }
@@ -251,17 +264,120 @@ export default function RateChartMinimalCard({
                 {highlightText(channel, searchQuery)}
               </span>
               
-              {/* Status Indicator */}
-              <div className={`inline-flex items-center px-2.5 py-0.5 rounded-md ${
-                status === 0
-                  ? 'bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800'
-                  : downloadStatus?.allDownloaded
-                  ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                  : downloadStatus?.totalMachines === 0
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
-                  : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-              }`}>
-                {getStatusIndicator(status, downloadStatus, loadingStatus)}
+              {/* Status Indicator - Now Clickable with Dropdown */}
+              <div className="relative">
+                <div className={`inline-flex items-center px-2.5 py-0.5 rounded-md ${
+                  status === 0
+                    ? 'bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800'
+                    : downloadStatus?.allDownloaded
+                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                    : downloadStatus?.totalMachines === 0
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
+                    : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                }`}>
+                  {getStatusIndicator(
+                    status,
+                    downloadStatus,
+                    loadingStatus,
+                    downloadStatus && downloadStatus.totalMachines > 0
+                      ? () => setShowMachineStatusDropdown(!showMachineStatusDropdown)
+                      : undefined,
+                    downloadStatus && downloadStatus.totalMachines > 0
+                  )}
+                </div>
+
+                {/* Compact Machine Status Dropdown */}
+                {showMachineStatusDropdown && downloadStatus && downloadStatus.totalMachines > 0 && (
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 max-h-80 overflow-y-auto">
+                    {/* Dropdown Header */}
+                    <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-t-lg flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
+                          {downloadStatus.totalDownloaded}/{downloadStatus.totalMachines} Downloaded
+                        </h4>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMachineStatusDropdown(false);
+                        }}
+                        className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Society-wise Machine List */}
+                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {Object.entries(downloadStatus.societies).map(([societyName, societyData]) => (
+                        <div key={societyName} className="p-2">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+                              {societyName}
+                            </h5>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                              {societyData.downloaded}/{societyData.total}
+                            </span>
+                          </div>
+
+                          {/* Downloaded Machines */}
+                          {societyData.machines.filter(m => m.downloaded).length > 0 && (
+                            <div className="mb-1.5">
+                              <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1 flex items-center gap-1">
+                                <CheckCircle className="w-2.5 h-2.5" />
+                                <span>Done</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                {societyData.machines
+                                  .filter(m => m.downloaded)
+                                  .map((machine) => (
+                                    <div
+                                      key={machine.id}
+                                      className="text-xs bg-green-50 dark:bg-green-900/20 rounded px-1.5 py-1"
+                                    >
+                                      <div className="font-medium text-green-700 dark:text-green-300 truncate">
+                                        {machine.machineId}
+                                      </div>
+                                      <div className="text-[10px] text-green-600 dark:text-green-400 truncate">
+                                        {machine.machineType} • {machine.location}
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Pending Machines */}
+                          {societyData.machines.filter(m => !m.downloaded).length > 0 && (
+                            <div>
+                              <div className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5" />
+                                <span>Pending</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                {societyData.machines
+                                  .filter(m => !m.downloaded)
+                                  .map((machine) => (
+                                    <div
+                                      key={machine.id}
+                                      className="text-xs bg-amber-50 dark:bg-amber-900/20 rounded px-1.5 py-1"
+                                    >
+                                      <div className="font-medium text-amber-700 dark:text-amber-300 truncate">
+                                        {machine.machineId}
+                                      </div>
+                                      <div className="text-[10px] text-amber-600 dark:text-amber-400 truncate">
+                                        {machine.machineType} • {machine.location}
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -425,122 +541,6 @@ export default function RateChartMinimalCard({
           </div>
         )}
       </div>
-
-      {/* Machine Download Status Section */}
-      {status === 1 && downloadStatus && downloadStatus.totalMachines > 0 && !downloadStatus.allDownloaded && (
-        <div className="relative bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
-          <button
-            onClick={() => setShowMachineStatusDropdown(!showMachineStatusDropdown)}
-            className="w-full flex items-center justify-between text-sm font-medium text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              <span>Machine Status: {downloadStatus.totalDownloaded} of {downloadStatus.totalMachines} downloaded</span>
-            </div>
-            {showMachineStatusDropdown ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-          </button>
-
-          {/* Machine Status Dropdown */}
-          {showMachineStatusDropdown && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden max-h-96 overflow-y-auto">
-              {Object.values(downloadStatus.societies).map((societyStatus) => (
-                <div key={societyStatus.societyId} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-                  <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {societyStatus.societyName}
-                      </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {societyStatus.downloadedMachines}/{societyStatus.totalMachines}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {societyStatus.machines.length > 0 ? (
-                    <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {/* Downloaded Machines */}
-                      {societyStatus.machines.filter(m => m.downloaded).length > 0 && (
-                        <div>
-                          <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20">
-                            <span className="text-xs font-medium text-green-700 dark:text-green-300">
-                              ✓ Downloaded ({societyStatus.machines.filter(m => m.downloaded).length})
-                            </span>
-                          </div>
-                          {societyStatus.machines.filter(m => m.downloaded).map((machine) => (
-                            <div
-                              key={machine.id}
-                              className="px-4 py-2 hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                      {machine.machineId}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {machine.machineType} {machine.location && `• ${machine.location}`}
-                                    </p>
-                                  </div>
-                                </div>
-                                {machine.downloadedAt && (
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {new Date(machine.downloadedAt).toLocaleDateString('en-US', { 
-                                      month: 'short', 
-                                      day: 'numeric'
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Pending Machines */}
-                      {societyStatus.machines.filter(m => !m.downloaded).length > 0 && (
-                        <div>
-                          <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20">
-                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                              ⏳ Pending ({societyStatus.machines.filter(m => !m.downloaded).length})
-                            </span>
-                          </div>
-                          {societyStatus.machines.filter(m => !m.downloaded).map((machine) => (
-                            <div
-                              key={machine.id}
-                              className="px-4 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {machine.machineId}
-                                  </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {machine.machineType} {machine.location && `• ${machine.location}`}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                      No machines assigned
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Remove Society Confirmation Modal */}
       <ConfirmDeleteModal
