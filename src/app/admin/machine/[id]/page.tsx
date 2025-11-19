@@ -28,7 +28,8 @@ import {
   Zap,
   PieChart,
   Download,
-  RefreshCw
+  RefreshCw,
+  MoreVertical
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -161,6 +162,7 @@ export default function MachineDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'statistics' | 'correction' | 'activity'>('overview');
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -1066,7 +1068,7 @@ export default function MachineDetails() {
         <div className="px-4 sm:px-6 py-3 sm:py-4">
           {/* Mobile: Stack layout */}
           <div className="flex flex-col gap-3 sm:gap-4">
-            {/* Top Row: Back button + Title */}
+            {/* Top Row: Back button + Title + 3-dot menu */}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/admin/machine')}
@@ -1090,30 +1092,64 @@ export default function MachineDetails() {
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{machine.machineType}</p>
                 </div>
               </div>
+              
+              {/* 3-dot menu dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="flex items-center justify-center p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors min-h-[44px] min-w-[44px]"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+                
+                {/* Dropdown Menu */}
+                {isMenuOpen && (
+                  <>
+                    {/* Backdrop to close menu */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setIsMenuOpen(false)}
+                    />
+                    
+                    {/* Menu Items */}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20"
+                    >
+                      <button
+                        onClick={() => {
+                          handleEditClick();
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
+                      >
+                        <Edit3 className="w-4 h-4 text-green-600 dark:text-green-500" />
+                        <span>{t.common?.edit || 'Edit'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleDeleteClick();
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-b-lg"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-500" />
+                        <span>{t.common?.delete || 'Delete'}</span>
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Bottom Row: Status + Actions */}
+            {/* Bottom Row: Status */}
             <div className="flex items-center justify-between gap-3">
               <span className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full border ${getStatusColor(machine.status)}`}>
                 {machine.status}
               </span>
-              
-              <div className="flex items-center gap-2 sm:gap-3">
-                <button 
-                  onClick={handleEditClick}
-                  className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-green-600 dark:text-green-500 border border-green-600 dark:border-green-500 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors min-h-[44px]"
-                >
-                  <Edit3 className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">{t.common?.edit || 'Edit'}</span>
-                </button>
-                <button 
-                  onClick={handleDeleteClick}
-                  className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-red-600 dark:text-red-500 border border-red-600 dark:border-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors min-h-[44px]"
-                >
-                  <Trash2 className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">{t.common?.delete || 'Delete'}</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>

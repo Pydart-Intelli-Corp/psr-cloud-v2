@@ -64,7 +64,7 @@ const ManagementPageHeader: React.FC<ManagementPageHeaderProps> = ({
         {onStatistics && (
           <button
             onClick={onStatistics}
-            className="flex items-center justify-center w-full sm:w-auto px-4 py-2.5 text-sm sm:text-base text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-600 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors shadow-sm"
+            className="flex items-center justify-center w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg shadow-green-500/25"
           >
             <BarChart3 className="w-4 h-4 mr-2" />
             Statistics
