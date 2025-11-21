@@ -1,0 +1,34 @@
+Admin Report - LactoConnect Milk Collection System
+Date From 2025-11-21 To 2025-11-21
+
+DETAILED COLLECTION DATA
+
+Date,Time,Channel,Shift,MachineType,Machine ID,Society ID,Farmer ID,Farmer Name,Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive
+2025-11-12,15:24:47,CH1,EX,LSE-SVPWTBQ-12AH,s10,1,200,fname,4.08,7.49,24.70,11.00,100.00,50.00,5000.00,0.00
+2025-11-12,14:57:40,CH1,EX,LSE-SVPWTBQ-12AH,s10,1,2,,2.2,4.43,13.90,47.00,100.00,0.00,0.00,0.00
+2025-11-10,11:56:59,CH1,EX,LSE-SVPWTBQ-12AH,S10,1,,,0.00,0.00,0.00,99.00,0.00,0.00,0.00,99.99
+2025-11-10,11:55:59,CH1,EX,LSE-SVPWTBQ-12AH,S10,1,,,0.00,0.00,0.00,99.00,0.00,0.00,0.00,99.99
+2025-11-10,11:19:43,CH1,EX,LSE-SVPWTBQ-12AH,S10,1,,,0.00,0.00,0.00,99.00,0.00,0.00,0.00,99.99
+2025-11-10,11:17:53,CH1,EX,LSE-SVPWTBQ-12AH,S10,1,,,0.00,0.00,0.00,99.00,0.00,0.00,0.00,99.99
+2025-11-10,11:17:00,CH1,EX,LSE-SVPWTBQ-12AH,S10,1,,,0.00,0.00,0.00,99.00,0.00,0.00,0.00,99.99
+
+
+DAILY WEIGHTED AVERAGES SUMMARY
+Note: Weighted averages are calculated based on quantity collected
+
+Date,Total Quantity (L),Weighted Fat (%),Weighted SNF (%),Weighted CLR,Total Amount (Rs),Total Incentive (Rs),Avg Rate (Rs/L)
+2025-11-12,50.00,4.08,7.49,24.70,5000.00,0.00,100.00
+
+OVERALL SUMMARY
+Total Collections:,7
+Total Quantity (L):,50.00
+Overall Weighted Fat (%):,4.08
+Overall Weighted SNF (%):,7.49
+Overall Weighted CLR:,24.70
+Total Amount (Rs):,5000.00
+Total Incentive (Rs):,0.00
+Overall Average Rate (Rs/L):,100.00
+
+Thank you
+Poornasree Equipments
+Generated on: 2025-11-21 16:31:27

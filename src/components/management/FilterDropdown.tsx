@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, X, ChevronDown } from 'lucide-react';
+import { Filter, X, ChevronDown, Calendar } from 'lucide-react';
 
 interface FilterDropdownProps {
   statusFilter: string;
@@ -17,6 +17,18 @@ interface FilterDropdownProps {
   searchQuery?: string;
   onSearchChange?: (value: string) => void;
   icon?: React.ReactNode;
+  // Optional additional filters
+  dateFilter?: string;
+  onDateChange?: (value: string) => void;
+  dateFromFilter?: string;
+  onDateFromChange?: (value: string) => void;
+  dateToFilter?: string;
+  onDateToChange?: (value: string) => void;
+  channelFilter?: string;
+  onChannelChange?: (value: string) => void;
+  showDateFilter?: boolean;
+  showChannelFilter?: boolean;
+  showShiftFilter?: boolean;
 }
 
 /**
@@ -36,10 +48,23 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   totalCount,
   searchQuery,
   onSearchChange,
-  icon
+  icon,
+  dateFilter,
+  onDateChange,
+  dateFromFilter,
+  onDateFromChange,
+  dateToFilter,
+  onDateToChange,
+  channelFilter,
+  onChannelChange,
+  showDateFilter = false,
+  showChannelFilter = false,
+  showShiftFilter = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dateRangeRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -47,23 +72,35 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
+      if (dateRangeRef.current && !dateRangeRef.current.contains(event.target as Node)) {
+        setDateRangeOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const hasActiveFilters = statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all';
+  const hasActiveFilters = statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all' || 
+    (dateFilter && dateFilter !== '') || (dateFromFilter && dateFromFilter !== '') || (dateToFilter && dateToFilter !== '') || (channelFilter && channelFilter !== 'all');
   const activeFilterCount = [
     statusFilter !== 'all',
     societyFilter !== 'all',
-    machineFilter !== 'all'
+    machineFilter !== 'all',
+    dateFilter && dateFilter !== '',
+    dateFromFilter && dateFromFilter !== '',
+    dateToFilter && dateToFilter !== '',
+    channelFilter && channelFilter !== 'all'
   ].filter(Boolean).length;
 
   const handleClearFilters = () => {
     onStatusChange('all');
     onSocietyChange('all');
     onMachineChange('all');
+    if (onDateChange) onDateChange('');
+    if (onDateFromChange) onDateFromChange('');
+    if (onDateToChange) onDateToChange('');
+    if (onChannelChange) onChannelChange('all');
   };
 
   return (
@@ -75,7 +112,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border transition-all ${
             hasActiveFilters
-              ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-400 text-blue-700 dark:text-blue-300'
+              ? 'bg-psr-green-50 dark:bg-psr-green-900/20 border-psr-green-500 dark:border-psr-green-400 text-psr-green-700 dark:text-psr-green-300'
               : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
           }`}
         >
@@ -83,13 +120,98 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           <span className="text-sm font-medium">
             Filters
             {activeFilterCount > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 bg-blue-600 dark:bg-blue-500 text-white text-xs rounded-full min-w-[18px] text-center">
+              <span className="ml-1.5 px-1.5 py-0.5 bg-psr-green-600 dark:bg-psr-green-500 text-white text-xs rounded-full min-w-[18px] text-center">
                 {activeFilterCount}
               </span>
             )}
           </span>
           <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
+
+        {/* Date Range Filter Button */}
+        {showDateFilter && (
+          <div className="relative" ref={dateRangeRef}>
+            <button
+              onClick={() => setDateRangeOpen(!dateRangeOpen)}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border transition-all ${
+                (dateFromFilter && dateFromFilter !== '') || (dateToFilter && dateToFilter !== '')
+                  ? 'bg-psr-primary-50 dark:bg-psr-primary-900/20 border-psr-primary-500 dark:border-psr-primary-400 text-psr-primary-700 dark:text-psr-primary-300'
+                  : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="text-sm font-medium">Date Range</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${dateRangeOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Date Range Popup */}
+            {dateRangeOpen && (
+              <div className="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Select Date Range</h3>
+                    <button
+                      onClick={() => setDateRangeOpen(false)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-2">
+                        From Date
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="date"
+                          value={dateFromFilter || ''}
+                          onChange={(e) => onDateFromChange && onDateFromChange(e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-primary-500 dark:focus:ring-psr-primary-400 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-2">
+                        To Date
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="date"
+                          value={dateToFilter || ''}
+                          onChange={(e) => onDateToChange && onDateToChange(e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-primary-500 dark:focus:ring-psr-primary-400 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => {
+                        if (onDateFromChange) onDateFromChange('');
+                        if (onDateToChange) onDateToChange('');
+                      }}
+                      className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => setDateRangeOpen(false)}
+                      className="flex-1 px-3 py-2 text-sm text-white bg-psr-primary-600 rounded-md hover:bg-psr-primary-700 transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Item Count */}
         <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -101,12 +223,12 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
         {/* Active Search Query Badge */}
         {searchQuery && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md text-blue-700 dark:text-blue-300 text-xs font-medium">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-psr-green-50 dark:bg-psr-green-900/20 border border-psr-green-200 dark:border-psr-green-700 rounded-md text-psr-green-700 dark:text-psr-green-300 text-xs font-medium">
             <span>&ldquo;{searchQuery}&rdquo;</span>
             {onSearchChange && (
               <button
                 onClick={() => onSearchChange('')}
-                className="hover:bg-blue-100 dark:hover:bg-blue-800 rounded p-0.5 transition-colors"
+                className="hover:bg-psr-green-100 dark:hover:bg-psr-green-800 rounded p-0.5 transition-colors"
                 title="Clear search"
               >
                 <X className="w-3 h-3" />
@@ -129,7 +251,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-full sm:w-[600px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-4">
+        <div className="absolute top-full left-0 mt-2 w-full sm:w-auto sm:min-w-[600px] sm:max-w-4xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-4">
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Filter Options</h3>
@@ -141,25 +263,42 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
               </button>
             </div>
 
-            {/* Filters Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Status Filter */}
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
-                  Status
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => onStatusChange(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
-              </div>
+            {/* All Filters in Single Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {/* Status/Shift Filter */}
+              {showShiftFilter ? (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
+                    Shift
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => onStatusChange(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-green-500 dark:focus:ring-psr-green-400 focus:border-transparent"
+                  >
+                    <option value="all">All Shifts</option>
+                    <option value="morning">Morning</option>
+                    <option value="evening">Evening</option>
+                  </select>
+                </div>
+              ) : statusFilter !== 'all' && statusFilter !== '' ? (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
+                    Status
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => onStatusChange(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-green-500 dark:focus:ring-psr-green-400 focus:border-transparent"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
+              ) : null}
 
               {/* Society Filter */}
               <div className="space-y-2">
@@ -170,9 +309,9 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   value={societyFilter}
                   onChange={(e) => {
                     onSocietyChange(e.target.value);
-                    onMachineChange('all'); // Reset machine filter when society changes
+                    onMachineChange('all');
                   }}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent"
+                  className="w-full min-w-[150px] px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-green-500 dark:focus:ring-psr-green-400 focus:border-transparent"
                 >
                   <option value="all">All Societies</option>
                   {societies.map(society => (
@@ -191,7 +330,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 <select
                   value={machineFilter}
                   onChange={(e) => onMachineChange(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full min-w-[150px] px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-green-500 dark:focus:ring-psr-green-400 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="all">All Machines</option>
                   {machines
@@ -206,6 +345,25 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                     ))}
                 </select>
               </div>
+
+              {/* Channel Filter */}
+              {showChannelFilter && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block">
+                    Channel
+                  </label>
+                  <select
+                    value={channelFilter || 'all'}
+                    onChange={(e) => onChannelChange && onChannelChange(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-psr-green-500 dark:focus:ring-psr-green-400 focus:border-transparent"
+                  >
+                    <option value="all">All Channels</option>
+                    <option value="COW">Cow</option>
+                    <option value="BUFFALO">Buffalo</option>
+                    <option value="MIXED">Mixed</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Active Filters Summary */}
@@ -214,25 +372,57 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 <div className="flex flex-wrap gap-2">
                   <span className="text-xs text-gray-600 dark:text-gray-400">Active filters:</span>
                   {statusFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded">
-                      Status: {statusFilter}
-                      <button onClick={() => onStatusChange('all')} className="hover:text-green-900 dark:hover:text-green-100">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-green-100 dark:bg-psr-green-900/30 text-psr-green-700 dark:text-psr-green-300 text-xs rounded">
+                      {showShiftFilter ? 'Shift' : 'Status'}: {statusFilter}
+                      <button onClick={() => onStatusChange('all')} className="hover:text-psr-green-900 dark:hover:text-psr-green-100">
                         <X className="w-3 h-3" />
                       </button>
                     </span>
                   )}
                   {societyFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-primary-100 dark:bg-psr-primary-900/30 text-psr-primary-700 dark:text-psr-primary-300 text-xs rounded">
                       Society: {societies.find(s => s.id.toString() === societyFilter)?.name}
-                      <button onClick={() => onSocietyChange('all')} className="hover:text-blue-900 dark:hover:text-blue-100">
+                      <button onClick={() => onSocietyChange('all')} className="hover:text-psr-primary-900 dark:hover:text-psr-primary-100">
                         <X className="w-3 h-3" />
                       </button>
                     </span>
                   )}
                   {machineFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs rounded">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-emerald-100 dark:bg-psr-emerald-900/30 text-psr-emerald-700 dark:text-psr-emerald-300 text-xs rounded">
                       Machine: {machines.find(m => m.id.toString() === machineFilter)?.machineId}
-                      <button onClick={() => onMachineChange('all')} className="hover:text-purple-900 dark:hover:text-purple-100">
+                      <button onClick={() => onMachineChange('all')} className="hover:text-psr-emerald-900 dark:hover:text-psr-emerald-100">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {dateFilter && dateFilter !== '' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs rounded">
+                      Date: {dateFilter}
+                      <button onClick={() => onDateChange && onDateChange('')} className="hover:text-orange-900 dark:hover:text-orange-100">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {dateFromFilter && dateFromFilter !== '' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-primary-100 dark:bg-psr-primary-900/30 text-psr-primary-700 dark:text-psr-primary-300 text-xs rounded">
+                      From: {dateFromFilter}
+                      <button onClick={() => onDateFromChange && onDateFromChange('')} className="hover:text-psr-primary-900 dark:hover:text-psr-primary-100">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {dateToFilter && dateToFilter !== '' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-primary-100 dark:bg-psr-primary-900/30 text-psr-primary-700 dark:text-psr-primary-300 text-xs rounded">
+                      To: {dateToFilter}
+                      <button onClick={() => onDateToChange && onDateToChange('')} className="hover:text-psr-primary-900 dark:hover:text-psr-primary-100">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {channelFilter && channelFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded">
+                      Channel: {channelFilter}
+                      <button onClick={() => onChannelChange && onChannelChange('all')} className="hover:text-yellow-900 dark:hover:text-yellow-100">
                         <X className="w-3 h-3" />
                       </button>
                     </span>

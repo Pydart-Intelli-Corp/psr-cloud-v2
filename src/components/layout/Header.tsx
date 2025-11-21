@@ -97,6 +97,12 @@ const navigationItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY, UserRole.FARMER]
   },
   {
+    icon: FileText,
+    labelKey: 'reports',
+    href: '/admin/reports',
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY]
+  },
+  {
     icon: BarChart3,
     labelKey: 'analytics',
     href: '/analytics',
@@ -131,12 +137,6 @@ const navigationItems: NavItem[] = [
     labelKey: 'farmerPortal',
     href: '/farmer',
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY, UserRole.FARMER]
-  },
-  {
-    icon: FileText,
-    labelKey: 'reports',
-    href: '/reports',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY]
   },
   {
     icon: Bell,

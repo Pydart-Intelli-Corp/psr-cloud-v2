@@ -83,7 +83,7 @@ const StatsCard: React.FC<StatsCardProps> = ({
 
   return (
     <div 
-      className={`bg-white dark:bg-gray-800 p-3 sm:p-4 lg:p-6 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all ${
+      className={`bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all ${
         clickable ? 'cursor-pointer hover:shadow-lg hover:scale-105' : ''
       } ${getActiveClasses()} ${className}`}
       onClick={onClick}
@@ -91,20 +91,20 @@ const StatsCard: React.FC<StatsCardProps> = ({
       tabIndex={clickable ? 0 : undefined}
       onKeyDown={clickable ? (e) => e.key === 'Enter' && onClick?.() : undefined}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 leading-tight h-8 flex items-center">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className={`p-1 rounded-lg ${colorClasses.bg} flex-shrink-0`}>
+            <div className={`w-3 h-3 ${colorClasses.text}`}>
+              {icon}
+            </div>
+          </div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
             {title}
           </p>
-          <p className={`text-lg sm:text-xl lg:text-2xl font-bold ${colorClasses.valueText}`}>
-            {value}
-          </p>
         </div>
-        <div className={`p-1.5 sm:p-2 rounded-lg ${colorClasses.bg} flex-shrink-0`}>
-          <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${colorClasses.text}`}>
-            {icon}
-          </div>
-        </div>
+        <p className={`text-xl sm:text-2xl font-bold ${colorClasses.valueText} leading-none break-words`}>
+          {value}
+        </p>
       </div>
     </div>
   );
