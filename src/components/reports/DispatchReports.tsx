@@ -284,12 +284,12 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
   }, []);
 
   // Fetch dispatch data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showLoading = true) => {
     const token = localStorage.getItem('authToken');
     if (!token) return;
 
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const response = await fetch('/api/user/reports/dispatches', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -302,12 +302,19 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
     } catch (error) {
       console.error('Error fetching dispatch data:', error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [calculateStats]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
+    
+    // Auto-refresh every 1 second without showing loading
+    const intervalId = setInterval(() => {
+      fetchData(false);
+    }, 1000);
+    
+    return () => clearInterval(intervalId);
   }, [fetchData]);
 
   // Filter records with multi-field search (matching machine management pattern)
@@ -674,7 +681,7 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
             bmcFilter={bmcFilter}
             onBmcChange={setBmcFilter}
             societyFilter={societyFilter}
-            onSocietyChange={setSocietyFilter}
+            onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
             machineFilter={machineFilter}
             onMachineChange={setMachineFilter}
             dairies={dairiesWithDispatches}

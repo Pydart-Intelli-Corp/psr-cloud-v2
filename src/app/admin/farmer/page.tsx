@@ -130,7 +130,7 @@ const FarmerManagement = () => {
     if (societyFilter.length > 0 && machineFilter !== 'all' && machineFilter !== 'unassigned') {
       // Check if current machine selection is still valid for the selected society
       const currentMachine = machines.find(m => m.id.toString() === machineFilter);
-      if (currentMachine && currentMachine.societyId?.toString() !== societyFilter) {
+      if (currentMachine && !societyFilter.includes(currentMachine.societyId?.toString() || '')) {
         setMachineFilter('all');
       }
     }
@@ -548,7 +548,8 @@ const FarmerManagement = () => {
         setUpdateProgress(95);
         setSelectedFarmers(new Set());
         setSelectAll(false);
-        setSuccess(`Successfully deleted ${ids.length} farmer(s)${(statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all') ? ' from filtered results' : ''}`);\n        setSocietyFilter([]);
+        setSuccess(`Successfully deleted ${ids.length} farmer(s)${(statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all') ? ' from filtered results' : ''}`);
+        setSocietyFilter([]);
         setError('');
         setUpdateProgress(100);
       } else {
@@ -1201,7 +1202,7 @@ const FarmerManagement = () => {
         statusFilter={statusFilter}
         onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
         societyFilter={societyFilter}
-        onSocietyChange={setSocietyFilter}
+        onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
         machineFilter={machineFilter}
         onMachineChange={setMachineFilter}
         societies={societies}

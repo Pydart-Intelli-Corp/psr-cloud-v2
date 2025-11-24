@@ -167,7 +167,7 @@ export default function MachineManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance' | 'suspended'>('all');
-  const [societyFilter, setSocietyFilter] = useState<string>('all');
+  const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState<string>('all');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -565,10 +565,10 @@ export default function MachineManagement() {
 
   // Reset machine filter when society filter changes (similar to farmer management)
   useEffect(() => {
-    if (societyFilter !== 'all' && machineFilter !== 'all') {
+    if (societyFilter.length > 0 && machineFilter !== 'all') {
       // Check if current machine selection is still valid for the selected society
       const currentMachine = machines.find(m => m.id?.toString() === machineFilter);
-      if (currentMachine && currentMachine.societyId?.toString() !== societyFilter) {
+      if (currentMachine && !societyFilter.includes(currentMachine.societyId?.toString() || '')) {
         setMachineFilter('all');
       }
     }
@@ -939,7 +939,7 @@ export default function MachineManagement() {
         setSelectedMachines(new Set());
         setSelectedSocieties(new Set());
         setSelectAll(false);
-        setSuccess(`Successfully deleted ${ids.length} machine(s)${(statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''}`);
+        setSuccess(`Successfully deleted ${ids.length} machine(s)${(statusFilter !== 'all' || societyFilter.length > 0) ? ' from filtered results' : ''}`);
         setError('');
         setUpdateProgress(100);
       } else {
@@ -1018,7 +1018,7 @@ export default function MachineManagement() {
       
       setSuccess(
         `Successfully updated status to "${statusToUpdate}" for ${updatedCount} machine(s)${
-          (statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''
+          (statusFilter !== 'all' || societyFilter.length > 0) ? ' from filtered results' : ''
         }`
       );
       setError('');
@@ -1038,7 +1038,7 @@ export default function MachineManagement() {
     // Recalculate filtered machines
     const currentFilteredMachines = machines.filter(machine => {
       const statusMatch = statusFilter === 'all' || machine.status === statusFilter;
-      const societyMatch = societyFilter === 'all' || machine.societyId?.toString() === societyFilter;
+      const societyMatch = societyFilter.length === 0 || societyFilter.includes(machine.societyId?.toString() || '');
       const searchMatch = searchQuery === '' || 
         machine.machineId.toLowerCase().includes(searchQuery.toLowerCase()) ||
         machine.machineType.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1515,7 +1515,7 @@ export default function MachineManagement() {
   // Filter machines with multi-field search
   const filteredMachines = machines.filter(machine => {
     const matchesStatus = statusFilter === 'all' || machine.status === statusFilter;
-    const matchesSociety = societyFilter === 'all' || machine.societyId?.toString() === societyFilter;
+    const matchesSociety = societyFilter.length === 0 || societyFilter.includes(machine.societyId?.toString() || '');
     const matchesMachine = machineFilter === 'all' || machine.id?.toString() === machineFilter;
     
     // Multi-field search across machine details
@@ -1587,7 +1587,7 @@ export default function MachineManagement() {
         <StatsGrid
           allItems={machines}
           filteredItems={filteredMachines}
-          hasFilters={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all'}
+          hasFilters={statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all'}
           onStatusFilterChange={(status) => setStatusFilter(status)}
           currentStatusFilter={statusFilter}
         />
@@ -1597,7 +1597,7 @@ export default function MachineManagement() {
           statusFilter={statusFilter}
           onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
           societyFilter={societyFilter}
-          onSocietyChange={setSocietyFilter}
+          onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
           machineFilter={machineFilter}
           onMachineChange={setMachineFilter}
           societies={societies}
@@ -1622,7 +1622,7 @@ export default function MachineManagement() {
             />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Select All {filteredMachines.length} {filteredMachines.length === 1 ? 'machine' : 'machines'}
-              {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') && ` (filtered)`}
+              {(statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all') && ` (filtered)`}
             </span>
           </label>
 

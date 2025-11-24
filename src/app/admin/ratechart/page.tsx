@@ -58,7 +58,7 @@ export default function RatechartManagement() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Filter states
-  const [societyFilter, setSocietyFilter] = useState<string>('all');
+  const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -402,7 +402,7 @@ export default function RatechartManagement() {
 
   // Filter rate charts
   const filteredRateCharts = rateCharts.filter(chart => {
-    if (societyFilter !== 'all' && chart.societyId.toString() !== societyFilter) return false;
+    if (societyFilter.length > 0 && !societyFilter.includes(chart.societyId.toString())) return false;
     
     // Handle channel filter including 'unique' option
     if (channelFilter !== 'all') {
@@ -809,7 +809,7 @@ export default function RatechartManagement() {
         statusFilter={'all'}
         onStatusChange={() => {}}
         societyFilter={societyFilter}
-        onSocietyChange={setSocietyFilter}
+        onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
         machineFilter={channelFilter}
         onMachineChange={setChannelFilter}
         societies={societies}
@@ -938,7 +938,7 @@ export default function RatechartManagement() {
         return selectedGroupCount;
       })()}
       itemType="rate chart"
-      hasFilters={societyFilter !== 'all' || channelFilter !== 'all' || searchQuery !== ''}
+      hasFilters={societyFilter.length > 0 || channelFilter !== 'all' || searchQuery !== ''}
       additionalInfo={(() => {
         // Get all selected groups
         const selectedGroups = Object.values(groupedCharts).filter(group => 
