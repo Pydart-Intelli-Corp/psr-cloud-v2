@@ -333,10 +333,18 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
           record.count,
           record.society_id,
           record.society_name,
+          record.bmc_name,
+          record.dairy_name,
           record.machine_id,
+          record.machine_type,
+          record.machine_version,
           record.channel,
           getChannelDisplay(record.channel),
-          record.sales_date
+          record.sales_date,
+          record.sales_time,
+          record.quantity,
+          record.rate_per_liter,
+          record.total_amount
         ].some(field =>
           field?.toString().toLowerCase().includes(searchLower)
         )

@@ -409,11 +409,28 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
           record.farmer_name,
           record.society_id,
           record.society_name,
+          record.bmc_name,
+          record.dairy_name,
           record.machine_id,
+          record.machine_type,
+          record.machine_version,
           record.channel,
           getChannelDisplay(record.channel),
           record.collection_date,
-          record.shift_type
+          record.collection_time,
+          record.shift_type,
+          record.quantity,
+          record.fat_percentage,
+          record.snf_percentage,
+          record.clr_value,
+          record.protein_percentage,
+          record.lactose_percentage,
+          record.salt_percentage,
+          record.water_percentage,
+          record.temperature,
+          record.rate_per_liter,
+          record.total_amount,
+          record.bonus
         ].some(field =>
           field?.toString().toLowerCase().includes(searchLower)
         )

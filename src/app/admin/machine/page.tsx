@@ -1518,8 +1518,9 @@ export default function MachineManagement() {
     const matchesSociety = societyFilter.length === 0 || societyFilter.includes(machine.societyId?.toString() || '');
     const matchesMachine = machineFilter === 'all' || machine.id?.toString() === machineFilter;
     
-    // Multi-field search across machine details
-    const matchesSearch = searchQuery === '' || [
+    // Multi-field search across machine details (case-insensitive)
+    const searchLower = searchQuery.toLowerCase().trim();
+    const matchesSearch = searchLower === '' || [
       machine.machineId,
       machine.machineType,
       machine.societyName,
@@ -1529,7 +1530,7 @@ export default function MachineManagement() {
       machine.contactPhone,
       machine.notes
     ].some(field => 
-      field?.toLowerCase().includes(searchQuery.toLowerCase())
+      field?.toString().toLowerCase().includes(searchLower)
     );
     
     return matchesStatus && matchesSociety && matchesMachine && matchesSearch;

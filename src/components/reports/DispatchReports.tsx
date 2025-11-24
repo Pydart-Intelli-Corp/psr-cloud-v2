@@ -396,11 +396,22 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
           record.dispatch_id,
           record.society_id,
           record.society_name,
+          record.bmc_name,
+          record.dairy_name,
           record.machine_id,
+          record.machine_type,
+          record.machine_version,
           record.channel,
           getChannelDisplay(record.channel),
           record.dispatch_date,
-          record.shift_type
+          record.dispatch_time,
+          record.shift_type,
+          record.quantity,
+          record.fat_percentage,
+          record.snf_percentage,
+          record.clr_value,
+          record.rate_per_liter,
+          record.total_amount
         ].some(field =>
           field?.toString().toLowerCase().includes(searchLower)
         )

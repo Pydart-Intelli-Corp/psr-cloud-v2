@@ -150,37 +150,39 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
 
   // Reset inactivity timer
   const resetInactivityTimer = () => {
-    clearTimers();
+    // Only clear inactivity timer, not hover timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
     
     // Only set auto-collapse timer if sidebar is expanded and not pinned
     if (!isCollapsed && !isPinned) {
       inactivityTimerRef.current = setTimeout(() => {
         if (!isPinned && !isHovered) {
-          onToggle(); // Collapse after 5 seconds of inactivity
+          onToggle(); // Collapse after 3 seconds of inactivity
         }
-      }, 5000);
+      }, 3000);
     }
   };
 
-  // Handle mouse enter - expand after 1 second
+  // Handle mouse enter - expand after small delay
   const handleMouseEnter = () => {
-    setIsHovered(true);
-    
-    // Expand after 1 second hover when collapsed
+    // Expand after 1 second delay when collapsed
     if (isCollapsed) {
       clearTimers();
+      setIsHovered(true);
       hoverTimerRef.current = setTimeout(() => {
-        if (isCollapsed) {
-          onToggle(); // Expand after 1 second hover
-        }
+        onToggle(); // Expand after brief delay
       }, 1000);
+    } else {
+      setIsHovered(true);
     }
   };
 
   // Handle mouse leave
   const handleMouseLeave = () => {
     setIsHovered(false);
-    clearTimers();
     clearTimers();
     
     // Start inactivity timer if expanded and not pinned
@@ -197,11 +199,17 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
 
   // Reset timer on any interaction
   useEffect(() => {
+    // Only reset inactivity timer when expanded
     if (!isCollapsed && !isPinned) {
       resetInactivityTimer();
     }
     
-    return () => clearTimers();
+    // Cleanup on unmount only
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
   }, [isCollapsed, isPinned, isHovered]);
 
   // Detect route changes for loading state
