@@ -8,9 +8,7 @@ import {
   ShoppingCart,
   TrendingUp,
   BarChart3,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp
+  RefreshCw
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,6 +28,7 @@ interface SalesRecord {
   machine_id: string;
   sales_date: string;
   sales_time: string;
+  shift_type: string;
   channel: string;
   quantity: string;
   rate_per_liter: string;
@@ -112,12 +111,12 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
   const [dateFilter, setDateFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
   const [dairyFilter, setDairyFilter] = useState('all');
   const [bmcFilter, setBmcFilter] = useState('all');
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState('all');
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   // Fetch dairies and BMCs
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
@@ -176,6 +175,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
   // Clear all filters
   const clearFilters = () => {
+    setShiftFilter('all');
     setDairyFilter('all');
     setBmcFilter('all');
     setSocietyFilter([]);
@@ -285,6 +285,33 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
   useEffect(() => {
     let filtered = records;
 
+    // Dairy filter
+    if (dairyFilter !== 'all') {
+      const selectedDairy = dairies.find(d => d.id.toString() === dairyFilter);
+      if (selectedDairy) {
+        filtered = filtered.filter(record => record.dairy_id === selectedDairy.id);
+      }
+    }
+
+    // BMC filter
+    if (bmcFilter !== 'all') {
+      const selectedBmc = bmcs.find(b => b.id.toString() === bmcFilter);
+      if (selectedBmc) {
+        filtered = filtered.filter(record => record.bmc_id === selectedBmc.id);
+      }
+    }
+
+    // Status/Shift filter
+    if (shiftFilter !== 'all') {
+      if (shiftFilter === 'morning') {
+        filtered = filtered.filter(record => ['MR', 'MX'].includes(record.shift_type));
+      } else if (shiftFilter === 'evening') {
+        filtered = filtered.filter(record => ['EV', 'EX'].includes(record.shift_type));
+      } else {
+        filtered = filtered.filter(record => record.shift_type === shiftFilter);
+      }
+    }
+
     // Society filter
     if (Array.isArray(societyFilter) && societyFilter.length > 0) {
       const selectedSocietyIds = societyFilter.map(id => {
@@ -328,8 +355,15 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     // Multi-field search across sales details (matching machine management pattern)
     if (combinedSearch) {
       const searchLower = combinedSearch.toLowerCase();
-      filtered = filtered.filter(record =>
-        [
+      filtered = filtered.filter(record => {
+        // Get display value for shift
+        const shiftDisplay = ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+          ? 'Morning' 
+          : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+          ? 'Evening' 
+          : record.shift_type;
+        
+        return [
           record.count,
           record.society_id,
           record.society_name,
@@ -342,18 +376,20 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
           getChannelDisplay(record.channel),
           record.sales_date,
           record.sales_time,
+          record.shift_type,
+          shiftDisplay,
           record.quantity,
           record.rate_per_liter,
           record.total_amount
         ].some(field =>
           field?.toString().toLowerCase().includes(searchLower)
-        )
-      );
+        );
+      });
     }
 
     setFilteredRecords(filtered);
     calculateStats(filtered);
-  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, channelFilter, societyFilter, machineFilter, dairyFilter, bmcFilter, records, societies, machines, dairies, bmcs, calculateStats]);
+  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, dairyFilter, bmcFilter, records, societies, machines, dairies, bmcs, calculateStats]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -580,8 +616,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
           {/* Filter Dropdown - All Filters Inside */}
           <FilterDropdown
-            statusFilter="all"
-            onStatusChange={() => {}}
+            statusFilter={shiftFilter}
+            onStatusChange={setShiftFilter}
             dairyFilter={dairyFilter}
             onDairyChange={setDairyFilter}
             bmcFilter={bmcFilter}
@@ -609,6 +645,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
             onChannelChange={setChannelFilter}
             showDateFilter
             showChannelFilter
+            showShiftFilter
           />
         </div>
       </div>
@@ -616,23 +653,25 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       {/* Data Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-auto max-h-[600px]" tabIndex={0}>
-          <table className="w-full">
+          <table className="w-auto min-w-full table-auto">
             <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date & Time</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Count</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Society</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Channel</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Qty (L)</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rate/L</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Count</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Shift</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Channel</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine ID</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine Type</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Rate/L</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Qty (L)</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No sales records found
                   </td>
                 </tr>
@@ -651,6 +690,24 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
                         <div className="font-medium">{highlightText(record.society_name, combinedSearch)}</div>
                         <div className="text-xs text-gray-500">ID: {highlightText(record.society_id, combinedSearch)}</div>
                       </td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                            : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                        }`}>
+                          {highlightText(
+                            ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+                              ? 'Morning' 
+                              : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+                              ? 'Evening' 
+                              : record.shift_type,
+                            combinedSearch
+                          )}
+                        </span>
+                      </td>
                     <td className="px-4 py-3 text-sm text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         getChannelDisplay(record.channel) === 'COW'
@@ -662,49 +719,19 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
                         {highlightText(getChannelDisplay(record.channel), combinedSearch)}
                       </span>
                     </td>
-                      <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">
-                        {highlightText(parseFloat(record.quantity).toFixed(2), combinedSearch)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">
-                        ₹{highlightText(parseFloat(record.rate_per_liter).toFixed(2), combinedSearch)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-center font-medium text-green-600 dark:text-green-400">
-                        ₹{highlightText(parseFloat(record.total_amount).toFixed(2), combinedSearch)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => setExpandedRow(expandedRow === record.id ? null : record.id)}
-                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                        >
-                          {expandedRow === record.id ? (
-                            <ChevronUp className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedRow === record.id && (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-4 bg-gray-50 dark:bg-gray-700/50">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Machine:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{highlightText(record.machine_id || 'N/A', combinedSearch)}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Machine Type:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{record.machine_type}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Version:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">v{record.machine_version}</div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(record.machine_id || 'N/A', combinedSearch)}</td>
+                    <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{highlightText(record.machine_type, combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">
+                      ₹{highlightText(parseFloat(record.rate_per_liter).toFixed(2), combinedSearch)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">
+                      {highlightText(parseFloat(record.quantity).toFixed(2), combinedSearch)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center font-medium text-green-600 dark:text-green-400">
+                      ₹{highlightText(parseFloat(record.total_amount).toFixed(2), combinedSearch)}
+                    </td>
+                  </tr>
+                </React.Fragment>
                 ))
               )}
             </tbody>

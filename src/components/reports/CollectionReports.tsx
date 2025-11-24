@@ -403,8 +403,15 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
     // Multi-field search across collection details (matching machine management pattern)
     if (combinedSearch) {
       const searchLower = combinedSearch.toLowerCase();
-      filtered = filtered.filter(record =>
-        [
+      filtered = filtered.filter(record => {
+        // Get display value for shift
+        const shiftDisplay = ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+          ? 'Morning' 
+          : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+          ? 'Evening' 
+          : record.shift_type;
+        
+        return [
           record.farmer_id,
           record.farmer_name,
           record.society_id,
@@ -419,6 +426,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
           record.collection_date,
           record.collection_time,
           record.shift_type,
+          shiftDisplay,
           record.quantity,
           record.fat_percentage,
           record.snf_percentage,
@@ -433,8 +441,8 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
           record.bonus
         ].some(field =>
           field?.toString().toLowerCase().includes(searchLower)
-        )
-      );
+        );
+      });
     }
 
     setFilteredRecords(filtered);
@@ -800,11 +808,20 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
                     <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{highlightText(record.machine_type, combinedSearch)}</td>
                     <td className="px-4 py-3 text-sm text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        ['MR', 'MX', 'morning'].includes(record.shift_type)
-                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        ['MR', 'MX', 'morning'].includes(record.shift_type?.toUpperCase() === 'MORNING' ? 'morning' : record.shift_type)
+                          ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                          : ['EV', 'EX', 'evening'].includes(record.shift_type?.toUpperCase() === 'EVENING' ? 'evening' : record.shift_type)
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
                       }`}>
-                        {['MR', 'MX', 'morning'].includes(record.shift_type) ? 'Morning' : 'Evening'}
+                        {highlightText(
+                          ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+                            ? 'Morning' 
+                            : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+                            ? 'Evening' 
+                            : record.shift_type,
+                          combinedSearch
+                        )}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-center">

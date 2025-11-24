@@ -8,9 +8,7 @@ import {
   Package,
   TrendingUp,
   BarChart3,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp
+  RefreshCw
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -128,7 +126,6 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
   const [bmcFilter, setBmcFilter] = useState('all');
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState('all');
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   // Fetch dairies and BMCs
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
@@ -391,8 +388,15 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
     // Multi-field search across dispatch details (matching machine management pattern)
     if (combinedSearch) {
       const searchLower = combinedSearch.toLowerCase();
-      filtered = filtered.filter(record =>
-        [
+      filtered = filtered.filter(record => {
+        // Get display value for shift
+        const shiftDisplay = ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+          ? 'Morning' 
+          : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+          ? 'Evening' 
+          : record.shift_type;
+        
+        return [
           record.dispatch_id,
           record.society_id,
           record.society_name,
@@ -406,6 +410,7 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
           record.dispatch_date,
           record.dispatch_time,
           record.shift_type,
+          shiftDisplay,
           record.quantity,
           record.fat_percentage,
           record.snf_percentage,
@@ -414,8 +419,8 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
           record.total_amount
         ].some(field =>
           field?.toString().toLowerCase().includes(searchLower)
-        )
-      );
+        );
+      });
     }
 
     setFilteredRecords(filtered);
@@ -722,25 +727,28 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
       {/* Data Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-auto max-h-[600px]" tabIndex={0}>
-          <table className="w-full">
+          <table className="w-auto min-w-full table-auto">
             <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date & Time</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Dispatch ID</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Society</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Shift</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Channel</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Qty (L)</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fat %</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">SNF %</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Dispatch ID</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Shift</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Channel</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine ID</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine Type</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Fat %</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">SNF %</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">CLR</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Rate/L</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Qty (L)</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={13} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No dispatch records found
                   </td>
                 </tr>
@@ -761,11 +769,20 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          ['MR', 'MX'].includes(record.shift_type)
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                            : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}>
-                          {['MR', 'MX'].includes(record.shift_type) ? 'Morning' : 'Evening'}
+                          {highlightText(
+                            ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+                              ? 'Morning' 
+                              : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+                              ? 'Evening' 
+                              : record.shift_type,
+                            combinedSearch
+                          )}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
@@ -779,49 +796,17 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
                           {highlightText(getChannelDisplay(record.channel), combinedSearch)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">{highlightText(parseFloat(record.quantity).toFixed(2), combinedSearch)}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(record.machine_id || 'N/A', combinedSearch)}</td>
+                      <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{highlightText(record.machine_type, combinedSearch)}</td>
                       <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.fat_percentage).toFixed(2), combinedSearch)}</td>
                       <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.snf_percentage).toFixed(2), combinedSearch)}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.clr_value).toFixed(2), combinedSearch)}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">₹{highlightText(parseFloat(record.rate_per_liter).toFixed(2), combinedSearch)}</td>
+                      <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">{highlightText(parseFloat(record.quantity).toFixed(2), combinedSearch)}</td>
                       <td className="px-4 py-3 text-sm text-center font-medium text-green-600 dark:text-green-400">
                         ₹{highlightText(parseFloat(record.total_amount).toFixed(2), combinedSearch)}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => setExpandedRow(expandedRow === record.id ? null : record.id)}
-                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                        >
-                          {expandedRow === record.id ? (
-                            <ChevronUp className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          )}
-                        </button>
-                      </td>
                     </tr>
-                    {expandedRow === record.id && (
-                      <tr>
-                        <td colSpan={10} className="px-4 py-4 bg-gray-50 dark:bg-gray-700/50">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Machine:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{highlightText(record.machine_id || 'N/A', combinedSearch)}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Machine Type:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{highlightText(record.machine_type || 'N/A', combinedSearch)}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Rate/L:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">₹{record.rate_per_liter}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 dark:text-gray-400">Machine Type:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{record.machine_type} v{record.machine_version}</div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 ))
               )}

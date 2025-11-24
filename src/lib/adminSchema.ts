@@ -299,6 +299,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`machine_id\` INT NOT NULL,
         \`sales_date\` DATE,
         \`sales_time\` TIME,
+        \`shift_type\` VARCHAR(10) DEFAULT 'EV',
         \`channel\` VARCHAR(50) DEFAULT 'COW',
         \`quantity\` DECIMAL(10,2) DEFAULT 0,
         \`rate_per_liter\` DECIMAL(10,2),
@@ -312,6 +313,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_machine_id\` (\`machine_id\`),
         INDEX \`idx_sales_date\` (\`sales_date\`),
         INDEX \`idx_sales_time\` (\`sales_time\`),
+        INDEX \`idx_shift_type\` (\`shift_type\`),
         INDEX \`idx_channel\` (\`channel\`),
         INDEX \`idx_created_at\` (\`created_at\`),
         UNIQUE KEY \`unique_sales\` (\`count\`, \`society_id\`, \`machine_id\`, \`sales_date\`, \`sales_time\`)

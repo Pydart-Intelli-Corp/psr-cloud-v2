@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         m.machine_id,
         ms.sales_date,
         ms.sales_time,
+        ms.shift_type,
         ms.channel,
         ms.quantity,
         ms.rate_per_liter,
