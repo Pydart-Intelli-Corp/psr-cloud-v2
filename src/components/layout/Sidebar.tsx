@@ -56,7 +56,7 @@ const navigationItems: NavItem[] = [
   {
     icon: BarChart3,
     labelKey: 'analytics',
-    href: '/analytics',
+    href: '/admin/analytics',
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC]
   },
   {

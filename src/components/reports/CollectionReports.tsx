@@ -7,13 +7,15 @@ import {
   Droplet,
   TrendingUp,
   BarChart3,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import StatsCard from '@/components/management/StatsCard';
 import { FlowerSpinner } from '@/components';
-import { FilterDropdown } from '@/components/management';
+import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } from '@/components/management';
+import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
 
 interface CollectionRecord {
   id: number;
@@ -138,6 +140,20 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmc_id: string; dairyFarmId?: number }>>([]);
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
 
+  // Delete functionality
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Bulk selection and delete
+  const [selectedRecords, setSelectedRecords] = useState<Set<number>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [bulkDeletePassword, setBulkDeletePassword] = useState('');
+
   useEffect(() => {
     const fetchDairiesAndBmcs = async () => {
       try {
@@ -254,6 +270,137 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
     window.dispatchEvent(event);
   };
 
+  // Delete record handler
+  const handleDeleteClick = (recordId: number) => {
+    setRecordToDelete(recordId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async (password: string) => {
+    if (!recordToDelete) return;
+
+    setDeleting(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/reports/collections/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recordId: recordToDelete,
+          password
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete record');
+      }
+
+      // Show success message
+      setSuccessMessage('Collection record deleted successfully');
+      setTimeout(() => setSuccessMessage(''), 5000);
+      
+      // Refresh the records
+      fetchData();
+    } catch (error) {
+      console.error('Delete error:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete record');
+      setTimeout(() => setErrorMessage(''), 5000);
+      throw error; // Re-throw to be handled by the dialog
+    } finally {
+      setDeleting(false);
+      setRecordToDelete(null);
+    }
+  };
+
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedRecords(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedRecords(new Set(filteredRecords.map(r => r.id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectOne = (recordId: number) => {
+    const newSelected = new Set(selectedRecords);
+    if (newSelected.has(recordId)) {
+      newSelected.delete(recordId);
+    } else {
+      newSelected.add(recordId);
+    }
+    setSelectedRecords(newSelected);
+    setSelectAll(newSelected.size === filteredRecords.length && filteredRecords.length > 0);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedRecords(new Set());
+    setSelectAll(false);
+  };
+
+  const handleBulkDeleteClick = () => {
+    if (selectedRecords.size === 0) return;
+    setShowBulkDeleteConfirm(true);
+  };
+
+  const handleBulkDeleteConfirm = async (password: string) => {
+    setShowBulkDeleteConfirm(false);
+    setIsDeletingBulk(true);
+    
+    try {
+      const token = localStorage.getItem('authToken');
+      const recordIds = Array.from(selectedRecords);
+      
+      // Delete records in parallel with password verification
+      const deletePromises = recordIds.map(recordId =>
+        fetch('/api/user/reports/collections/delete', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ recordId, password })
+        }).then(async (res) => {
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.message || 'Delete failed');
+          }
+          return res.json();
+        })
+      );
+
+      const results = await Promise.allSettled(deletePromises);
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      if (successful > 0) {
+        setSuccessMessage(`Successfully deleted ${successful} record(s)${failed > 0 ? `. ${failed} failed.` : ''}`);
+        setTimeout(() => setSuccessMessage(''), 5000);
+        fetchData();
+        handleClearSelection();
+      } else {
+        // Get error message from first failed promise
+        const firstError = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        const errorMsg = firstError?.reason?.message || 'Failed to delete selected records';
+        setErrorMessage(errorMsg);
+        setTimeout(() => setErrorMessage(''), 5000);
+      }
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to delete selected records');
+      setTimeout(() => setErrorMessage(''), 5000);
+    } finally {
+      setIsDeletingBulk(false);
+      setBulkDeletePassword('');
+    }
+  };
+
   // Calculate statistics
   const calculateStats = useCallback((data: CollectionRecord[]) => {
     const totalQuantity = data.reduce((sum, record) => sum + parseFloat(record.quantity || '0'), 0);
@@ -308,8 +455,16 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
 
       if (response.ok) {
         const data = await response.json();
-        setRecords(data);
-        calculateStats(data);
+        
+        // Only update state if data has changed to prevent unnecessary re-renders
+        setRecords(prevRecords => {
+          const hasChanged = JSON.stringify(prevRecords) !== JSON.stringify(data);
+          if (hasChanged) {
+            calculateStats(data);
+            return data;
+          }
+          return prevRecords;
+        });
       }
     } catch (error) {
       console.error('Error fetching collection data:', error);
@@ -761,6 +916,14 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
           <table className="w-auto min-w-full table-auto">
             <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
               <tr>
+                <th className="px-4 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
+                  />
+                </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Farmer</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
@@ -780,18 +943,31 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Bonus</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Qty (L)</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Amount</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={19} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={21} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No collection records found
                   </td>
                 </tr>
               ) : (
                 filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <tr key={record.id} className={`transition-colors ${
+                    selectedRecords.has(record.id)
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedRecords.has(record.id)}
+                        onChange={() => handleSelectOne(record.id)}
+                        className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
                       <div>{highlightText(record.collection_date, combinedSearch)}</div>
                       <div className="text-xs text-gray-500">{record.collection_time}</div>
@@ -849,6 +1025,15 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
                     <td className="px-4 py-3 text-sm text-center font-medium text-green-600 dark:text-green-400">
                       ₹{highlightText(parseFloat(record.total_amount).toFixed(2), combinedSearch)}
                     </td>
+                    <td className="px-4 py-3 text-sm text-center">
+                      <button
+                        onClick={() => handleDeleteClick(record.id)}
+                        className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                        title="Delete record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -856,6 +1041,54 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
           </table>
         </div>
       </div>
+
+      {/* Password Confirmation Dialog */}
+      <PasswordConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Collection Record"
+        message="Enter your admin password to confirm deletion. This action cannot be undone and will be logged for security purposes."
+      />
+
+      {/* Bulk Delete Password Confirmation Modal */}
+      <PasswordConfirmDialog
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => {
+          setShowBulkDeleteConfirm(false);
+          setBulkDeletePassword('');
+        }}
+        onConfirm={handleBulkDeleteConfirm}
+        title={`Delete ${selectedRecords.size} Collection Record${selectedRecords.size > 1 ? 's' : ''}`}
+        message={`Enter your admin password to confirm deletion of ${selectedRecords.size} selected record(s). This action cannot be undone and will be logged for security purposes.`}
+      />
+
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        selectedCount={selectedRecords.size}
+        onBulkDelete={handleBulkDeleteClick}
+        onClearSelection={handleClearSelection}
+        itemType="record"
+        showStatusUpdate={false}
+      />
+
+      {/* Loading Snackbar */}
+      <LoadingSnackbar
+        isVisible={deleting || isDeletingBulk}
+        message={isDeletingBulk ? `Deleting ${selectedRecords.size} Records` : "Deleting Record"}
+        submessage="Verifying credentials and removing data..."
+        showProgress={false}
+      />
+
+      {/* Status Messages */}
+      <StatusMessage
+        success={successMessage}
+        error={errorMessage}
+        onClose={() => {
+          setSuccessMessage('');
+          setErrorMessage('');
+        }}
+      />
     </div>
   );
 }
