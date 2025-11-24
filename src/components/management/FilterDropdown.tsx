@@ -157,24 +157,19 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
 
-        {/* Society Filter Button */}
+        {/* Society Filter Button - Only show when societies are selected */}
+        {Array.isArray(societyFilter) && societyFilter.length > 0 && (
         <div className="relative" ref={societyDropdownRef}>
           <button
             onClick={() => setSocietyDropdownOpen(!societyDropdownOpen)}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border transition-all ${
-              Array.isArray(societyFilter) && societyFilter.length > 0
-                ? 'bg-psr-primary-50 dark:bg-psr-primary-900/20 border-psr-primary-500 dark:border-psr-primary-400 text-psr-primary-700 dark:text-psr-primary-300'
-                : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border transition-all bg-psr-primary-50 dark:bg-psr-primary-900/20 border-psr-primary-500 dark:border-psr-primary-400 text-psr-primary-700 dark:text-psr-primary-300"
           >
             <Filter className="w-4 h-4" />
             <span className="text-sm font-medium">
               Society
-              {Array.isArray(societyFilter) && societyFilter.length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 bg-psr-primary-600 dark:bg-psr-primary-500 text-white text-xs rounded-full min-w-[18px] text-center">
-                  {societyFilter.length}
-                </span>
-              )}
+              <span className="ml-1.5 px-1.5 py-0.5 bg-psr-primary-600 dark:bg-psr-primary-500 text-white text-xs rounded-full min-w-[18px] text-center">
+                {societyFilter.length}
+              </span>
             </span>
             <ChevronDown className={`w-4 h-4 transition-transform ${societyDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -310,6 +305,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* Date Range Filter Button */}
         {showDateFilter && (
@@ -603,10 +599,10 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                       </button>
                     </span>
                   )}
-                  {societyFilter !== 'all' && (
+                  {Array.isArray(societyFilter) && societyFilter.length > 0 && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-primary-100 dark:bg-psr-primary-900/30 text-psr-primary-700 dark:text-psr-primary-300 text-xs rounded">
-                      Society: {societies.find(s => s.id.toString() === societyFilter)?.name}
-                      <button onClick={() => onSocietyChange('all')} className="hover:text-psr-primary-900 dark:hover:text-psr-primary-100">
+                      Society: {societyFilter.length} selected
+                      <button onClick={() => onSocietyChange([])} className="hover:text-psr-primary-900 dark:hover:text-psr-primary-100">
                         <X className="w-3 h-3" />
                       </button>
                     </span>
