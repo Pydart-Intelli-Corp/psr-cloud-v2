@@ -43,7 +43,7 @@ const FarmerManagement = () => {
   const [loading, setLoading] = useState(true);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'maintenance'>('all');
-  const [societyFilter, setSocietyFilter] = useState<string>('all');
+  const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [error, setError] = useState('');
@@ -127,7 +127,7 @@ const FarmerManagement = () => {
 
   // Reset machine filter when society filter changes
   useEffect(() => {
-    if (societyFilter !== 'all' && machineFilter !== 'all' && machineFilter !== 'unassigned') {
+    if (societyFilter.length > 0 && machineFilter !== 'all' && machineFilter !== 'unassigned') {
       // Check if current machine selection is still valid for the selected society
       const currentMachine = machines.find(m => m.id.toString() === machineFilter);
       if (currentMachine && currentMachine.societyId?.toString() !== societyFilter) {
@@ -471,7 +471,7 @@ const FarmerManagement = () => {
       // Calculate filtered farmers inline to avoid dependency issues
       const currentlyFilteredFarmers = farmers.filter(farmer => {
         const statusMatch = statusFilter === 'all' || farmer.status === statusFilter;
-        const societyMatch = societyFilter === 'all' || farmer.societyId?.toString() === societyFilter;
+        const societyMatch = societyFilter.length === 0 || societyFilter.includes(farmer.societyId?.toString() || '');
         const machineMatch = machineFilter === 'all' || 
           (machineFilter === 'unassigned' && !farmer.machineId) ||
           farmer.machineId?.toString() === machineFilter;
@@ -548,7 +548,7 @@ const FarmerManagement = () => {
         setUpdateProgress(95);
         setSelectedFarmers(new Set());
         setSelectAll(false);
-        setSuccess(`Successfully deleted ${ids.length} farmer(s)${(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') ? ' from filtered results' : ''}`);
+        setSuccess(`Successfully deleted ${ids.length} farmer(s)${(statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all') ? ' from filtered results' : ''}`);\n        setSocietyFilter([]);
         setError('');
         setUpdateProgress(100);
       } else {
@@ -625,7 +625,7 @@ const FarmerManagement = () => {
       
       setSuccess(
         `Successfully updated status to "${statusToUpdate}" for ${updatedCount} farmer(s)${
-          (statusFilter !== 'all' || societyFilter !== 'all') ? ' from filtered results' : ''
+          (statusFilter !== 'all' || societyFilter.length > 0) ? ' from filtered results' : ''
         }`
       );
       setError('');
@@ -689,7 +689,7 @@ const FarmerManagement = () => {
 
       const filters = {
         status: statusFilter !== 'all' ? statusFilter : undefined,
-        society: societyFilter !== 'all' ? societyFilter : undefined,
+        society: societyFilter.length > 0 ? societyFilter[0] : undefined,
         selection: selectedFarmers.size > 0 ? `${selectedFarmers.size}-selected` : undefined
       };
 
@@ -1144,7 +1144,7 @@ const FarmerManagement = () => {
     searchQuery,
     statusFilter,
     null, // bmcFilter - not used in farmer management
-    societyFilter === 'all' ? null : parseInt(societyFilter)
+    societyFilter.length === 0 ? null : parseInt(societyFilter[0])
   ).filter(farmer => {
     // Additional machine filter
     if (machineFilter === 'all') return true;
@@ -1191,7 +1191,7 @@ const FarmerManagement = () => {
       <StatsGrid
         allItems={farmers}
         filteredItems={filteredFarmers}
-        hasFilters={statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all'}
+        hasFilters={statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all'}
         onStatusFilterChange={(status) => setStatusFilter(status)}
         currentStatusFilter={statusFilter}
       />
@@ -1226,7 +1226,7 @@ const FarmerManagement = () => {
             />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {t.farmerManagement.selectAll} {filteredFarmers.length} {filteredFarmers.length === 1 ? t.roles.farmer : t.farmerManagement.farmers}
-              {(statusFilter !== 'all' || societyFilter !== 'all' || machineFilter !== 'all') && ` (${t.common.filter.toLowerCase()})`}
+              {(statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all') && ` (${t.common.filter.toLowerCase()})`}
             </span>
           </label>
 
@@ -1883,7 +1883,7 @@ const FarmerManagement = () => {
         onConfirm={handleBulkDelete}
         itemCount={selectedFarmers.size}
         itemType="farmer"
-        hasFilters={statusFilter !== 'all' || societyFilter !== 'all'}
+        hasFilters={statusFilter !== 'all' || societyFilter.length > 0}
       />
 
       {/* CSV Upload Modal */}
