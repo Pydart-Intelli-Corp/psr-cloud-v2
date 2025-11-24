@@ -22,6 +22,11 @@ interface DispatchRecord {
   id: number;
   dispatch_id: string;
   society_id: string;
+  society_name: string;
+  bmc_id?: number;
+  bmc_name?: string;
+  dairy_id?: number;
+  dairy_name?: string;
   machine_id: string;
   dispatch_date: string;
   dispatch_time: string;
@@ -47,7 +52,49 @@ interface DispatchStats {
   weightedClr: number;
 }
 
-export default function DispatchReports() {
+// Helper function to highlight matching text in search results
+const highlightText = (text: string | number, searchQuery: string) => {
+  if (!searchQuery) return text;
+  
+  const textStr = text.toString();
+  const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = textStr.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+};
+
+// Helper function to map channel codes to display names
+const getChannelDisplay = (channel: string): string => {
+  const channelMap: { [key: string]: string } = {
+    'ch1': 'COW',
+    'ch2': 'BUFFALO',
+    'ch3': 'MIXED',
+    'CH1': 'COW',
+    'CH2': 'BUFFALO',
+    'CH3': 'MIXED',
+    'COW': 'COW',
+    'BUFFALO': 'BUFFALO',
+    'MIXED': 'MIXED',
+    'cow': 'COW',
+    'buffalo': 'BUFFALO',
+    'mixed': 'MIXED'
+  };
+  return channelMap[channel] || channel.toUpperCase();
+};
+
+interface DispatchReportsProps {
+  globalSearch?: string;
+}
+
+export default function DispatchReports({ globalSearch = '' }: DispatchReportsProps) {
   const [records, setRecords] = useState<DispatchRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<DispatchRecord[]>([]);
   const [stats, setStats] = useState<DispatchStats>({
@@ -61,14 +108,102 @@ export default function DispatchReports() {
   });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Sync global search with local search
+  useEffect(() => {
+    if (globalSearch !== undefined) {
+      setSearchQuery(globalSearch);
+    }
+  }, [globalSearch]);
+
+  // Combined search from global header and local search
+  const combinedSearch = useMemo(() => globalSearch || searchQuery, [globalSearch, searchQuery]);
+  
   const [dateFilter, setDateFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
-  const [societyFilter, setSocietyFilter] = useState('all');
+  const [dairyFilter, setDairyFilter] = useState('all');
+  const [bmcFilter, setBmcFilter] = useState('all');
+  const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState('all');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+
+  // Fetch dairies and BMCs
+  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmc_id: string; dairyFarmId?: number }>>([]);
+  const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
+
+  useEffect(() => {
+    const fetchDairiesAndBmcs = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const dairyRes = await fetch('/api/user/dairy', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (dairyRes.ok) {
+          const dairyData = await dairyRes.json();
+          setDairies(dairyData.data || []);
+        }
+
+        const bmcRes = await fetch('/api/user/bmc', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (bmcRes.ok) {
+          const bmcData = await bmcRes.json();
+          setBmcs(bmcData.data || []);
+        }
+
+        const societyRes = await fetch('/api/user/society', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (societyRes.ok) {
+          const societyData = await societyRes.json();
+          setSocietiesData(societyData.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching dairies/BMCs:', error);
+      }
+    };
+
+    fetchDairiesAndBmcs();
+  }, []);
+
+  // Filter dairies to only show those with dispatch records
+  const dairiesWithDispatches = useMemo(() => {
+    if (!dairies.length || !records.length) return dairies;
+    
+    const dairyIdsInDispatches = new Set(
+      records
+        .filter(r => r.dairy_id)
+        .map(r => r.dairy_id)
+    );
+    
+    return dairies.filter(dairy => dairyIdsInDispatches.has(dairy.id));
+  }, [dairies, records]);
+
+  // Clear all filters
+  const clearFilters = () => {
+    setShiftFilter('all');
+    setDairyFilter('all');
+    setBmcFilter('all');
+    setSocietyFilter([]);
+    setMachineFilter('all');
+    setDateFilter('');
+    setDateFromFilter('');
+    setDateToFilter('');
+    setChannelFilter('all');
+    setSearchQuery('');
+    
+    // Clear header search
+    const event = new CustomEvent('globalSearch', {
+      detail: { query: '' }
+    });
+    window.dispatchEvent(event);
+  };
   
   // Extract unique societies and machines from records (memoized)
   const societies = useMemo(() => {
@@ -111,7 +246,10 @@ export default function DispatchReports() {
   const calculateStats = useCallback((data: DispatchRecord[]) => {
     const totalQuantity = data.reduce((sum, record) => sum + parseFloat(record.quantity || '0'), 0);
     const totalAmount = data.reduce((sum, record) => sum + parseFloat(record.total_amount || '0'), 0);
-    const averageRate = data.length > 0 ? totalAmount / totalQuantity : 0;
+    
+    // Calculate simple average rate from rate_per_liter column
+    const totalRate = data.reduce((sum, record) => sum + parseFloat(record.rate_per_liter || '0'), 0);
+    const averageRate = data.length > 0 ? totalRate / data.length : 0;
     
     // Calculate weighted averages
     const sumQuantityFat = data.reduce((sum, record) => {
@@ -176,22 +314,41 @@ export default function DispatchReports() {
   useEffect(() => {
     let filtered = records;
 
+    // Dairy filter
+    if (dairyFilter !== 'all') {
+      const selectedDairy = dairies.find(d => d.id.toString() === dairyFilter);
+      if (selectedDairy) {
+        filtered = filtered.filter(record => record.dairy_id === selectedDairy.id);
+      }
+    }
+
+    // BMC filter
+    if (bmcFilter !== 'all') {
+      const selectedBmc = bmcs.find(b => b.id.toString() === bmcFilter);
+      if (selectedBmc) {
+        filtered = filtered.filter(record => record.bmc_id === selectedBmc.id);
+      }
+    }
+
     // Status/Shift filter
     if (shiftFilter !== 'all') {
       if (shiftFilter === 'morning') {
-        filtered = filtered.filter(record => ['MR', 'MX'].includes(record.shift_type));
+        filtered = filtered.filter(record => ['MR', 'MX', 'morning'].includes(record.shift_type));
       } else if (shiftFilter === 'evening') {
-        filtered = filtered.filter(record => ['EV', 'EX'].includes(record.shift_type));
+        filtered = filtered.filter(record => ['EV', 'EX', 'evening'].includes(record.shift_type));
       } else {
         filtered = filtered.filter(record => record.shift_type === shiftFilter);
       }
     }
 
     // Society filter
-    if (societyFilter !== 'all') {
-      const selectedSociety = societies.find(s => s.id.toString() === societyFilter);
-      if (selectedSociety) {
-        filtered = filtered.filter(record => record.society_id === selectedSociety.society_id);
+    if (Array.isArray(societyFilter) && societyFilter.length > 0) {
+      const selectedSocietyIds = societyFilter.map(id => {
+        const society = societies.find(s => s.id.toString() === id);
+        return society?.society_id;
+      }).filter(Boolean);
+      if (selectedSocietyIds.length > 0) {
+        filtered = filtered.filter(record => selectedSocietyIds.includes(record.society_id));
       }
     }
 
@@ -205,7 +362,10 @@ export default function DispatchReports() {
 
     // Channel filter
     if (channelFilter !== 'all') {
-      filtered = filtered.filter(record => record.channel === channelFilter);
+      filtered = filtered.filter(record => {
+        const displayChannel = getChannelDisplay(record.channel);
+        return displayChannel === channelFilter;
+      });
     }
 
     // Date filter
@@ -222,14 +382,16 @@ export default function DispatchReports() {
     }
 
     // Multi-field search across dispatch details (matching machine management pattern)
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
+    if (combinedSearch) {
+      const searchLower = combinedSearch.toLowerCase();
       filtered = filtered.filter(record =>
         [
           record.dispatch_id,
           record.society_id,
+          record.society_name,
           record.machine_id,
           record.channel,
+          getChannelDisplay(record.channel),
           record.dispatch_date,
           record.shift_type
         ].some(field =>
@@ -240,7 +402,7 @@ export default function DispatchReports() {
 
     setFilteredRecords(filtered);
     calculateStats(filtered);
-  }, [searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, records, societies, machines, calculateStats]);
+  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, dairyFilter, bmcFilter, records, societies, machines, dairies, bmcs, calculateStats]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -335,7 +497,7 @@ export default function DispatchReports() {
       (index + 1).toString(),
       record.dispatch_date,
       record.dispatch_time,
-      record.channel,
+      getChannelDisplay(record.channel),
       record.shift_type,
       record.machine_type,
       record.machine_id,
@@ -422,7 +584,7 @@ export default function DispatchReports() {
   return (
     <div className="space-y-6">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3 sm:gap-4">
+      <div className="grid grid-cols-7 gap-3">
         <StatsCard
           title="Total Dispatches"
           value={stats.totalDispatches}
@@ -477,7 +639,10 @@ export default function DispatchReports() {
             </span>
             <div className="flex gap-2">
               <button
-                onClick={fetchData}
+                onClick={() => {
+                  clearFilters();
+                  fetchData();
+                }}
                 className="flex items-center justify-center gap-2 px-3 py-2 bg-psr-primary-600 text-white rounded-lg hover:bg-psr-primary-700 transition-colors text-sm shadow-sm hover:shadow-md"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -504,10 +669,16 @@ export default function DispatchReports() {
           <FilterDropdown
             statusFilter={shiftFilter}
             onStatusChange={setShiftFilter}
+            dairyFilter={dairyFilter}
+            onDairyChange={setDairyFilter}
+            bmcFilter={bmcFilter}
+            onBmcChange={setBmcFilter}
             societyFilter={societyFilter}
             onSocietyChange={setSocietyFilter}
             machineFilter={machineFilter}
             onMachineChange={setMachineFilter}
+            dairies={dairiesWithDispatches}
+            bmcs={bmcs}
             societies={societies}
             machines={machines}
             filteredCount={filteredRecords.length}
@@ -560,13 +731,16 @@ export default function DispatchReports() {
                   <React.Fragment key={record.id}>
                     <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                       <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
-                        <div>{record.dispatch_date}</div>
+                        <div>{highlightText(record.dispatch_date, combinedSearch)}</div>
                         <div className="text-xs text-gray-500">{record.dispatch_time}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">
-                        {record.dispatch_id}
+                        {highlightText(record.dispatch_id, combinedSearch)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{record.society_id}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
+                        <div className="font-medium">{highlightText(record.society_name, combinedSearch)}</div>
+                        <div className="text-xs text-gray-500">ID: {highlightText(record.society_id, combinedSearch)}</div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           ['MR', 'MX'].includes(record.shift_type)
@@ -576,12 +750,22 @@ export default function DispatchReports() {
                           {['MR', 'MX'].includes(record.shift_type) ? 'Morning' : 'Evening'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{record.channel}</td>
-                      <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">{parseFloat(record.quantity).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.fat_percentage).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.snf_percentage).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          getChannelDisplay(record.channel) === 'COW'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                            : getChannelDisplay(record.channel) === 'BUFFALO'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                        }`}>
+                          {highlightText(getChannelDisplay(record.channel), combinedSearch)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">{highlightText(parseFloat(record.quantity).toFixed(2), combinedSearch)}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.fat_percentage).toFixed(2), combinedSearch)}</td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.snf_percentage).toFixed(2), combinedSearch)}</td>
                       <td className="px-4 py-3 text-sm text-center font-medium text-green-600 dark:text-green-400">
-                        ₹{parseFloat(record.total_amount).toFixed(2)}
+                        ₹{highlightText(parseFloat(record.total_amount).toFixed(2), combinedSearch)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
@@ -602,11 +786,11 @@ export default function DispatchReports() {
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
                             <div>
                               <span className="text-gray-500 dark:text-gray-400">Machine:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{record.machine_id}</div>
+                              <div className="font-medium text-gray-900 dark:text-white">{highlightText(record.machine_id || 'N/A', combinedSearch)}</div>
                             </div>
                             <div>
-                              <span className="text-gray-500 dark:text-gray-400">CLR:</span>
-                              <div className="font-medium text-gray-900 dark:text-white">{record.clr_value}</div>
+                              <span className="text-gray-500 dark:text-gray-400">Machine Type:</span>
+                              <div className="font-medium text-gray-900 dark:text-white">{highlightText(record.machine_type || 'N/A', combinedSearch)}</div>
                             </div>
                             <div>
                               <span className="text-gray-500 dark:text-gray-400">Rate/L:</span>

@@ -98,11 +98,11 @@ const StatsCard: React.FC<StatsCardProps> = ({
               {icon}
             </div>
           </div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
             {title}
           </p>
         </div>
-        <p className={`text-xl sm:text-2xl font-bold ${colorClasses.valueText} leading-none break-words`}>
+        <p className={`text-xl sm:text-2xl font-bold ${colorClasses.valueText} leading-none overflow-hidden text-ellipsis`}>
           {value}
         </p>
       </div>

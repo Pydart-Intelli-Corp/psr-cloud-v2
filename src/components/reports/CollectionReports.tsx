@@ -21,6 +21,10 @@ interface CollectionRecord {
   farmer_name: string;
   society_id: string;
   society_name: string;
+  bmc_id?: number;
+  bmc_name?: string;
+  dairy_id?: number;
+  dairy_name?: string;
   machine_id: string;
   collection_date: string;
   collection_time: string;
@@ -52,7 +56,49 @@ interface CollectionStats {
   weightedClr: number;
 }
 
-export default function CollectionReports() {
+// Helper function to highlight matching text in search results
+const highlightText = (text: string | number, searchQuery: string) => {
+  if (!searchQuery) return text;
+  
+  const textStr = text.toString();
+  const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = textStr.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+};
+
+// Helper function to map channel codes to display names
+const getChannelDisplay = (channel: string): string => {
+  const channelMap: { [key: string]: string } = {
+    'ch1': 'COW',
+    'ch2': 'BUFFALO',
+    'ch3': 'MIXED',
+    'CH1': 'COW',
+    'CH2': 'BUFFALO',
+    'CH3': 'MIXED',
+    'COW': 'COW',
+    'BUFFALO': 'BUFFALO',
+    'MIXED': 'MIXED',
+    'cow': 'COW',
+    'buffalo': 'BUFFALO',
+    'mixed': 'MIXED'
+  };
+  return channelMap[channel] || channel.toUpperCase();
+};
+
+interface CollectionReportsProps {
+  globalSearch?: string;
+}
+
+export default function CollectionReports({ globalSearch = '' }: CollectionReportsProps) {
   const [records, setRecords] = useState<CollectionRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<CollectionRecord[]>([]);
   const [stats, setStats] = useState<CollectionStats>({
@@ -66,16 +112,92 @@ export default function CollectionReports() {
   });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Sync global search with local search
+  useEffect(() => {
+    if (globalSearch !== undefined) {
+      setSearchQuery(globalSearch);
+    }
+  }, [globalSearch]);
+
+  // Combined search from global header and local search
+  const combinedSearch = useMemo(() => globalSearch || searchQuery, [globalSearch, searchQuery]);
+  
   const [dateFilter, setDateFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
-  const [societyFilter, setSocietyFilter] = useState('all');
+  const [dairyFilter, setDairyFilter] = useState('all');
+  const [bmcFilter, setBmcFilter] = useState('all');
+  const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState('all');
+  
+  // Fetch dairies and BMCs
+  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmc_id: string; dairyFarmId?: number }>>([]);
+  const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
+
+  useEffect(() => {
+    const fetchDairiesAndBmcs = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        // Fetch dairies
+        const dairyRes = await fetch('/api/user/dairy', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (dairyRes.ok) {
+          const dairyData = await dairyRes.json();
+          setDairies(dairyData.data || []);
+        }
+
+        // Fetch BMCs
+        const bmcRes = await fetch('/api/user/bmc', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (bmcRes.ok) {
+          const bmcData = await bmcRes.json();
+          setBmcs(bmcData.data || []);
+        }
+
+        // Fetch Societies
+        const societyRes = await fetch('/api/user/society', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (societyRes.ok) {
+          const societyData = await societyRes.json();
+          setSocietiesData(societyData.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching dairies/BMCs/societies:', error);
+      }
+    };
+
+    fetchDairiesAndBmcs();
+  }, []);
+  
+  // Filter dairies to only show those with collection records
+  const dairiesWithCollections = useMemo(() => {
+    if (!dairies.length || !records.length) return dairies;
+    
+    const dairyIdsInCollections = new Set(
+      records
+        .filter(r => r.dairy_id)
+        .map(r => r.dairy_id)
+    );
+    
+    return dairies.filter(dairy => dairyIdsInCollections.has(dairy.id));
+  }, [dairies, records]);
   
   // Extract unique societies and machines from records (memoized)
   const societies = useMemo(() => {
+    // Use fetched society data with BMC associations
+    if (societiesData.length > 0) {
+      return societiesData;
+    }
+    // Fallback to extracting from records if API data not available
     const uniqueSocieties = new Map<string, { society_id: string; society_name: string }>();
     records.forEach(r => {
       if (r.society_id && !uniqueSocieties.has(r.society_id)) {
@@ -88,9 +210,10 @@ export default function CollectionReports() {
     return Array.from(uniqueSocieties.values()).map((society, index) => ({
       id: index + 1,
       name: society.society_name,
-      society_id: society.society_id
+      society_id: society.society_id,
+      bmc_id: undefined
     }));
-  }, [records]);
+  }, [records, societiesData]);
   
   const machines = useMemo(() => {
     const uniqueMachines = new Map<string, { machine_id: string; machine_type: string; society_id: string }>();
@@ -111,11 +234,34 @@ export default function CollectionReports() {
     }));
   }, [records, societies]);
 
+  // Clear all filters
+  const clearFilters = () => {
+    setShiftFilter('all');
+    setDairyFilter('all');
+    setBmcFilter('all');
+    setSocietyFilter([]);
+    setMachineFilter('all');
+    setDateFilter('');
+    setDateFromFilter('');
+    setDateToFilter('');
+    setChannelFilter('all');
+    setSearchQuery('');
+    
+    // Clear header search
+    const event = new CustomEvent('globalSearch', {
+      detail: { query: '' }
+    });
+    window.dispatchEvent(event);
+  };
+
   // Calculate statistics
   const calculateStats = useCallback((data: CollectionRecord[]) => {
     const totalQuantity = data.reduce((sum, record) => sum + parseFloat(record.quantity || '0'), 0);
     const totalAmount = data.reduce((sum, record) => sum + parseFloat(record.total_amount || '0'), 0);
-    const averageRate = data.length > 0 ? totalAmount / totalQuantity : 0;
+    
+    // Calculate simple average rate from rate_per_liter column
+    const totalRate = data.reduce((sum, record) => sum + parseFloat(record.rate_per_liter || '0'), 0);
+    const averageRate = data.length > 0 ? totalRate / data.length : 0;
     
     // Calculate weighted averages: Σ(quantity × value) / Σquantity
     const sumQuantityFat = data.reduce((sum, record) => {
@@ -180,6 +326,22 @@ export default function CollectionReports() {
   useEffect(() => {
     let filtered = records;
 
+    // Dairy filter
+    if (dairyFilter !== 'all') {
+      const selectedDairy = dairies.find(d => d.id.toString() === dairyFilter);
+      if (selectedDairy) {
+        filtered = filtered.filter(record => record.dairy_id === selectedDairy.id);
+      }
+    }
+
+    // BMC filter
+    if (bmcFilter !== 'all') {
+      const selectedBmc = bmcs.find(b => b.id.toString() === bmcFilter);
+      if (selectedBmc) {
+        filtered = filtered.filter(record => record.bmc_id === selectedBmc.id);
+      }
+    }
+
     // Status/Shift filter
     if (shiftFilter !== 'all') {
       if (shiftFilter === 'morning') {
@@ -192,10 +354,13 @@ export default function CollectionReports() {
     }
 
     // Society filter
-    if (societyFilter !== 'all') {
-      const selectedSociety = societies.find(s => s.id.toString() === societyFilter);
-      if (selectedSociety) {
-        filtered = filtered.filter(record => record.society_id === selectedSociety.society_id);
+    if (Array.isArray(societyFilter) && societyFilter.length > 0) {
+      const selectedSocietyIds = societyFilter.map(id => {
+        const society = societies.find(s => s.id.toString() === id);
+        return society?.society_id;
+      }).filter(Boolean);
+      if (selectedSocietyIds.length > 0) {
+        filtered = filtered.filter(record => selectedSocietyIds.includes(record.society_id));
       }
     }
 
@@ -209,7 +374,10 @@ export default function CollectionReports() {
 
     // Channel filter
     if (channelFilter !== 'all') {
-      filtered = filtered.filter(record => record.channel === channelFilter);
+      filtered = filtered.filter(record => {
+        const displayChannel = getChannelDisplay(record.channel);
+        return displayChannel === channelFilter;
+      });
     }
 
     // Date filter
@@ -226,15 +394,17 @@ export default function CollectionReports() {
     }
 
     // Multi-field search across collection details (matching machine management pattern)
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
+    if (combinedSearch) {
+      const searchLower = combinedSearch.toLowerCase();
       filtered = filtered.filter(record =>
         [
           record.farmer_id,
           record.farmer_name,
           record.society_id,
+          record.society_name,
           record.machine_id,
           record.channel,
+          getChannelDisplay(record.channel),
           record.collection_date,
           record.shift_type
         ].some(field =>
@@ -245,7 +415,7 @@ export default function CollectionReports() {
 
     setFilteredRecords(filtered);
     calculateStats(filtered);
-  }, [searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, records, societies, machines, calculateStats]);
+  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, dairyFilter, bmcFilter, records, societies, machines, dairies, bmcs, calculateStats]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -344,7 +514,7 @@ export default function CollectionReports() {
       (index + 1).toString(),
       record.collection_date,
       record.collection_time,
-      record.channel,
+      getChannelDisplay(record.channel),
       record.shift_type,
       record.machine_type,
       record.machine_id,
@@ -436,7 +606,7 @@ export default function CollectionReports() {
   return (
     <div className="space-y-6">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-3 sm:gap-4">
+      <div className="grid grid-cols-7 gap-3">
         <StatsCard
           title="Total Collections"
           value={stats.totalCollections}
@@ -491,7 +661,10 @@ export default function CollectionReports() {
             </span>
             <div className="flex gap-2">
               <button
-                onClick={fetchData}
+                onClick={() => {
+                  clearFilters();
+                  fetchData();
+                }}
                 className="flex items-center justify-center gap-2 px-3 py-2 bg-psr-primary-600 text-white rounded-lg hover:bg-psr-primary-700 transition-colors text-sm shadow-sm hover:shadow-md"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -518,10 +691,16 @@ export default function CollectionReports() {
           <FilterDropdown
             statusFilter={shiftFilter}
             onStatusChange={setShiftFilter}
+            dairyFilter={dairyFilter}
+            onDairyChange={setDairyFilter}
+            bmcFilter={bmcFilter}
+            onBmcChange={setBmcFilter}
             societyFilter={societyFilter}
             onSocietyChange={setSocietyFilter}
             machineFilter={machineFilter}
             onMachineChange={setMachineFilter}
+            dairies={dairiesWithCollections}
+            bmcs={bmcs}
             societies={societies}
             machines={machines}
             filteredCount={filteredRecords.length}
@@ -582,16 +761,19 @@ export default function CollectionReports() {
                 filteredRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
-                      <div>{record.collection_date}</div>
+                      <div>{highlightText(record.collection_date, combinedSearch)}</div>
                       <div className="text-xs text-gray-500">{record.collection_time}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
-                      <div className="font-medium">{record.farmer_name}</div>
-                      <div className="text-xs text-gray-500">ID: {record.farmer_id}</div>
+                      <div className="font-medium">{highlightText(record.farmer_name, combinedSearch)}</div>
+                      <div className="text-xs text-gray-500">ID: {highlightText(record.farmer_id, combinedSearch)}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{record.society_id}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{record.machine_id}</td>
-                    <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{record.machine_type}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
+                      <div className="font-medium">{highlightText(record.society_name, combinedSearch)}</div>
+                      <div className="text-xs text-gray-500">ID: {highlightText(record.society_id, combinedSearch)}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(record.machine_id, combinedSearch)}</td>
+                    <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{highlightText(record.machine_type, combinedSearch)}</td>
                     <td className="px-4 py-3 text-sm text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         ['MR', 'MX', 'morning'].includes(record.shift_type)
@@ -603,28 +785,28 @@ export default function CollectionReports() {
                     </td>
                     <td className="px-4 py-3 text-sm text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        record.channel === 'COW'
+                        getChannelDisplay(record.channel) === 'COW'
                           ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                          : record.channel === 'BUFFALO'
+                          : getChannelDisplay(record.channel) === 'BUFFALO'
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                           : 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
                       }`}>
-                        {record.channel}
+                        {highlightText(getChannelDisplay(record.channel), combinedSearch)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.fat_percentage).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.snf_percentage).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.clr_value).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.protein_percentage).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.lactose_percentage).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.salt_percentage).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.water_percentage).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{parseFloat(record.temperature).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">₹{parseFloat(record.rate_per_liter).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">₹{parseFloat(record.bonus).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">{parseFloat(record.quantity).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.fat_percentage).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.snf_percentage).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.clr_value).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.protein_percentage).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.lactose_percentage).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.salt_percentage).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.water_percentage).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(parseFloat(record.temperature).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">₹{highlightText(parseFloat(record.rate_per_liter).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">₹{highlightText(parseFloat(record.bonus).toFixed(2), combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center font-medium text-gray-900 dark:text-white">{highlightText(parseFloat(record.quantity).toFixed(2), combinedSearch)}</td>
                     <td className="px-4 py-3 text-sm text-center font-medium text-green-600 dark:text-green-400">
-                      ₹{parseFloat(record.total_amount).toFixed(2)}
+                      ₹{highlightText(parseFloat(record.total_amount).toFixed(2), combinedSearch)}
                     </td>
                   </tr>
                 ))

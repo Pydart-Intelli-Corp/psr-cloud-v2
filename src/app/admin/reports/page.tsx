@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Droplet, Truck, DollarSign } from 'lucide-react';
 import CollectionReports from '@/components/reports/CollectionReports';
@@ -43,15 +43,28 @@ const tabs: TabConfig[] = [
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportType>('collection');
+  const [globalSearch, setGlobalSearch] = useState('');
+
+  // Listen to global search event from header
+  useEffect(() => {
+    const handleGlobalSearch = (event: CustomEvent<{ query: string }>) => {
+      setGlobalSearch(event.detail.query);
+    };
+
+    window.addEventListener('globalSearch', handleGlobalSearch as EventListener);
+    return () => {
+      window.removeEventListener('globalSearch', handleGlobalSearch as EventListener);
+    };
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'collection':
-        return <CollectionReports key="collection" />;
+        return <CollectionReports key="collection" globalSearch={globalSearch} />;
       case 'dispatch':
-        return <DispatchReports key="dispatch" />;
+        return <DispatchReports key="dispatch" globalSearch={globalSearch} />;
       case 'sales':
-        return <SalesReports key="sales" />;
+        return <SalesReports key="sales" globalSearch={globalSearch} />;
       default:
         return null;
     }
@@ -99,7 +112,7 @@ export default function ReportsPage() {
                     `}
                   >
                     <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="text-sm sm:text-base whitespace-nowrap">{tab.label}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
                   </button>
                 );
               })}

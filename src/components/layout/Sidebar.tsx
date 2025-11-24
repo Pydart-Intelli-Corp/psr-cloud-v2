@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import FlowerSpinner from '@/components/loading/FlowerSpinner';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { 
   Home, 
@@ -129,6 +129,80 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
   const [isLoading, setIsLoading] = useState(false);
   const [prevPathname, setPrevPathname] = useState(pathname);
   const { t } = useLanguage();
+  
+  // Auto-collapse state management
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear all timers
+  const clearTimers = () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  // Reset inactivity timer
+  const resetInactivityTimer = () => {
+    clearTimers();
+    
+    // Only set auto-collapse timer if sidebar is expanded and not pinned
+    if (!isCollapsed && !isPinned) {
+      inactivityTimerRef.current = setTimeout(() => {
+        if (!isPinned && !isHovered) {
+          onToggle(); // Collapse after 5 seconds of inactivity
+        }
+      }, 5000);
+    }
+  };
+
+  // Handle mouse enter - expand after 1 second
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    
+    // Expand after 1 second hover when collapsed
+    if (isCollapsed) {
+      clearTimers();
+      hoverTimerRef.current = setTimeout(() => {
+        if (isCollapsed) {
+          onToggle(); // Expand after 1 second hover
+        }
+      }, 1000);
+    }
+  };
+
+  // Handle mouse leave
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    clearTimers();
+    clearTimers();
+    
+    // Start inactivity timer if expanded and not pinned
+    if (!isCollapsed && !isPinned) {
+      resetInactivityTimer();
+    }
+  };
+
+  // Handle click on toggle button
+  const handleToggleClick = () => {
+    setIsPinned(!isCollapsed); // Pin when expanding, unpin when collapsing
+    onToggle();
+  };
+
+  // Reset timer on any interaction
+  useEffect(() => {
+    if (!isCollapsed && !isPinned) {
+      resetInactivityTimer();
+    }
+    
+    return () => clearTimers();
+  }, [isCollapsed, isPinned, isHovered]);
 
   // Detect route changes for loading state
   if (pathname !== prevPathname) {
@@ -224,6 +298,8 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
         initial={{ width: isCollapsed ? 80 : 280 }}
         animate={{ width: isCollapsed ? 80 : 280 }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className="hidden lg:flex h-screen bg-white dark:bg-gray-900 shadow-xl border-r border-gray-200 dark:border-gray-700 flex-col relative z-20"
       >
         {/* Header */}
@@ -259,13 +335,17 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
           </AnimatePresence>
           
           <button
-            onClick={onToggle}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            onClick={handleToggleClick}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
+            title={isPinned ? "Pinned - Click to unpin" : "Click to pin"}
           >
             {isCollapsed ? (
               <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             ) : (
               <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            )}
+            {isPinned && !isCollapsed && (
+              <div className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
             )}
           </button>
         </div>
@@ -273,7 +353,11 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav 
+        className="flex-1 p-4 space-y-2"
+        onMouseMove={resetInactivityTimer}
+        onClick={resetInactivityTimer}
+      >
         {filteredNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');

@@ -168,6 +168,21 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Listen for global search clear events
+  useEffect(() => {
+    const handleGlobalSearchClear = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.query === '') {
+        setSearchQuery('');
+      }
+    };
+
+    window.addEventListener('globalSearch', handleGlobalSearchClear);
+    return () => {
+      window.removeEventListener('globalSearch', handleGlobalSearchClear);
+    };
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {

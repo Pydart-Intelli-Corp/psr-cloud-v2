@@ -37,13 +37,17 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Fetch all sales records with joined data
+    // Fetch all sales records with joined data including dairy farm info
     const query = `
       SELECT 
         ms.id,
         ms.count,
         s.society_id,
         s.name as society_name,
+        s.bmc_id,
+        b.name as bmc_name,
+        b.dairy_farm_id as dairy_id,
+        df.name as dairy_name,
         m.machine_id,
         ms.sales_date,
         ms.sales_time,
@@ -56,6 +60,8 @@ export async function GET(request: NextRequest) {
         ms.created_at
       FROM \`${schemaName}\`.milk_sales ms
       LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
       LEFT JOIN \`${schemaName}\`.machines m ON ms.machine_id = m.id
       ORDER BY ms.sales_date DESC, ms.sales_time DESC
       LIMIT 1000

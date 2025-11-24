@@ -37,13 +37,17 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Fetch all dispatch records with joined data
+    // Fetch all dispatch records with joined data including dairy farm info
     const query = `
       SELECT 
         md.id,
         md.dispatch_id,
         s.society_id,
         s.name as society_name,
+        s.bmc_id,
+        b.name as bmc_name,
+        b.dairy_farm_id as dairy_id,
+        df.name as dairy_name,
         m.machine_id,
         md.dispatch_date,
         md.dispatch_time,
@@ -60,6 +64,8 @@ export async function GET(request: NextRequest) {
         md.created_at
       FROM \`${schemaName}\`.milk_dispatches md
       LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
       LEFT JOIN \`${schemaName}\`.machines m ON md.machine_id = m.id
       ORDER BY md.dispatch_date DESC, md.dispatch_time DESC
       LIMIT 1000
