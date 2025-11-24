@@ -10,6 +10,7 @@ interface SalesInput {
   machineType: string;
   version: string;
   machineId: string;
+  shiftType: string;
   count: string;
   channel: string;
   quantity: number;
@@ -32,10 +33,10 @@ interface MachineResult {
  * SaveSalesDetails API Endpoint
  * 
  * Purpose: Save milk sales data from machines
- * InputString format: societyId|machineType|version|machineId|count|channel|
+ * InputString format: societyId|machineType|version|machineId|shiftType|count|channel|
  *                     Q{quantity}|R{totalAmount}|r{rate}|D{datetime}
  * 
- * Example: S-1|LSE-SVPWTBQ-12AH|LE2.00|Mm1|I00002|COW|Q00120.00|R0330.00|r123.00|D2025-09-26_10:29:
+ * Example: S-102|LSE-SVPWTBQ-12AH|LE3.36|Mm00101|EV|I4|COW|Q00100.00|R05500.00|r055.00|D2025-11-24_00:00:00
  * 
  * Endpoint: GET/POST /api/[db-key]/Sales/SaveSalesDetails
  */
@@ -95,11 +96,11 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
-    // Parse input string - 10 parts expected
+    // Parse input string - 11 parts expected
     const inputParts = inputString.split('|');
     
-    if (inputParts.length !== 10) {
-      console.log(`❌ Invalid InputString format. Expected 10 parts, got ${inputParts.length}`);
+    if (inputParts.length !== 11) {
+      console.log(`❌ Invalid InputString format. Expected 11 parts, got ${inputParts.length}`);
       console.log(`   Parts received:`, inputParts);
       return ESP32ResponseHelper.createErrorResponse('Invalid InputString format');
     }
@@ -109,6 +110,7 @@ async function handleRequest(
       machineType,
       version,
       machineId,
+      shiftType,
       countStr,
       channel,
       quantityStr,
@@ -122,6 +124,7 @@ async function handleRequest(
       machineType,
       version,
       machineId,
+      shiftType,
       countStr,
       channel,
       datetime: datetimeStr
@@ -139,6 +142,7 @@ async function handleRequest(
       machineType,
       version,
       machineId,
+      shiftType,
       count: (countStr?.substring(1) || '').replace(/^0+/, '') || '0', // Remove 'I' prefix and leading zeros
       channel,
       quantity: parseValue(quantityStr, 'Q'),
@@ -235,6 +239,7 @@ async function handleRequest(
         machine_id,
         sales_date,
         sales_time,
+        shift_type,
         channel,
         quantity,
         rate_per_liter,
@@ -243,8 +248,9 @@ async function handleRequest(
         machine_version,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
       ON DUPLICATE KEY UPDATE
+        shift_type = VALUES(shift_type),
         channel = VALUES(channel),
         quantity = VALUES(quantity),
         rate_per_liter = VALUES(rate_per_liter),
@@ -260,6 +266,7 @@ async function handleRequest(
       actualMachine.id,
       formattedDate,
       formattedTime,
+      salesData.shiftType,
       salesData.channel,
       salesData.quantity,
       salesData.rate,
@@ -272,6 +279,7 @@ async function handleRequest(
     console.log(`   Count: ${salesData.count}`);
     console.log(`   Date: ${formattedDate}`);
     console.log(`   Time: ${formattedTime}`);
+    console.log(`   Shift: ${salesData.shiftType}`);
     console.log(`   Channel: ${salesData.channel}`);
     console.log(`   Quantity: ${salesData.quantity}L, Rate: ${salesData.rate}, Total: ${salesData.totalAmount}`);
 
