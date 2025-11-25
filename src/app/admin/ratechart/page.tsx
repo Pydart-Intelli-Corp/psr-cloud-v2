@@ -26,6 +26,7 @@ interface Society {
   id: number;
   name: string;
   society_id: string;
+  bmc_id?: number;
 }
 
 interface RateChart {
@@ -50,6 +51,9 @@ export default function RatechartManagement() {
   // State management
   const [rateCharts, setRateCharts] = useState<RateChart[]>([]);
   const [societies, setSocieties] = useState<Society[]>([]);
+  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
+  const [machines, setMachines] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [success, setSuccess] = useState('');
@@ -58,7 +62,10 @@ export default function RatechartManagement() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Filter states
+  const [dairyFilter, setDairyFilter] = useState<string[]>([]);
+  const [bmcFilter, setBmcFilter] = useState<string[]>([]);
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
+  const [machineFilter, setMachineFilter] = useState<string[]>([]);
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -162,12 +169,72 @@ export default function RatechartManagement() {
     }
   }, []);
 
+  // Fetch dairies
+  const fetchDairies = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/dairy', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDairies(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dairies:', error);
+    }
+  }, []);
+
+  // Fetch BMCs
+  const fetchBmcs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/bmc', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBmcs(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching BMCs:', error);
+    }
+  }, []);
+
+  // Fetch machines
+  const fetchMachines = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/machine', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMachines(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching machines:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       fetchRateCharts();
       fetchSocieties();
+      fetchDairies();
+      fetchBmcs();
+      fetchMachines();
     }
-  }, [user, fetchRateCharts, fetchSocieties]);
+  }, [user, fetchRateCharts, fetchSocieties, fetchDairies, fetchBmcs, fetchMachines]);
 
   // Listen for global search events from header
   useEffect(() => {
@@ -400,10 +467,8 @@ export default function RatechartManagement() {
     }
   };
 
-  // Filter rate charts
+  // Filter rate charts - DON'T apply society filter here, apply after grouping
   const filteredRateCharts = rateCharts.filter(chart => {
-    if (societyFilter.length > 0 && !societyFilter.includes(chart.societyId.toString())) return false;
-    
     // Handle channel filter including 'unique' option
     if (channelFilter !== 'all') {
       if (channelFilter === 'unique') {
@@ -483,6 +548,41 @@ export default function RatechartManagement() {
     societies: { societyId: number; societyName: string; societyIdentifier: string; chartRecordId: number }[];
     chartRecordIds: number[];
   }>);
+
+  // Apply dairy, BMC, society, and machine filters AFTER grouping
+  const societyFilteredGroupedCharts = Object.values(groupedCharts).filter(group => {
+    // Check each society in the group for filter matches
+    return group.societies.some(groupSociety => {
+      // Get society details
+      const society = societies.find(s => s.id === groupSociety.societyId);
+      if (!society) return false;
+
+      // Get BMC and dairy for this society
+      const societyBmc = society.bmc_id ? bmcs.find(b => b.id === society.bmc_id) : null;
+      const societyDairy = societyBmc?.dairyFarmId ? dairies.find(d => d.id === societyBmc.dairyFarmId) : null;
+
+      // Check dairy filter (now array-based)
+      const matchesDairy = dairyFilter.length === 0 || dairyFilter.includes(societyDairy?.id.toString() || '');
+      if (!matchesDairy) return false;
+
+      // Check BMC filter (now array-based)
+      const matchesBmc = bmcFilter.length === 0 || bmcFilter.includes(societyBmc?.id.toString() || '');
+      if (!matchesBmc) return false;
+
+      // Check society filter
+      const matchesSociety = societyFilter.length === 0 || societyFilter.includes(groupSociety.societyId.toString());
+      if (!matchesSociety) return false;
+
+      // Check machine filter
+      if (machineFilter.length > 0) {
+        const societyMachines = machines.filter(m => m.societyId === groupSociety.societyId);
+        const hasMachine = societyMachines.some(m => machineFilter.includes(m.id.toString()));
+        if (!hasMachine) return false;
+      }
+
+      return true;
+    });
+  });
 
   // Selection handlers
   const handleSelectAll = () => {
@@ -707,7 +807,11 @@ export default function RatechartManagement() {
 
   // Calculate stats - only count unique master charts
   const allMasterCharts = rateCharts.filter(chart => chart.shared_chart_id === null);
-  const uniqueCharts = allMasterCharts.length;
+  // Count unique charts (master charts that are NOT being shared by others)
+  const uniqueCharts = allMasterCharts.filter(chart => {
+    const isShared = rateCharts.some(c => c.shared_chart_id === chart.id);
+    return !isShared;
+  }).length;
   // Count only valid assignments (those with a master chart or valid shared reference)
   const totalAssignments = rateCharts.length;
   const cowCharts = allMasterCharts.filter(c => c.channel === 'COW').length;
@@ -808,28 +912,34 @@ export default function RatechartManagement() {
       <FilterDropdown
         statusFilter={'all'}
         onStatusChange={() => {}}
+        dairyFilter={dairyFilter}
+        onDairyChange={setDairyFilter}
+        bmcFilter={bmcFilter}
+        onBmcChange={setBmcFilter}
         societyFilter={societyFilter}
         onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
-        machineFilter={channelFilter}
-        onMachineChange={setChannelFilter}
+        machineFilter={machineFilter}
+        onMachineChange={(value) => setMachineFilter(Array.isArray(value) ? value : [value])}
+        channelFilter={channelFilter}
+        onChannelChange={setChannelFilter}
+        dairies={dairies}
+        bmcs={bmcs}
         societies={societies}
-        machines={[
-          { id: 1, machineId: 'COW', machineType: t.ratechartManagement.cow },
-          { id: 2, machineId: 'BUF', machineType: t.ratechartManagement.buffalo },
-          { id: 3, machineId: 'MIX', machineType: t.ratechartManagement.mixed }
-        ]}
-        filteredCount={Object.keys(groupedCharts).length}
+        machines={machines}
+        filteredCount={societyFilteredGroupedCharts.length}
         totalCount={rateCharts.length}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         icon={<Receipt className="w-5 h-5" />}
+        showChannelFilter={true}
+        hideMainFilterButton={true}
       />
 
       {/* Bulk Actions Toolbar */}
       {selectedCharts.size > 0 && (
         <BulkActionsToolbar
           selectedCount={(() => {
-            const selectedGroupCount = Object.values(groupedCharts).filter(group => 
+            const selectedGroupCount = societyFilteredGroupedCharts.filter(group => 
               group.chartRecordIds.some(id => selectedCharts.has(id))
             ).length;
             return selectedGroupCount;
@@ -855,7 +965,7 @@ export default function RatechartManagement() {
 
       {/* Rate Charts Display */}
       <div className="space-y-6">
-        {Object.keys(groupedCharts).length === 0 ? (
+        {societyFilteredGroupedCharts.length === 0 ? (
           <EmptyState
             icon={<Receipt className="w-12 h-12" />}
             title={t.ratechartManagement.noRateChartsFound}
@@ -866,7 +976,7 @@ export default function RatechartManagement() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-            {Object.values(groupedCharts).map(group => {
+            {societyFilteredGroupedCharts.map(group => {
               // Check if all chart records in this group are selected
               const isGroupSelected = group.chartRecordIds.every(id => selectedCharts.has(id));
               

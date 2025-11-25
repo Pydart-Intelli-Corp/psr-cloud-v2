@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -106,6 +106,7 @@ interface Society {
   id: number;
   name: string;
   society_id: string;
+  bmc_id?: number;
 }
 
 interface MachineType {
@@ -135,6 +136,8 @@ export default function MachineManagement() {
   // State management
   const [machines, setMachines] = useState<Machine[]>([]);
   const [societies, setSocieties] = useState<Society[]>([]);
+  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
   const [machineTypes, setMachineTypes] = useState<MachineType[]>([]);
   const [loading, setLoading] = useState(true);
   const [societiesLoading, setSocietiesLoading] = useState(false);
@@ -167,8 +170,10 @@ export default function MachineManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance' | 'suspended'>('all');
+  const [dairyFilter, setDairyFilter] = useState<string[]>([]);
+  const [bmcFilter, setBmcFilter] = useState<string[]>([]);
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
-  const [machineFilter, setMachineFilter] = useState<string>('all');
+  const [machineFilter, setMachineFilter] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
@@ -533,13 +538,53 @@ export default function MachineManagement() {
     }
   }, []);
 
+  // Fetch dairies
+  const fetchDairies = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/dairy', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDairies(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dairies:', error);
+    }
+  }, []);
+
+  // Fetch BMCs
+  const fetchBmcs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/bmc', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBmcs(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching BMCs:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       fetchMachines();
       fetchSocieties();
       fetchMachineTypes();
+      fetchDairies();
+      fetchBmcs();
     }
-  }, [user, fetchMachines, fetchSocieties, fetchMachineTypes]);
+  }, [user, fetchMachines, fetchSocieties, fetchMachineTypes, fetchDairies, fetchBmcs]);
 
   // Listen for global search events from header
   useEffect(() => {
@@ -565,11 +610,15 @@ export default function MachineManagement() {
 
   // Reset machine filter when society filter changes (similar to farmer management)
   useEffect(() => {
-    if (societyFilter.length > 0 && machineFilter !== 'all') {
-      // Check if current machine selection is still valid for the selected society
-      const currentMachine = machines.find(m => m.id?.toString() === machineFilter);
-      if (currentMachine && !societyFilter.includes(currentMachine.societyId?.toString() || '')) {
-        setMachineFilter('all');
+    if (societyFilter.length > 0 && machineFilter.length > 0) {
+      // Check if current machine selections are still valid for the selected societies
+      const validMachineIds = machines
+        .filter(m => societyFilter.includes(m.societyId?.toString() || ''))
+        .map(m => m.id?.toString() || '');
+      
+      const filteredMachineFilter = machineFilter.filter(id => validMachineIds.includes(id));
+      if (filteredMachineFilter.length !== machineFilter.length) {
+        setMachineFilter(filteredMachineFilter);
       }
     }
   }, [societyFilter, machineFilter, machines]);
@@ -939,7 +988,7 @@ export default function MachineManagement() {
         setSelectedMachines(new Set());
         setSelectedSocieties(new Set());
         setSelectAll(false);
-        setSuccess(`Successfully deleted ${ids.length} machine(s)${(statusFilter !== 'all' || societyFilter.length > 0) ? ' from filtered results' : ''}`);
+        setSuccess(`Successfully deleted ${ids.length} machine(s)${(statusFilter !== 'all' || dairyFilter.length > 0 || bmcFilter.length > 0 || societyFilter.length > 0) ? ' from filtered results' : ''}`);
         setError('');
         setUpdateProgress(100);
       } else {
@@ -1018,7 +1067,7 @@ export default function MachineManagement() {
       
       setSuccess(
         `Successfully updated status to "${statusToUpdate}" for ${updatedCount} machine(s)${
-          (statusFilter !== 'all' || societyFilter.length > 0) ? ' from filtered results' : ''
+          (statusFilter !== 'all' || dairyFilter.length > 0 || bmcFilter.length > 0 || societyFilter.length > 0) ? ' from filtered results' : ''
         }`
       );
       setError('');
@@ -1515,8 +1564,16 @@ export default function MachineManagement() {
   // Filter machines with multi-field search
   const filteredMachines = machines.filter(machine => {
     const matchesStatus = statusFilter === 'all' || machine.status === statusFilter;
+    
+    // Get society's BMC and dairy
+    const machineSociety = societies.find(s => s.id === machine.societyId);
+    const machineBmc = machineSociety?.bmc_id ? bmcs.find(b => b.id === machineSociety.bmc_id) : null;
+    const machineDairy = machineBmc?.dairyFarmId ? dairies.find(d => d.id === machineBmc.dairyFarmId) : null;
+    
+    const matchesDairy = dairyFilter.length === 0 || dairyFilter.includes(machineDairy?.id.toString() || '');
+    const matchesBmc = bmcFilter.length === 0 || bmcFilter.includes(machineBmc?.id.toString() || '');
     const matchesSociety = societyFilter.length === 0 || societyFilter.includes(machine.societyId?.toString() || '');
-    const matchesMachine = machineFilter === 'all' || machine.id?.toString() === machineFilter;
+    const matchesMachine = machineFilter.length === 0 || machineFilter.includes(machine.id?.toString() || '');
     
     // Multi-field search across machine details (case-insensitive)
     const searchLower = searchQuery.toLowerCase().trim();
@@ -1533,8 +1590,41 @@ export default function MachineManagement() {
       field?.toString().toLowerCase().includes(searchLower)
     );
     
-    return matchesStatus && matchesSociety && matchesMachine && matchesSearch;
+    return matchesStatus && matchesDairy && matchesBmc && matchesSociety && matchesMachine && matchesSearch;
   });
+
+  // Filter societies to only show those with machines in the current filtered list
+  const availableSocieties = useMemo(() => {
+    // Get unique society IDs from machines based on current status, search, and machine type filters
+    const machinesForSocietyFilter = machines.filter(machine => {
+      const matchesStatus = statusFilter === 'all' || machine.status === statusFilter;
+      const matchesMachine = machineFilter.length === 0 || machineFilter.includes(machine.id?.toString() || '');
+      
+      const searchLower = searchQuery.toLowerCase().trim();
+      const matchesSearch = searchLower === '' || [
+        machine.machineId,
+        machine.machineType,
+        machine.societyName,
+        machine.societyIdentifier,
+        machine.location,
+        machine.operatorName,
+        machine.contactPhone,
+        machine.notes
+      ].some(field => 
+        field?.toString().toLowerCase().includes(searchLower)
+      );
+      
+      return matchesStatus && matchesMachine && matchesSearch;
+    });
+
+    const societyIdsWithMachines = new Set(
+      machinesForSocietyFilter
+        .map(m => m.societyId)
+        .filter(Boolean)
+    );
+
+    return societies.filter(society => societyIdsWithMachines.has(society.id));
+  }, [machines, societies, searchQuery, statusFilter, machineFilter]);
 
   return (
     <>
@@ -1588,7 +1678,7 @@ export default function MachineManagement() {
         <StatsGrid
           allItems={machines}
           filteredItems={filteredMachines}
-          hasFilters={statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all'}
+          hasFilters={statusFilter !== 'all' || dairyFilter.length > 0 || bmcFilter.length > 0 || societyFilter.length > 0 || machineFilter.length > 0}
           onStatusFilterChange={(status) => setStatusFilter(status)}
           currentStatusFilter={statusFilter}
         />
@@ -1597,17 +1687,24 @@ export default function MachineManagement() {
         <FilterDropdown
           statusFilter={statusFilter}
           onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
+          dairyFilter={dairyFilter}
+          onDairyChange={setDairyFilter}
+          bmcFilter={bmcFilter}
+          onBmcChange={setBmcFilter}
           societyFilter={societyFilter}
           onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
           machineFilter={machineFilter}
-          onMachineChange={setMachineFilter}
-          societies={societies}
-          machines={machineTypes.map(mt => ({ id: mt.id, machineId: mt.machineType, machineType: mt.machineType }))}
+          onMachineChange={(value) => setMachineFilter(Array.isArray(value) ? value : [value])}
+          dairies={dairies}
+          bmcs={bmcs}
+          societies={availableSocieties}
+          machines={machines}
           filteredCount={filteredMachines.length}
           totalCount={machines.length}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           icon={<Settings className="w-5 h-5" />}
+          hideMainFilterButton={true}
         />
 
       {/* Select All and View Mode Controls */}
@@ -1623,7 +1720,7 @@ export default function MachineManagement() {
             />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Select All {filteredMachines.length} {filteredMachines.length === 1 ? 'machine' : 'machines'}
-              {(statusFilter !== 'all' || societyFilter.length > 0 || machineFilter !== 'all') && ` (filtered)`}
+              {(statusFilter !== 'all' || dairyFilter.length > 0 || bmcFilter.length > 0 || societyFilter.length > 0 || machineFilter.length > 0) && ` (filtered)`}
             </span>
           </label>
 

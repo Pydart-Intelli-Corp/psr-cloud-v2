@@ -7,6 +7,7 @@ export interface Society {
   id: number;
   name: string;
   society_id: string;
+  bmc_id?: number;
 }
 
 export interface CSVUploadResult {

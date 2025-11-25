@@ -115,10 +115,10 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
   const [dateToFilter, setDateToFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
-  const [dairyFilter, setDairyFilter] = useState('all');
-  const [bmcFilter, setBmcFilter] = useState('all');
+  const [dairyFilter, setDairyFilter] = useState<string[]>([]);
+  const [bmcFilter, setBmcFilter] = useState<string[]>([]);
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
-  const [machineFilter, setMachineFilter] = useState('all');
+  const [machineFilter, setMachineFilter] = useState<string[]>([]);
 
   // Fetch dairies and BMCs
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
@@ -137,7 +137,10 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [bulkDeletePassword, setBulkDeletePassword] = useState('');
+  
+  // Fetch dairies, BMCs, societies, and machines
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
+  const [machinesData, setMachinesData] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number }>>([]);
 
   useEffect(() => {
     const fetchDairiesAndBmcs = async () => {
@@ -168,8 +171,16 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
           const societyData = await societyRes.json();
           setSocietiesData(societyData.data || []);
         }
+
+        const machineRes = await fetch('/api/user/machine', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (machineRes.ok) {
+          const machineData = await machineRes.json();
+          setMachinesData(machineData.data || []);
+        }
       } catch (error) {
-        console.error('Error fetching dairies/BMCs:', error);
+        console.error('Error fetching dairies/BMCs/Societies/Machines:', error);
       }
     };
 
@@ -192,10 +203,10 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
   // Clear all filters
   const clearFilters = () => {
     setShiftFilter('all');
-    setDairyFilter('all');
-    setBmcFilter('all');
+    setDairyFilter([]);
+    setBmcFilter([]);
     setSocietyFilter([]);
-    setMachineFilter('all');
+    setMachineFilter([]);
     setDateFilter('');
     setDateFromFilter('');
     setDateToFilter('');
@@ -338,42 +349,31 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     }
   };
   
-  // Extract unique societies and machines from records (memoized)
+  // Filter societies to only show those with sales records
   const societies = useMemo(() => {
-    const uniqueSocieties = new Map<string, { society_id: string; society_name: string }>();
-    records.forEach(r => {
-      if (r.society_id && !uniqueSocieties.has(r.society_id)) {
-        uniqueSocieties.set(r.society_id, {
-          society_id: r.society_id,
-          society_name: r.society_id // Sales API doesn't return society_name yet
-        });
-      }
-    });
-    return Array.from(uniqueSocieties.values()).map((society, index) => ({
-      id: index + 1,
-      name: society.society_name,
-      society_id: society.society_id
-    }));
-  }, [records]);
+    if (!societiesData.length || !records.length) return societiesData;
+    
+    const societyIdsInSales = new Set(
+      records
+        .filter(r => r.society_id)
+        .map(r => r.society_id)
+    );
+    
+    return societiesData.filter(society => societyIdsInSales.has(society.society_id));
+  }, [societiesData, records]);
   
+  // Filter machines to only show those with sales records
   const machines = useMemo(() => {
-    const uniqueMachines = new Map<string, { machine_id: string; machine_type: string; society_id: string }>();
-    records.forEach(r => {
-      if (r.machine_id && !uniqueMachines.has(r.machine_id)) {
-        uniqueMachines.set(r.machine_id, {
-          machine_id: r.machine_id,
-          machine_type: r.machine_type || r.machine_id,
-          society_id: r.society_id
-        });
-      }
-    });
-    return Array.from(uniqueMachines.values()).map((machine, index) => ({
-      id: index + 1,
-      machineId: machine.machine_id,
-      machineType: machine.machine_type,
-      societyId: societies.findIndex(s => s.society_id === machine.society_id) + 1 || undefined
-    }));
-  }, [records, societies]);
+    if (!machinesData.length || !records.length) return machinesData;
+    
+    const machineIdsInSales = new Set(
+      records
+        .filter(r => r.machine_id)
+        .map(r => r.machine_id)
+    );
+    
+    return machinesData.filter(machine => machineIdsInSales.has(machine.machineId));
+  }, [machinesData, records]);
 
   // Calculate statistics
   const calculateStats = useCallback((data: SalesRecord[]) => {
@@ -439,18 +439,22 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     let filtered = records;
 
     // Dairy filter
-    if (dairyFilter !== 'all') {
-      const selectedDairy = dairies.find(d => d.id.toString() === dairyFilter);
-      if (selectedDairy) {
-        filtered = filtered.filter(record => record.dairy_id === selectedDairy.id);
+    if (dairyFilter.length > 0) {
+      const selectedDairyIds = dairyFilter
+        .map(id => dairies.find(d => d.id.toString() === id)?.id)
+        .filter(Boolean) as number[];
+      if (selectedDairyIds.length > 0) {
+        filtered = filtered.filter(record => record.dairy_id && selectedDairyIds.includes(record.dairy_id));
       }
     }
 
     // BMC filter
-    if (bmcFilter !== 'all') {
-      const selectedBmc = bmcs.find(b => b.id.toString() === bmcFilter);
-      if (selectedBmc) {
-        filtered = filtered.filter(record => record.bmc_id === selectedBmc.id);
+    if (bmcFilter.length > 0) {
+      const selectedBmcIds = bmcFilter
+        .map(id => bmcs.find(b => b.id.toString() === id)?.id)
+        .filter(Boolean) as number[];
+      if (selectedBmcIds.length > 0) {
+        filtered = filtered.filter(record => record.bmc_id && selectedBmcIds.includes(record.bmc_id));
       }
     }
 
@@ -477,10 +481,12 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     }
 
     // Machine filter
-    if (machineFilter !== 'all') {
-      const selectedMachine = machines.find(m => m.id.toString() === machineFilter);
-      if (selectedMachine) {
-        filtered = filtered.filter(record => record.machine_id === selectedMachine.machineId);
+    if (machineFilter.length > 0) {
+      const selectedMachineIds = machineFilter
+        .map(id => machines.find(m => m.id.toString() === id)?.machineId)
+        .filter(Boolean) as string[];
+      if (selectedMachineIds.length > 0) {
+        filtered = filtered.filter(record => selectedMachineIds.includes(record.machine_id));
       }
     }
 
@@ -772,13 +778,13 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
             statusFilter={shiftFilter}
             onStatusChange={setShiftFilter}
             dairyFilter={dairyFilter}
-            onDairyChange={setDairyFilter}
+            onDairyChange={(value) => setDairyFilter(Array.isArray(value) ? value : [value])}
             bmcFilter={bmcFilter}
-            onBmcChange={setBmcFilter}
+            onBmcChange={(value) => setBmcFilter(Array.isArray(value) ? value : [value])}
             societyFilter={societyFilter}
             onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
             machineFilter={machineFilter}
-            onMachineChange={setMachineFilter}
+            onMachineChange={(value) => setMachineFilter(Array.isArray(value) ? value : [value])}
             dairies={dairiesWithSales}
             bmcs={bmcs}
             societies={societies}
@@ -799,6 +805,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
             showDateFilter
             showChannelFilter
             showShiftFilter
+            hideMainFilterButton={true}
           />
         </div>
       </div>

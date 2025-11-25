@@ -130,10 +130,10 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
   const [dateToFilter, setDateToFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
-  const [dairyFilter, setDairyFilter] = useState('all');
-  const [bmcFilter, setBmcFilter] = useState('all');
+  const [dairyFilter, setDairyFilter] = useState<string[]>([]);
+  const [bmcFilter, setBmcFilter] = useState<string[]>([]);
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
-  const [machineFilter, setMachineFilter] = useState('all');
+  const [machineFilter, setMachineFilter] = useState<string[]>([]);
   
   // Fetch dairies and BMCs
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
@@ -207,12 +207,37 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
     return dairies.filter(dairy => dairyIdsInCollections.has(dairy.id));
   }, [dairies, records]);
   
+  // Filter BMCs to only show those with collection records
+  const bmcsWithCollections = useMemo(() => {
+    if (!bmcs.length || !records.length) return bmcs;
+    
+    const bmcIdsInCollections = new Set(
+      records
+        .filter(r => r.bmc_id)
+        .map(r => r.bmc_id)
+    );
+    
+    return bmcs.filter(bmc => bmcIdsInCollections.has(bmc.id));
+  }, [bmcs, records]);
+  
   // Extract unique societies and machines from records (memoized)
   const societies = useMemo(() => {
-    // Use fetched society data with BMC associations
+    if (!records.length) return [];
+    
+    // Get unique society IDs from collection records
+    const societyIdsInCollections = new Set(
+      records
+        .filter(r => r.society_id)
+        .map(r => r.society_id)
+    );
+    
+    // If we have fetched society data, filter it to only show societies with collections
     if (societiesData.length > 0) {
-      return societiesData;
+      return societiesData.filter(society => 
+        societyIdsInCollections.has(society.society_id)
+      );
     }
+    
     // Fallback to extracting from records if API data not available
     const uniqueSocieties = new Map<string, { society_id: string; society_name: string }>();
     records.forEach(r => {
@@ -253,10 +278,10 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
   // Clear all filters
   const clearFilters = () => {
     setShiftFilter('all');
-    setDairyFilter('all');
-    setBmcFilter('all');
+    setDairyFilter([]);
+    setBmcFilter([]);
     setSocietyFilter([]);
-    setMachineFilter('all');
+    setMachineFilter([]);
     setDateFilter('');
     setDateFromFilter('');
     setDateToFilter('');
@@ -488,19 +513,25 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
   useEffect(() => {
     let filtered = records;
 
-    // Dairy filter
-    if (dairyFilter !== 'all') {
-      const selectedDairy = dairies.find(d => d.id.toString() === dairyFilter);
-      if (selectedDairy) {
-        filtered = filtered.filter(record => record.dairy_id === selectedDairy.id);
+    // Dairy filter (now array-based)
+    if (dairyFilter.length > 0) {
+      const selectedDairyIds = dairyFilter.map(id => {
+        const dairy = dairies.find(d => d.id.toString() === id);
+        return dairy?.id;
+      }).filter(Boolean) as number[];
+      if (selectedDairyIds.length > 0) {
+        filtered = filtered.filter(record => selectedDairyIds.includes(record.dairy_id));
       }
     }
 
-    // BMC filter
-    if (bmcFilter !== 'all') {
-      const selectedBmc = bmcs.find(b => b.id.toString() === bmcFilter);
-      if (selectedBmc) {
-        filtered = filtered.filter(record => record.bmc_id === selectedBmc.id);
+    // BMC filter (now array-based)
+    if (bmcFilter.length > 0) {
+      const selectedBmcIds = bmcFilter.map(id => {
+        const bmc = bmcs.find(b => b.id.toString() === id);
+        return bmc?.id;
+      }).filter(Boolean) as number[];
+      if (selectedBmcIds.length > 0) {
+        filtered = filtered.filter(record => selectedBmcIds.includes(record.bmc_id));
       }
     }
 
@@ -527,10 +558,12 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
     }
 
     // Machine filter
-    if (machineFilter !== 'all') {
-      const selectedMachine = machines.find(m => m.id.toString() === machineFilter);
-      if (selectedMachine) {
-        filtered = filtered.filter(record => record.machine_id === selectedMachine.machineId);
+    if (machineFilter.length > 0) {
+      const selectedMachineIds = machineFilter
+        .map(id => machines.find(m => m.id.toString() === id)?.machineId)
+        .filter(Boolean) as string[];
+      if (selectedMachineIds.length > 0) {
+        filtered = filtered.filter(record => selectedMachineIds.includes(record.machine_id));
       }
     }
 
@@ -887,7 +920,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
             machineFilter={machineFilter}
             onMachineChange={setMachineFilter}
             dairies={dairiesWithCollections}
-            bmcs={bmcs}
+            bmcs={bmcsWithCollections}
             societies={societies}
             machines={machines}
             filteredCount={filteredRecords.length}
@@ -906,6 +939,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
             showDateFilter
             showChannelFilter
             showShiftFilter
+            hideMainFilterButton={true}
           />
         </div>
       </div>
