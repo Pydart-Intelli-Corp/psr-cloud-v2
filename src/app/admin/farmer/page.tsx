@@ -30,7 +30,6 @@ import {
 } from '@/components/management';
 import CSVUploadModal from '@/components/forms/CSVUploadModal';
 import { downloadFarmersAsCSV, downloadFarmersAsPDF, getFarmerColumns } from '@/lib/utils/downloadUtils';
-import { filterFarmers } from '@/lib/utils/farmerUtils';
 
 import { Society, Farmer } from '@/types';
 
@@ -1181,14 +1180,28 @@ const FarmerManagement = () => {
     fetchAllMachines();
   }, [fetchFarmers]);
 
-  // Filter farmers using utility function
-  const filteredFarmers = filterFarmers(
-    farmers,
-    searchQuery,
-    statusFilter,
-    null, // bmcFilter - not used in filterFarmers utility
-    societyFilter.length === 0 ? null : parseInt(societyFilter[0])
-  ).filter(farmer => {
+  // Filter farmers using inline logic that supports array-based filters
+  const filteredFarmers = farmers.filter(farmer => {
+    // Search query filter
+    const searchMatch = searchQuery === '' ||
+      farmer.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.farmerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.bankAccountNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.ifscCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!searchMatch) return false;
+
+    // Status filter
+    const statusMatch = statusFilter === 'all' || farmer.status === statusFilter;
+    if (!statusMatch) return false;
+
     // Get farmer's society, BMC, and dairy
     const farmerSociety = societies.find(s => s.id === farmer.societyId);
     const farmerBmc = farmerSociety?.bmc_id ? bmcs.find(b => b.id === farmerSociety.bmc_id) : null;
@@ -1229,17 +1242,35 @@ const FarmerManagement = () => {
   // Filter societies to only show those with farmers in the current filtered list
   const availableSocieties = useMemo(() => {
     // Get unique society IDs from farmers based on current status and search filters
-    const farmersForSocietyFilter = filterFarmers(
-      farmers,
-      searchQuery,
-      statusFilter,
-      null,
-      null
-    ).filter(farmer => {
-      // Apply machine filter but not society filter
-      if (machineFilter.length === 0) return true;
-      const farmerMachineId = farmer.machineId?.toString();
-      return farmerMachineId && machineFilter.includes(farmerMachineId);
+    const farmersForSocietyFilter = farmers.filter(farmer => {
+      // Search filter
+      const searchMatch = searchQuery === '' || 
+        farmer.farmerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.farmerId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        societies.find(s => s.id === farmer.societyId)?.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        societies.find(s => s.id === farmer.societyId)?.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.bankAccountNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.ifscCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!searchMatch) return false;
+      
+      // Status filter
+      const statusMatch = statusFilter === 'all' || farmer.status === statusFilter;
+      if (!statusMatch) return false;
+      
+      // Machine filter (but not society filter)
+      if (machineFilter.length > 0) {
+        const farmerMachineId = farmer.machineId?.toString();
+        if (!farmerMachineId || !machineFilter.includes(farmerMachineId)) {
+          return false;
+        }
+      }
+      
+      return true;
     });
 
     const societyIdsWithFarmers = new Set(
@@ -1254,16 +1285,34 @@ const FarmerManagement = () => {
   // Filter machines to only show those with farmers in the current filtered list
   const availableMachines = useMemo(() => {
     // Get unique machine IDs from farmers based on current status, search, and society filters
-    const farmersForMachineFilter = filterFarmers(
-      farmers,
-      searchQuery,
-      statusFilter,
-      null,
-      null
-    ).filter(farmer => {
-      // Apply society filter but not machine filter
-      if (societyFilter.length === 0) return true;
-      return societyFilter.includes(farmer.societyId?.toString() || '');
+    const farmersForMachineFilter = farmers.filter(farmer => {
+      // Search filter
+      const searchMatch = searchQuery === '' || 
+        farmer.farmerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.farmerId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        societies.find(s => s.id === farmer.societyId)?.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        societies.find(s => s.id === farmer.societyId)?.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.bankAccountNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.ifscCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!searchMatch) return false;
+      
+      // Status filter
+      const statusMatch = statusFilter === 'all' || farmer.status === statusFilter;
+      if (!statusMatch) return false;
+      
+      // Society filter (but not machine filter)
+      if (societyFilter.length > 0) {
+        if (!societyFilter.includes(farmer.societyId?.toString() || '')) {
+          return false;
+        }
+      }
+      
+      return true;
     });
 
     const machineIdsWithFarmers = new Set(

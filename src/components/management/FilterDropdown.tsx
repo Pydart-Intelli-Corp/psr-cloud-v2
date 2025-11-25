@@ -852,8 +852,8 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   {[
                     { value: 'all', label: 'All Channels' },
                     { value: 'COW', label: 'Cow' },
-                    { value: 'BUF', label: 'Buffalo' },
-                    { value: 'MIX', label: 'Mixed' }
+                    { value: 'BUFFALO', label: 'Buffalo' },
+                    { value: 'MIXED', label: 'Mixed' }
                   ].map((option) => (
                     <label
                       key={option.value}
