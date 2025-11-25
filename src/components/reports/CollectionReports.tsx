@@ -136,8 +136,8 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
   const [machineFilter, setMachineFilter] = useState<string[]>([]);
   
   // Fetch dairies and BMCs
-  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
-  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmc_id: string; dairyFarmId?: number }>>([]);
+  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
 
   // Delete functionality
@@ -520,7 +520,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
         return dairy?.id;
       }).filter(Boolean) as number[];
       if (selectedDairyIds.length > 0) {
-        filtered = filtered.filter(record => selectedDairyIds.includes(record.dairy_id));
+        filtered = filtered.filter(record => record.dairy_id !== undefined && selectedDairyIds.includes(record.dairy_id));
       }
     }
 
@@ -531,7 +531,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
         return bmc?.id;
       }).filter(Boolean) as number[];
       if (selectedBmcIds.length > 0) {
-        filtered = filtered.filter(record => selectedBmcIds.includes(record.bmc_id));
+        filtered = filtered.filter(record => record.bmc_id !== undefined && selectedBmcIds.includes(record.bmc_id));
       }
     }
 

@@ -130,8 +130,8 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
   const [machineFilter, setMachineFilter] = useState<string[]>([]);
 
   // Fetch dairies and BMCs
-  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairy_id: string }>>([]);
-  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmc_id: string; dairyFarmId?: number }>>([]);
+  const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
 
   // Delete functionality
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -145,6 +145,7 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
   const [selectAll, setSelectAll] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [bulkDeletePassword, setBulkDeletePassword] = useState('');
   
   // Fetch dairies, BMCs, societies, and machines
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
