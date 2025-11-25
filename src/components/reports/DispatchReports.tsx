@@ -851,13 +851,13 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
             statusFilter={shiftFilter}
             onStatusChange={setShiftFilter}
             dairyFilter={dairyFilter}
-            onDairyChange={setDairyFilter}
+            onDairyChange={(value) => setDairyFilter(Array.isArray(value) ? value : [value])}
             bmcFilter={bmcFilter}
-            onBmcChange={setBmcFilter}
+            onBmcChange={(value) => setBmcFilter(Array.isArray(value) ? value : [value])}
             societyFilter={societyFilter}
             onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
             machineFilter={machineFilter}
-            onMachineChange={setMachineFilter}
+            onMachineChange={(value) => setMachineFilter(Array.isArray(value) ? value : [value])}
             dairies={dairiesWithDispatches}
             bmcs={bmcs}
             societies={societies}

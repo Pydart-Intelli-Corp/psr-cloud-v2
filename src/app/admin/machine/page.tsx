@@ -1688,9 +1688,9 @@ export default function MachineManagement() {
           statusFilter={statusFilter}
           onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
           dairyFilter={dairyFilter}
-          onDairyChange={setDairyFilter}
+          onDairyChange={(value) => setDairyFilter(Array.isArray(value) ? value : [value])}
           bmcFilter={bmcFilter}
-          onBmcChange={setBmcFilter}
+          onBmcChange={(value) => setBmcFilter(Array.isArray(value) ? value : [value])}
           societyFilter={societyFilter}
           onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
           machineFilter={machineFilter}
