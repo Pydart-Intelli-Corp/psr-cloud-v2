@@ -27,10 +27,10 @@ import {
   StatusMessage,
   StatsCard,
   FilterControls,
-  ItemCard,
   EmptyState,
   ConfirmDeleteModal
 } from '@/components';
+import DairyMinimalCard from '@/components/dairy/DairyMinimalCard';
 
 interface Dairy {
   id: number;
@@ -87,7 +87,7 @@ export default function DairyManagement() {
   const [selectedDairy, setSelectedDairy] = useState<Dairy | null>(null);
   const [formData, setFormData] = useState<DairyFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
-  const [searchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -424,6 +424,9 @@ export default function DairyManagement() {
           value={dairies.length}
           icon={<Building2 className="w-5 h-5 sm:w-6 sm:h-6" />}
           color="gray"
+          clickable={true}
+          isActive={statusFilter === 'all'}
+          onClick={() => setStatusFilter('all')}
         />
         
         <StatsCard
@@ -431,6 +434,9 @@ export default function DairyManagement() {
           value={dairies.filter(d => d.status === 'active').length}
           icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
           color="green"
+          clickable={true}
+          isActive={statusFilter === 'active'}
+          onClick={() => setStatusFilter('active')}
         />
 
         <StatsCard
@@ -438,6 +444,9 @@ export default function DairyManagement() {
           value={dairies.filter(d => d.status === 'inactive').length}
           icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
           color="red"
+          clickable={true}
+          isActive={statusFilter === 'inactive'}
+          onClick={() => setStatusFilter('inactive')}
         />
 
         <StatsCard
@@ -445,6 +454,9 @@ export default function DairyManagement() {
           value={dairies.filter(d => d.status === 'maintenance').length}
           icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
           color="yellow"
+          clickable={true}
+          isActive={statusFilter === 'maintenance'}
+          onClick={() => setStatusFilter('maintenance')}
         />
       </div>
 
@@ -461,6 +473,9 @@ export default function DairyManagement() {
           { value: 'maintenance', label: t.dairyManagement.maintenance }
         ]}
         onFilterChange={(value) => setStatusFilter(value as typeof statusFilter)}
+        searchQuery={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search dairies by name, ID, location, or contact..."
       />
 
       {/* Main Content */}
@@ -469,49 +484,26 @@ export default function DairyManagement() {
           <FlowerSpinner size={40} />
         </div>
       ) : filteredDairies.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filteredDairies.map((dairy) => (
-            <ItemCard
+            <DairyMinimalCard
               key={dairy.id}
               id={dairy.id}
               name={dairy.name}
-              identifier={dairy.dairyId}
+              dairyId={dairy.dairyId}
+              location={dairy.location}
+              contactPerson={dairy.contactPerson}
+              phone={dairy.phone}
+              email={dairy.email}
+              capacity={dairy.capacity}
+              monthlyTarget={dairy.monthlyTarget}
               status={dairy.status}
-              icon={<Milk className="w-4 h-4 sm:w-5 sm:h-5" />}
-              details={[
-                {
-                  icon: <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                  text: dairy.location || '',
-                  show: !!dairy.location
-                },
-                {
-                  icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                  text: dairy.contactPerson || '',
-                  show: !!dairy.contactPerson
-                },
-                {
-                  icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                  text: dairy.phone || '',
-                  show: !!dairy.phone
-                },
-                {
-                  icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                  text: dairy.email || '',
-                  show: !!dairy.email
-                },
-                {
-                  icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                  text: `${t.common.createdAt}: ${dairy.createdAt ? new Date(dairy.createdAt).toLocaleDateString() : 'N/A'}`,
-                  show: true
-                }
-              ]}
+              createdAt={dairy.createdAt}
               onEdit={() => handleEditClick(dairy)}
               onDelete={() => handleDeleteClick(dairy)}
               onView={() => router.push(`/admin/dairy/${dairy.id}`)}
-              onStatusChange={(status) => handleStatusChange(dairy, status as 'active' | 'inactive' | 'maintenance')}
-              editTitle={t.common.edit}
-              deleteTitle={t.common.delete}
-              viewText={t.dairyManagement.viewDetails}
+              onStatusChange={(status) => handleStatusChange(dairy, status)}
+              searchQuery={searchTerm}
             />
           ))}
         </div>

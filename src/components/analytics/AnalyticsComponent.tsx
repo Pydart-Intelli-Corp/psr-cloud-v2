@@ -240,23 +240,6 @@ export default function AnalyticsComponent() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  // Validate custom date range (max 31 days)
-  const validateDateRange = (from: string, to: string) => {
-    if (!from || !to) return false;
-    const fromTime = new Date(from).getTime();
-    const toTime = new Date(to).getTime();
-    const diffDays = (toTime - fromTime) / (1000 * 60 * 60 * 24);
-    return diffDays >= 0 && diffDays <= 31;
-  };
-
-  const handleCustomDateChange = () => {
-    if (validateDateRange(fromDate, toDate)) {
-      setRefreshTrigger(prev => prev + 1);
-    } else {
-      alert('Please select a valid date range (maximum 31 days)');
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -571,15 +554,6 @@ export default function AnalyticsComponent() {
                 disabled={!useCustomDate}
                 className="px-2 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-green-500"
               />
-              {useCustomDate && (
-                <button
-                  onClick={handleCustomDateChange}
-                  className="px-2 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-md text-xs font-medium transition-colors whitespace-nowrap"
-                >
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  Apply
-                </button>
-              )}
             </div>
 
             <div className="h-5 w-px bg-gray-300 dark:bg-gray-600"></div>

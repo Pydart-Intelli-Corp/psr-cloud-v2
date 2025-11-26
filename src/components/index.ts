@@ -55,3 +55,6 @@ export {
   ActionButtons,
   SearchAndFilter
 } from './management';
+
+// Dairy Components
+export { default as DairyMinimalCard } from './dairy/DairyMinimalCard';

@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
     `;
 
     // 2. Daily trends for dispatches
-    const dispatchWhereClause = whereClause.replace(/mc\./g, 'md.').replace(/m\.machine_id/g, 'dm.machine_id');
+    const dispatchWhereClause = whereClause.replace(/mc\./g, 'md.').replace(/m\.machine_id/g, 'dm.machine_id').replace(/collection_date/g, 'dispatch_date');
     const dailyDispatchQuery = `
       SELECT 
         DATE(md.dispatch_date) as date,
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
     `;
 
     // 3. Daily trends for sales
-    const salesWhereClause = whereClause.replace(/mc\./g, 'ms.').replace(/m\.machine_id/g, 'sm.machine_id');
+    const salesWhereClause = whereClause.replace(/mc\./g, 'ms.').replace(/m\.machine_id/g, 'sm.machine_id').replace(/collection_date/g, 'sales_date');
     const dailySalesQuery = `
       SELECT 
         DATE(ms.sales_date) as date,
