@@ -85,7 +85,9 @@ const getChannelDisplay = (channel: string): string => {
     'MIXED': 'MIXED',
     'cow': 'COW',
     'buffalo': 'BUFFALO',
-    'mixed': 'MIXED'
+    'mixed': 'MIXED',
+    'BUF': 'BUFFALO',
+    'MIX': 'MIXED'
   };
   return channelMap[channel] || channel.toUpperCase();
 };

@@ -5,6 +5,18 @@ import { Receipt } from 'lucide-react';
 import { FormModal } from '@/components/forms';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+// Helper function to convert database channel values to display format
+const getChannelDisplay = (channel: string): string => {
+  const channelMap: { [key: string]: string } = {
+    'COW': 'COW',
+    'BUF': 'BUFFALO',
+    'MIX': 'MIXED',
+    'BUFFALO': 'BUFFALO',
+    'MIXED': 'MIXED'
+  };
+  return channelMap[channel] || channel;
+};
+
 interface RateChart {
   id: number;
   societyId: number;
@@ -199,7 +211,7 @@ function AssignmentRow({ chart }: { chart: RateChart }) {
             ({chart.societyIdentifier})
           </span>
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getChannelColor(chart.channel)}`}>
-            {chart.channel}
+            {getChannelDisplay(chart.channel)}
           </span>
           {chart.shared_chart_id && (
             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800">

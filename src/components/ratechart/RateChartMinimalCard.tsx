@@ -5,6 +5,18 @@ import { Receipt, Trash2, UserPlus, Power, PowerOff, Eye, RefreshCw, FileText, X
 import { ConfirmDeleteModal } from '@/components/management';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+// Helper function to convert database channel values to display format
+const getChannelDisplay = (channel: string): string => {
+  const channelMap: { [key: string]: string } = {
+    'COW': 'COW',
+    'BUF': 'BUFFALO',
+    'MIX': 'MIXED',
+    'BUFFALO': 'BUFFALO',
+    'MIXED': 'MIXED'
+  };
+  return channelMap[channel] || channel;
+};
+
 interface DownloadStatus {
   allDownloaded: boolean;
   totalMachines: number;
@@ -261,7 +273,7 @@ export default function RateChartMinimalCard({
                   ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                   : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
               }`}>
-                {highlightText(channel, searchQuery)}
+                {highlightText(getChannelDisplay(channel), searchQuery)}
               </span>
               
               {/* Status Indicator - Now Clickable with Dropdown */}

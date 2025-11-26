@@ -178,6 +178,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     if (onDateToChange) onDateToChange('');
     if (onChannelChange) onChannelChange('all');
     if (onSearchChange) onSearchChange('');
+    setIsOpen(false);
   };
 
   return (
@@ -304,10 +305,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                       onDairyChange([]);
                       if (onBmcChange) onBmcChange([]);
                       onSocietyChange([]);
+                      setDairyDropdownOpen(false);
                     }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
-                    Clear
+                    Clear All
                   </button>
                   <button
                     onClick={() => setDairyDropdownOpen(false)}
@@ -497,10 +499,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                     onClick={() => {
                       onBmcChange([]);
                       onSocietyChange([]);
+                      setBmcDropdownOpen(false);
                     }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
-                    Clear
+                    Clear All
                   </button>
                   <button
                     onClick={() => setBmcDropdownOpen(false)}
@@ -656,7 +659,10 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
                 <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <button
-                    onClick={() => onSocietyChange([])}
+                    onClick={() => {
+                      onSocietyChange([]);
+                      setSocietyDropdownOpen(false);
+                    }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
                     Clear All
@@ -791,7 +797,10 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
                 <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <button
-                    onClick={() => onMachineChange([])}
+                    onClick={() => {
+                      onMachineChange([]);
+                      setMachineDropdownOpen(false);
+                    }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
                     Clear All
@@ -881,10 +890,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   <button
                     onClick={() => {
                       if (onChannelChange) onChannelChange('all');
+                      setChannelDropdownOpen(false);
                     }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
-                    Clear
+                    Clear All
                   </button>
                   <button
                     onClick={() => setChannelDropdownOpen(false)}
@@ -976,10 +986,13 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
                 <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
                   <button
-                    onClick={() => onStatusChange('all')}
+                    onClick={() => {
+                      onStatusChange('all');
+                      setShiftDropdownOpen(false);
+                    }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
-                    Clear
+                    Clear All
                   </button>
                   <button
                     onClick={() => setShiftDropdownOpen(false)}
@@ -1061,10 +1074,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                       onClick={() => {
                         if (onDateFromChange) onDateFromChange('');
                         if (onDateToChange) onDateToChange('');
+                        setDateRangeOpen(false);
                       }}
                       className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     >
-                      Clear
+                      Clear All
                     </button>
                     <button
                       onClick={() => setDateRangeOpen(false)}

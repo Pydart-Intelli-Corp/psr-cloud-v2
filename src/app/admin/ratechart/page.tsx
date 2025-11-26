@@ -22,6 +22,18 @@ import ResetDownloadModal from '@/components/ratechart/ResetDownloadModal';
 import ManagementPageHeader from '@/components/management/ManagementPageHeader';
 import FilterDropdown from '@/components/management/FilterDropdown';
 
+// Helper function to convert database channel values to display format
+const getChannelDisplay = (channel: string): string => {
+  const channelMap: { [key: string]: string } = {
+    'COW': 'COW',
+    'BUF': 'BUFFALO',
+    'MIX': 'MIXED',
+    'BUFFALO': 'BUFFALO',
+    'MIXED': 'MIXED'
+  };
+  return channelMap[channel] || channel;
+};
+
 interface Society {
   id: number;
   name: string;
@@ -477,8 +489,10 @@ export default function RatechartManagement() {
         const isShared = rateCharts.some(c => c.shared_chart_id === chart.id);
         if (chart.shared_chart_id !== null || isShared) return false;
       } else {
-        // For specific channel filters (COW, BUF, MIX)
-        if (chart.channel !== channelFilter) return false;
+        // For specific channel filters (COW, BUFFALO, MIXED)
+        // Convert database channel value to display format for comparison
+        const displayChannel = getChannelDisplay(chart.channel);
+        if (displayChannel !== channelFilter) return false;
       }
     }
     
@@ -893,18 +907,18 @@ export default function RatechartManagement() {
           value={bufCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="blue"
-          onClick={() => setChannelFilter('BUF')}
+          onClick={() => setChannelFilter('BUFFALO')}
           clickable={true}
-          isActive={channelFilter === 'BUF'}
+          isActive={channelFilter === 'BUFFALO'}
         />
         <StatsCard
           title={t.ratechartManagement.mixedCharts}
           value={mixCharts}
           icon={<Receipt className="w-4 h-4" />}
           color="yellow"
-          onClick={() => setChannelFilter('MIX')}
+          onClick={() => setChannelFilter('MIXED')}
           clickable={true}
-          isActive={channelFilter === 'MIX'}
+          isActive={channelFilter === 'MIXED'}
         />
       </div>
 
