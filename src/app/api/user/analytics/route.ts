@@ -91,7 +91,16 @@ export async function GET(request: NextRequest) {
       filterConditions.push(`m.machine_id IN (${machineIds})`);
     }
     if (channelFilter && channelFilter !== 'all') {
-      filterConditions.push(`mc.channel = '${channelFilter}'`);
+      // Map channel filter to handle multiple database formats
+      // Database may store: 'COW', 'BUFFALO', 'MIXED', 'ch1', 'ch2', 'ch3', 'cow', 'buffalo', 'mixed', 'BUF', 'MIX'
+      const channelMapping: { [key: string]: string[] } = {
+        'COW': ['COW', 'cow', 'ch1', 'CH1'],
+        'BUFFALO': ['BUFFALO', 'buffalo', 'BUF', 'ch2', 'CH2'],
+        'MIXED': ['MIXED', 'mixed', 'MIX', 'ch3', 'CH3']
+      };
+      const channelValues = channelMapping[channelFilter] || [channelFilter];
+      const channelConditions = channelValues.map(v => `'${v}'`).join(',');
+      filterConditions.push(`mc.channel IN (${channelConditions})`);
     }
     if (shiftFilter && shiftFilter !== 'all') {
       filterConditions.push(`mc.shift_type = '${shiftFilter}'`);
