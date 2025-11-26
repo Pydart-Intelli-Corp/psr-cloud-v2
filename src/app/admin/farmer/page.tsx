@@ -1249,8 +1249,8 @@ const FarmerManagement = () => {
         farmer.farmerId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        societies.find(s => s.id === farmer.societyId)?.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        societies.find(s => s.id === farmer.societyId)?.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.bankAccountNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1292,8 +1292,8 @@ const FarmerManagement = () => {
         farmer.farmerId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        societies.find(s => s.id === farmer.societyId)?.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        societies.find(s => s.id === farmer.societyId)?.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        farmer.societyIdentifier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.bankName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         farmer.bankAccountNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
