@@ -42,10 +42,71 @@ export async function GET(request: NextRequest) {
 
     // Get date range from query params (default last 30 days)
     const searchParams = request.nextUrl.searchParams;
+    const fromDateParam = searchParams.get('from');
+    const toDateParam = searchParams.get('to');
     const days = parseInt(searchParams.get('days') || '30');
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    const startDateStr = startDate.toISOString().split('T')[0];
+    
+    // Get filter params
+    const dairyFilter = searchParams.get('dairy')?.split(',').filter(Boolean) || [];
+    const bmcFilter = searchParams.get('bmc')?.split(',').filter(Boolean) || [];
+    const societyFilter = searchParams.get('society')?.split(',').filter(Boolean) || [];
+    const machineFilter = searchParams.get('machine')?.split(',').filter(Boolean) || [];
+    const channelFilter = searchParams.get('channel');
+    const shiftFilter = searchParams.get('shift');
+    
+    console.log('🔍 Filters:', { dairyFilter, bmcFilter, societyFilter, machineFilter, channelFilter, shiftFilter });
+    
+    let dateCondition = '';
+    if (fromDateParam && toDateParam) {
+      // Custom date range
+      dateCondition = `WHERE mc.collection_date >= '${fromDateParam}' AND mc.collection_date <= '${toDateParam}'`;
+      console.log(`📅 Using custom date range: ${fromDateParam} to ${toDateParam}`);
+    } else if (days > 0) {
+      // Preset days range
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      dateCondition = `WHERE mc.collection_date >= '${startDateStr}'`;
+      console.log(`📅 Using preset range: Last ${days} days (from ${startDateStr})`);
+    } else {
+      // No date filter - get all data
+      dateCondition = '';
+      console.log(`📅 Fetching ALL data (no date filter)`);
+    }
+
+    // Build filter conditions
+    const filterConditions: string[] = [];
+    
+    if (dairyFilter.length > 0) {
+      filterConditions.push(`df.id IN (${dairyFilter.join(',')})`);
+    }
+    if (bmcFilter.length > 0) {
+      filterConditions.push(`b.id IN (${bmcFilter.join(',')})`);
+    }
+    if (societyFilter.length > 0) {
+      filterConditions.push(`s.id IN (${societyFilter.join(',')})`);
+    }
+    if (machineFilter.length > 0) {
+      const machineIds = machineFilter.map(id => `'${id}'`).join(',');
+      filterConditions.push(`m.machine_id IN (${machineIds})`);
+    }
+    if (channelFilter && channelFilter !== 'all') {
+      filterConditions.push(`mc.channel = '${channelFilter}'`);
+    }
+    if (shiftFilter && shiftFilter !== 'all') {
+      filterConditions.push(`mc.shift_type = '${shiftFilter}'`);
+    }
+
+    // Combine date and filter conditions
+    const whereClause = dateCondition 
+      ? filterConditions.length > 0 
+        ? `${dateCondition} AND ${filterConditions.join(' AND ')}`
+        : dateCondition
+      : filterConditions.length > 0
+        ? `WHERE ${filterConditions.join(' AND ')}`
+        : '';
+
+    console.log('📋 WHERE clause:', whereClause);
 
     // 1. Daily trends for collections
     const dailyCollectionQuery = `
@@ -61,12 +122,17 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.protein_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_protein,
         SUM(mc.quantity * mc.lactose_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_lactose
       FROM \`${schemaName}\`.milk_collections mc
-      WHERE mc.collection_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
+      LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${whereClause}
       GROUP BY DATE(mc.collection_date)
       ORDER BY DATE(mc.collection_date) ASC
     `;
 
     // 2. Daily trends for dispatches
+    const dispatchWhereClause = whereClause.replace(/mc\./g, 'md.').replace(/m\.machine_id/g, 'dm.machine_id');
     const dailyDispatchQuery = `
       SELECT 
         DATE(md.dispatch_date) as date,
@@ -78,12 +144,17 @@ export async function GET(request: NextRequest) {
         SUM(md.quantity * md.snf_percentage) / NULLIF(SUM(md.quantity), 0) as weighted_snf,
         SUM(md.quantity * md.clr_value) / NULLIF(SUM(md.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_dispatches md
-      WHERE md.dispatch_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.machines dm ON md.machine_id = dm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${dispatchWhereClause}
       GROUP BY DATE(md.dispatch_date)
       ORDER BY DATE(md.dispatch_date) ASC
     `;
 
     // 3. Daily trends for sales
+    const salesWhereClause = whereClause.replace(/mc\./g, 'ms.').replace(/m\.machine_id/g, 'sm.machine_id');
     const dailySalesQuery = `
       SELECT 
         DATE(ms.sales_date) as date,
@@ -92,7 +163,11 @@ export async function GET(request: NextRequest) {
         SUM(ms.total_amount) as total_amount,
         AVG(ms.rate_per_liter) as avg_rate
       FROM \`${schemaName}\`.milk_sales ms
-      WHERE ms.sales_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.machines sm ON ms.machine_id = sm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${salesWhereClause}
       GROUP BY DATE(ms.sales_date)
       ORDER BY DATE(ms.sales_date) ASC
     `;
@@ -109,10 +184,11 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.snf_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_snf,
         SUM(mc.quantity * mc.clr_value) / NULLIF(SUM(mc.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_collections mc
+      LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
       LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
       LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
       LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
-      WHERE mc.collection_date >= '${startDateStr}'
+      ${whereClause}
       GROUP BY df.name
       ORDER BY total_quantity DESC
     `;
@@ -129,9 +205,11 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.snf_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_snf,
         SUM(mc.quantity * mc.clr_value) / NULLIF(SUM(mc.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_collections mc
+      LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
       LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
       LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
-      WHERE mc.collection_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${whereClause}
       GROUP BY b.name
       ORDER BY total_quantity DESC
       LIMIT 20
@@ -149,8 +227,11 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.snf_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_snf,
         SUM(mc.quantity * mc.clr_value) / NULLIF(SUM(mc.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_collections mc
+      LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
       LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
-      WHERE mc.collection_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${whereClause}
       GROUP BY s.name
       ORDER BY total_quantity DESC
       LIMIT 20
@@ -159,7 +240,7 @@ export async function GET(request: NextRequest) {
     // 7. Machine-wise breakdown (collections)
     const machineBreakdownQuery = `
       SELECT 
-        COALESCE(m.machine_id, mc.machine_id, 'Unknown') as machine_id,
+        m.machine_id as machine_id,
         mc.machine_type,
         COUNT(DISTINCT mc.id) as total_collections,
         SUM(mc.quantity) as total_quantity,
@@ -170,8 +251,11 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.clr_value) / NULLIF(SUM(mc.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_collections mc
       LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
-      WHERE mc.collection_date >= '${startDateStr}'
-      GROUP BY COALESCE(m.machine_id, mc.machine_id), mc.machine_type
+      LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${whereClause}
+      GROUP BY m.machine_id, mc.machine_type
       ORDER BY total_quantity DESC
       LIMIT 20
     `;
@@ -191,7 +275,10 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.snf_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_snf,
         SUM(mc.quantity * mc.clr_value) / NULLIF(SUM(mc.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_collections mc
-      WHERE mc.collection_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${whereClause}
       GROUP BY shift
     `;
 
@@ -211,17 +298,221 @@ export async function GET(request: NextRequest) {
         SUM(mc.quantity * mc.snf_percentage) / NULLIF(SUM(mc.quantity), 0) as weighted_snf,
         SUM(mc.quantity * mc.clr_value) / NULLIF(SUM(mc.quantity), 0) as weighted_clr
       FROM \`${schemaName}\`.milk_collections mc
-      WHERE mc.collection_date >= '${startDateStr}'
+      LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
+      LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${whereClause}
       GROUP BY channel
     `;
+
+    // 10-14. Breakdown queries for DISPATCHES (same structure as collections)
+    const dairyDispatchBreakdownQuery = `
+      SELECT 
+        COALESCE(df.name, 'Unknown') as dairy_name,
+        COUNT(DISTINCT md.id) as total_dispatches,
+        SUM(md.quantity) as total_quantity,
+        SUM(md.total_amount) as total_amount,
+        AVG(md.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_dispatches md
+      LEFT JOIN \`${schemaName}\`.machines dm ON md.machine_id = dm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${dispatchWhereClause}
+      GROUP BY df.name
+      ORDER BY total_quantity DESC
+    `;
+
+    const bmcDispatchBreakdownQuery = `
+      SELECT 
+        COALESCE(b.name, 'Unknown') as bmc_name,
+        COUNT(DISTINCT md.id) as total_dispatches,
+        SUM(md.quantity) as total_quantity,
+        SUM(md.total_amount) as total_amount,
+        AVG(md.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_dispatches md
+      LEFT JOIN \`${schemaName}\`.machines dm ON md.machine_id = dm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${dispatchWhereClause}
+      GROUP BY b.name
+      ORDER BY total_quantity DESC
+      LIMIT 20
+    `;
+
+    const societyDispatchBreakdownQuery = `
+      SELECT 
+        COALESCE(s.name, 'Unknown') as society_name,
+        COUNT(DISTINCT md.id) as total_dispatches,
+        SUM(md.quantity) as total_quantity,
+        SUM(md.total_amount) as total_amount,
+        AVG(md.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_dispatches md
+      LEFT JOIN \`${schemaName}\`.machines dm ON md.machine_id = dm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${dispatchWhereClause}
+      GROUP BY s.name
+      ORDER BY total_quantity DESC
+      LIMIT 20
+    `;
+
+    const machineDispatchBreakdownQuery = `
+      SELECT 
+        dm.machine_id as machine_id,
+        md.machine_type,
+        COUNT(DISTINCT md.id) as total_dispatches,
+        SUM(md.quantity) as total_quantity,
+        SUM(md.total_amount) as total_amount,
+        AVG(md.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_dispatches md
+      LEFT JOIN \`${schemaName}\`.machines dm ON md.machine_id = dm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${dispatchWhereClause}
+      GROUP BY dm.machine_id, md.machine_type
+      ORDER BY total_quantity DESC
+      LIMIT 20
+    `;
+
+    const channelDispatchBreakdownQuery = `
+      SELECT 
+        CASE 
+          WHEN UPPER(md.channel) IN ('CH1', 'COW') THEN 'COW'
+          WHEN UPPER(md.channel) IN ('CH2', 'BUFFALO') THEN 'BUFFALO'
+          WHEN UPPER(md.channel) IN ('CH3', 'MIXED') THEN 'MIXED'
+          ELSE UPPER(md.channel)
+        END as channel,
+        COUNT(*) as total_dispatches,
+        SUM(md.quantity) as total_quantity,
+        SUM(md.total_amount) as total_amount
+      FROM \`${schemaName}\`.milk_dispatches md
+      LEFT JOIN \`${schemaName}\`.machines dm ON md.machine_id = dm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON md.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${dispatchWhereClause}
+      GROUP BY channel
+    `;
+
+    // 15-19. Breakdown queries for SALES (same structure as collections)
+    const dairySalesBreakdownQuery = `
+      SELECT 
+        COALESCE(df.name, 'Unknown') as dairy_name,
+        COUNT(DISTINCT ms.id) as total_sales,
+        SUM(ms.quantity) as total_quantity,
+        SUM(ms.total_amount) as total_amount,
+        AVG(ms.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_sales ms
+      LEFT JOIN \`${schemaName}\`.machines sm ON ms.machine_id = sm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${salesWhereClause}
+      GROUP BY df.name
+      ORDER BY total_quantity DESC
+    `;
+
+    const bmcSalesBreakdownQuery = `
+      SELECT 
+        COALESCE(b.name, 'Unknown') as bmc_name,
+        COUNT(DISTINCT ms.id) as total_sales,
+        SUM(ms.quantity) as total_quantity,
+        SUM(ms.total_amount) as total_amount,
+        AVG(ms.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_sales ms
+      LEFT JOIN \`${schemaName}\`.machines sm ON ms.machine_id = sm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${salesWhereClause}
+      GROUP BY b.name
+      ORDER BY total_quantity DESC
+      LIMIT 20
+    `;
+
+    const societySalesBreakdownQuery = `
+      SELECT 
+        COALESCE(s.name, 'Unknown') as society_name,
+        COUNT(DISTINCT ms.id) as total_sales,
+        SUM(ms.quantity) as total_quantity,
+        SUM(ms.total_amount) as total_amount,
+        AVG(ms.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_sales ms
+      LEFT JOIN \`${schemaName}\`.machines sm ON ms.machine_id = sm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${salesWhereClause}
+      GROUP BY s.name
+      ORDER BY total_quantity DESC
+      LIMIT 20
+    `;
+
+    const machineSalesBreakdownQuery = `
+      SELECT 
+        sm.machine_id as machine_id,
+        ms.machine_type,
+        COUNT(DISTINCT ms.id) as total_sales,
+        SUM(ms.quantity) as total_quantity,
+        SUM(ms.total_amount) as total_amount,
+        AVG(ms.rate_per_liter) as avg_rate
+      FROM \`${schemaName}\`.milk_sales ms
+      LEFT JOIN \`${schemaName}\`.machines sm ON ms.machine_id = sm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${salesWhereClause}
+      GROUP BY sm.machine_id, ms.machine_type
+      ORDER BY total_quantity DESC
+      LIMIT 20
+    `;
+
+    const channelSalesBreakdownQuery = `
+      SELECT 
+        CASE 
+          WHEN UPPER(ms.channel) IN ('CH1', 'COW') THEN 'COW'
+          WHEN UPPER(ms.channel) IN ('CH2', 'BUFFALO') THEN 'BUFFALO'
+          WHEN UPPER(ms.channel) IN ('CH3', 'MIXED') THEN 'MIXED'
+          ELSE UPPER(ms.channel)
+        END as channel,
+        COUNT(*) as total_sales,
+        SUM(ms.quantity) as total_quantity,
+        SUM(ms.total_amount) as total_amount
+      FROM \`${schemaName}\`.milk_sales ms
+      LEFT JOIN \`${schemaName}\`.machines sm ON ms.machine_id = sm.id
+      LEFT JOIN \`${schemaName}\`.societies s ON ms.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+      ${salesWhereClause}
+      GROUP BY channel
+    `;
+
+    // First, check what dates exist in the database
+    const dateCheckQuery = `
+      SELECT 
+        MIN(DATE(collection_date)) as earliest_date,
+        MAX(DATE(collection_date)) as latest_date,
+        COUNT(*) as total_records
+      FROM \`${schemaName}\`.milk_collections
+    `;
+    
+    const [dateCheck] = await sequelize.query(dateCheckQuery);
+    console.log(`🗄️  Database contains ${(dateCheck as any[])[0]?.total_records || 0} collection records`);
+    console.log(`📆 Date range in DB: ${(dateCheck as any[])[0]?.earliest_date || 'N/A'} to ${(dateCheck as any[])[0]?.latest_date || 'N/A'}`);
 
     // Execute all queries in parallel with error handling
     const executeQuery = async (query: string, name: string) => {
       try {
         const [results] = await sequelize.query(query);
+        console.log(`✅ ${name}: ${(results as any[]).length} records`);
         return results;
       } catch (error) {
-        console.error(`Error executing ${name} query:`, error);
+        console.error(`❌ Error executing ${name} query:`, error);
         return [];
       }
     };
@@ -235,7 +526,17 @@ export async function GET(request: NextRequest) {
       societyBreakdown,
       machineBreakdown,
       shiftBreakdown,
-      channelBreakdown
+      channelBreakdown,
+      dairyDispatchBreakdown,
+      bmcDispatchBreakdown,
+      societyDispatchBreakdown,
+      machineDispatchBreakdown,
+      channelDispatchBreakdown,
+      dairySalesBreakdown,
+      bmcSalesBreakdown,
+      societySalesBreakdown,
+      machineSalesBreakdown,
+      channelSalesBreakdown
     ] = await Promise.all([
       executeQuery(dailyCollectionQuery, 'dailyCollection'),
       executeQuery(dailyDispatchQuery, 'dailyDispatch'),
@@ -245,7 +546,17 @@ export async function GET(request: NextRequest) {
       executeQuery(societyBreakdownQuery, 'societyBreakdown'),
       executeQuery(machineBreakdownQuery, 'machineBreakdown'),
       executeQuery(shiftBreakdownQuery, 'shiftBreakdown'),
-      executeQuery(channelBreakdownQuery, 'channelBreakdown')
+      executeQuery(channelBreakdownQuery, 'channelBreakdown'),
+      executeQuery(dairyDispatchBreakdownQuery, 'dairyDispatchBreakdown'),
+      executeQuery(bmcDispatchBreakdownQuery, 'bmcDispatchBreakdown'),
+      executeQuery(societyDispatchBreakdownQuery, 'societyDispatchBreakdown'),
+      executeQuery(machineDispatchBreakdownQuery, 'machineDispatchBreakdown'),
+      executeQuery(channelDispatchBreakdownQuery, 'channelDispatchBreakdown'),
+      executeQuery(dairySalesBreakdownQuery, 'dairySalesBreakdown'),
+      executeQuery(bmcSalesBreakdownQuery, 'bmcSalesBreakdown'),
+      executeQuery(societySalesBreakdownQuery, 'societySalesBreakdown'),
+      executeQuery(machineSalesBreakdownQuery, 'machineSalesBreakdown'),
+      executeQuery(channelSalesBreakdownQuery, 'channelSalesBreakdown')
     ]);
 
     return NextResponse.json({
@@ -257,7 +568,17 @@ export async function GET(request: NextRequest) {
       societyBreakdown,
       machineBreakdown,
       shiftBreakdown,
-      channelBreakdown
+      channelBreakdown,
+      dairyDispatchBreakdown,
+      bmcDispatchBreakdown,
+      societyDispatchBreakdown,
+      machineDispatchBreakdown,
+      channelDispatchBreakdown,
+      dairySalesBreakdown,
+      bmcSalesBreakdown,
+      societySalesBreakdown,
+      machineSalesBreakdown,
+      channelSalesBreakdown
     });
 
   } catch (error) {
