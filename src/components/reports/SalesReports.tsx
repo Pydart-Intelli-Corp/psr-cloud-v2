@@ -569,9 +569,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       record.sales_date,
       record.sales_time,
       record.channel,
-      record.machine_type,
-      record.machine_id,
-      record.society_id,
+      `${record.machine_id} (${record.machine_type})`,
+      `${record.society_name} (${record.society_id})`,
       record.rate_per_liter,
       record.quantity,
       record.total_amount
@@ -583,7 +582,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       '',
       'DETAILED SALES DATA',
       '',
-      'Date,Time,Channel,MachineType,Machine ID,Society ID,Rate,Quantity (L),Total Amount',
+      'Date,Time,Channel,Machine,Society,Rate,Quantity (L),Total Amount',
       ...dataRows.map(row => row.join(',')),
       '',
       '',
@@ -639,9 +638,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       record.sales_date,
       record.sales_time,
       getChannelDisplay(record.channel),
-      record.machine_type,
-      record.machine_id,
-      record.society_id,
+      `${record.machine_id} (${record.machine_type})`,
+      `${record.society_name} (${record.society_id})`,
       record.rate_per_liter,
       record.quantity,
       record.total_amount
@@ -649,7 +647,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
     autoTable(doc, {
       startY: 32,
-      head: [['SI No', 'Date', 'Time', 'Channel', 'MachineType', 'Machine ID', 'Society ID', 'Rate', 'Quantity (L)', 'Total Amount']],
+      head: [['SI No', 'Date', 'Time', 'Channel', 'Machine', 'Society', 'Rate', 'Quantity (L)', 'Total Amount']],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
@@ -831,8 +829,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Shift</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Channel</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine ID</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine Type</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Rate/L</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Qty (L)</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Amount</th>
@@ -842,7 +839,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No sales records found
                   </td>
                 </tr>
@@ -902,8 +899,10 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
                         {highlightText(getChannelDisplay(record.channel), combinedSearch)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(record.machine_id || 'N/A', combinedSearch)}</td>
-                    <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{highlightText(record.machine_type, combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
+                      <div className="font-medium">{highlightText(record.machine_id || 'N/A', combinedSearch)}</div>
+                      <div className="text-xs text-gray-500">{highlightText(record.machine_type, combinedSearch)}</div>
+                    </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">
                       ₹{highlightText(parseFloat(record.rate_per_liter).toFixed(2), combinedSearch)}
                     </td>

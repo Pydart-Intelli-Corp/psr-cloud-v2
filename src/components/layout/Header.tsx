@@ -272,21 +272,25 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 flex items-center justify-between shadow-sm">
-      {/* Search Bar - Hidden on mobile */}
-      <div className="hidden lg:flex items-center space-x-4 flex-1 max-w-2xl">
-        <div className="flex-1 max-w-md">
-        <form onSubmit={handleSearch} className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder={t.common.search}
-            className="w-full pl-10 pr-4 py-2 !bg-white dark:!bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl placeholder:text-gray-400 dark:placeholder:text-gray-500 !text-gray-900 dark:!text-gray-100 focus:!bg-white dark:focus:!bg-gray-800 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200"
-          />
-        </form>
+      {/* Search Bar - Hidden on mobile and on analytics page */}
+      {!pathname?.includes('/analytics') ? (
+        <div className="hidden lg:flex items-center space-x-4 flex-1 max-w-2xl">
+          <div className="flex-1 max-w-md">
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder={t.common.search}
+              className="w-full pl-10 pr-4 py-2 !bg-white dark:!bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl placeholder:text-gray-400 dark:placeholder:text-gray-500 !text-gray-900 dark:!text-gray-100 focus:!bg-white dark:focus:!bg-gray-800 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200"
+            />
+          </form>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="hidden lg:flex flex-1"></div>
+      )}
 
       {/* Mobile: Logo */}
       <div className="lg:hidden flex items-center">

@@ -1001,6 +1001,42 @@ export default function AnalyticsComponent() {
                             <Bar dataKey="avg_rate" fill="#8b5cf6" name="Rate (₹/L)" />
                           </BarChart>
                         );
+                      case 'Total Sales Count':
+                        return chartType === 'line' ? (
+                          <LineChart data={filteredDailyData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis 
+                              dataKey="date" 
+                              tickFormatter={formatDate} 
+                              tick={{ fontSize: 14 }} 
+                              label={{ value: 'Date', position: 'insideBottom', offset: -5, style: { fontSize: 14, fontWeight: 600 } }}
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 14 }} 
+                              label={{ value: 'Sales Count', angle: -90, position: 'insideLeft', style: { fontSize: 14, fontWeight: 600 } }}
+                            />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend wrapperStyle={{ fontSize: 14 }} />
+                            <Line type="monotone" dataKey="total_sales" stroke="#06b6d4" strokeWidth={3} name="Sales Count" dot={{ fill: '#06b6d4', r: 4 }} />
+                          </LineChart>
+                        ) : (
+                          <BarChart data={filteredDailyData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis 
+                              dataKey="date" 
+                              tickFormatter={formatDate} 
+                              tick={{ fontSize: 14 }} 
+                              label={{ value: 'Date', position: 'insideBottom', offset: -5, style: { fontSize: 14, fontWeight: 600 } }}
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 14 }} 
+                              label={{ value: 'Sales Count', angle: -90, position: 'insideLeft', style: { fontSize: 14, fontWeight: 600 } }}
+                            />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend wrapperStyle={{ fontSize: 14 }} />
+                            <Bar dataKey="total_sales" fill="#06b6d4" name="Sales Count" />
+                          </BarChart>
+                        );
                       case 'Total Quantity (Liters)':
                         return chartType === 'line' ? (
                           <LineChart data={filteredDailyData}>
@@ -1254,6 +1290,43 @@ export default function AnalyticsComponent() {
             )}
           </ResponsiveContainer>
         </div>
+
+        {/* Total Count - Only for Sales */}
+        {activeTab === 'sales' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-200 dark:border-gray-700 relative">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">Total Sales Count</h3>
+              <button
+                onClick={() => setExpandedChart('Total Sales Count')}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title="Expand chart"
+              >
+                <Eye className="w-5 h-5 text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400" />
+              </button>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              {chartType === 'line' ? (
+                <LineChart data={filteredDailyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Line type="monotone" dataKey="total_sales" stroke="#06b6d4" strokeWidth={3} name="Sales Count" dot={{ fill: '#06b6d4', r: 4 }} />
+                </LineChart>
+              ) : (
+                <BarChart data={filteredDailyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar dataKey="total_sales" fill="#06b6d4" name="Sales Count" />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* Total Quantity */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-200 dark:border-gray-700 relative">

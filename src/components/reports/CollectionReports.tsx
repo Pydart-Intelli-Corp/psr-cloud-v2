@@ -657,9 +657,8 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
       record.collection_time,
       record.channel,
       record.shift_type,
-      record.machine_type,
-      record.machine_id,
-      record.society_id,
+      `${record.machine_id} (${record.machine_type})`,
+      `${record.society_name} (${record.society_id})`,
       record.farmer_id,
       record.farmer_name,
       record.fat_percentage,
@@ -678,7 +677,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
       '',
       'DETAILED COLLECTION DATA',
       '',
-      'Date,Time,Channel,Shift,MachineType,Machine ID,Society ID,Farmer ID,Farmer Name,Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive',
+      'Date,Time,Channel,Shift,Machine,Society,Farmer ID,Farmer Name,Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive',
       ...dataRows.map(row => row.join(',')),
       '',
       '',
@@ -738,9 +737,8 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
       record.collection_time,
       getChannelDisplay(record.channel),
       record.shift_type,
-      record.machine_type,
-      record.machine_id,
-      record.society_id,
+      `${record.machine_id} (${record.machine_type})`,
+      `${record.society_name} (${record.society_id})`,
       record.farmer_id,
       record.farmer_name || '',
       record.fat_percentage,
@@ -755,7 +753,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
 
     autoTable(doc, {
       startY: 32,
-      head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'MachineType', 'Machine ID', 'Society ID', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
+      head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 6, cellPadding: 1, halign: 'center' },
@@ -763,7 +761,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
       bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] },
       columnStyles: {
         0: { cellWidth: 10 },
-        9: { halign: 'left' }
+        8: { halign: 'left' }
       }
     });
 
@@ -964,7 +962,6 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Farmer</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine Type</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Shift</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Channel</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Fat %</th>
@@ -985,7 +982,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={21} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={20} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No collection records found
                   </td>
                 </tr>
@@ -1016,8 +1013,10 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
                       <div className="font-medium">{highlightText(record.society_name, combinedSearch)}</div>
                       <div className="text-xs text-gray-500">ID: {highlightText(record.society_id, combinedSearch)}</div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{highlightText(record.machine_id, combinedSearch)}</td>
-                    <td className="px-4 py-3 text-[10px] text-center text-gray-900 dark:text-white">{highlightText(record.machine_type, combinedSearch)}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
+                      <div className="font-medium">{highlightText(record.machine_id, combinedSearch)}</div>
+                      <div className="text-xs text-gray-500">{highlightText(record.machine_type, combinedSearch)}</div>
+                    </td>
                     <td className="px-4 py-3 text-sm text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         ['MR', 'MX', 'morning'].includes(record.shift_type?.toUpperCase() === 'MORNING' ? 'morning' : record.shift_type)

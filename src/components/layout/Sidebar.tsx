@@ -60,12 +60,6 @@ const navigationItems: NavItem[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC]
   },
   {
-    icon: Users,
-    labelKey: 'userManagement',
-    href: '/users',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY]
-  },
-  {
     icon: Milk,
     labelKey: 'dairyManagement',
     href: '/admin/dairy',
