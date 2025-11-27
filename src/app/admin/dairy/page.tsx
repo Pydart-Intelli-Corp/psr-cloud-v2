@@ -45,6 +45,12 @@ interface Dairy {
   monthlyTarget?: number;
   createdAt: string;
   lastActivity?: string;
+  bmcCount?: number;
+  societyCount?: number;
+  farmerCount?: number;
+  totalCollections?: number;
+  collectionCount?: number;
+  totalRevenue?: number;
 }
 
 interface DairyFormData {
@@ -499,6 +505,12 @@ export default function DairyManagement() {
               monthlyTarget={dairy.monthlyTarget}
               status={dairy.status}
               createdAt={dairy.createdAt}
+              bmcCount={dairy.bmcCount}
+              societyCount={dairy.societyCount}
+              farmerCount={dairy.farmerCount}
+              totalCollections={dairy.totalCollections}
+              collectionCount={dairy.collectionCount}
+              totalRevenue={dairy.totalRevenue}
               onEdit={() => handleEditClick(dairy)}
               onDelete={() => handleDeleteClick(dairy)}
               onView={() => router.push(`/admin/dairy/${dairy.id}`)}

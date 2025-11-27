@@ -135,9 +135,18 @@ export async function GET(request: NextRequest) {
         d.monthly_target as monthlyTarget,
         d.created_at as createdAt, 
         d.updated_at as updatedAt,
-        COUNT(DISTINCT b.id) as bmcCount
+        COUNT(DISTINCT b.id) as bmcCount,
+        COUNT(DISTINCT s.id) as societyCount,
+        COUNT(DISTINCT f.id) as farmerCount,
+        COALESCE(SUM(mc.quantity), 0) as totalCollections,
+        COALESCE(COUNT(DISTINCT mc.id), 0) as collectionCount,
+        COALESCE(SUM(mc.total_amount), 0) as totalRevenue
       FROM \`${schemaName}\`.\`dairy_farms\` d
       LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON b.dairy_farm_id = d.id
+      LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.\`farmers\` f ON f.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc ON mc.society_id = s.id
+        AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       GROUP BY d.id, d.name, d.dairy_id, d.location, d.contact_person, d.phone, d.email, 
                d.capacity, d.status, d.monthly_target, d.created_at, d.updated_at
       ORDER BY d.created_at DESC
@@ -146,9 +155,6 @@ export async function GET(request: NextRequest) {
     // Add calculated fields to each dairy farm
     const dairyFarmsWithCalculatedData = (dairyFarms as Array<Record<string, unknown>>).map(farm => ({
       ...farm,
-      societyCount: 0, // Will be calculated when societies table is added
-      farmerCount: 0, // Will be calculated when farmers table is added
-      totalMilkProduction: 0, // Will be calculated from production records
       lastActivity: farm.updatedAt || farm.createdAt
     }));
 

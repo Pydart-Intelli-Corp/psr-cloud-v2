@@ -1382,13 +1382,6 @@ export default function AnalyticsComponent() {
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {activeTab === 'collections' ? 'Collection' : activeTab === 'dispatches' ? 'Dispatch' : 'Sales'} Distribution
               </h2>
-              <button
-                onClick={() => setExpandedChart(`${pieBreakdownType.charAt(0).toUpperCase() + pieBreakdownType.slice(1)}-wise Distribution`)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title="Expand chart"
-              >
-                <Eye className="w-6 h-6 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400" />
-              </button>
             </div>
             
             {/* Breakdown Type Toggle */}

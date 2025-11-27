@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Milk, Edit3, Trash2, Eye, MapPin, User, Phone, Mail, Calendar, Building2, MoreVertical, Activity } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Edit3, Trash2, Eye, MapPin, User, Phone, Mail, Calendar, Milk, Building2, Users, Factory, TrendingUp, DollarSign } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import StatusDropdown from '@/components/management/StatusDropdown';
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -22,39 +24,11 @@ const highlightText = (text: string, searchQuery: string) => {
   );
 };
 
-// Helper function to get status color and styles
-const getStatusStyles = (status: 'active' | 'inactive' | 'maintenance') => {
-  switch (status) {
-    case 'active':
-      return {
-        bgColor: 'bg-green-100 dark:bg-green-900/30',
-        textColor: 'text-green-700 dark:text-green-300',
-        dotColor: 'bg-green-600 dark:bg-green-400',
-        label: 'Active'
-      };
-    case 'inactive':
-      return {
-        bgColor: 'bg-red-100 dark:bg-red-900/30',
-        textColor: 'text-red-700 dark:text-red-300',
-        dotColor: 'bg-red-600 dark:bg-red-400',
-        label: 'Inactive'
-      };
-    case 'maintenance':
-      return {
-        bgColor: 'bg-amber-100 dark:bg-amber-900/30',
-        textColor: 'text-amber-700 dark:text-amber-300',
-        dotColor: 'bg-amber-600 dark:bg-amber-400',
-        label: 'Maintenance'
-      };
-    default:
-      return {
-        bgColor: 'bg-gray-100 dark:bg-gray-900/30',
-        textColor: 'text-gray-700 dark:text-gray-300',
-        dotColor: 'bg-gray-600 dark:bg-gray-400',
-        label: status
-      };
-  }
-};
+interface DetailItem {
+  icon: React.ReactNode;
+  text: string | React.ReactNode;
+  className?: string;
+}
 
 interface DairyMinimalCardProps {
   id: number;
@@ -68,6 +42,11 @@ interface DairyMinimalCardProps {
   monthlyTarget?: number;
   status: 'active' | 'inactive' | 'maintenance';
   createdAt: string;
+  bmcCount?: number;
+  societyCount?: number;
+  farmerCount?: number;
+  totalCollections?: number;
+  totalRevenue?: number;
   isSelected?: boolean;
   onToggleSelection?: () => void;
   onEdit: () => void;
@@ -78,6 +57,7 @@ interface DairyMinimalCardProps {
 }
 
 export default function DairyMinimalCard({
+  id,
   name,
   dairyId,
   location,
@@ -88,6 +68,11 @@ export default function DairyMinimalCard({
   monthlyTarget,
   status,
   createdAt,
+  bmcCount = 0,
+  societyCount = 0,
+  farmerCount = 0,
+  totalCollections = 0,
+  totalRevenue = 0,
   isSelected = false,
   onToggleSelection,
   onEdit,
@@ -97,244 +82,132 @@ export default function DairyMinimalCard({
   searchQuery = '',
 }: DairyMinimalCardProps) {
   const { t } = useLanguage();
-  const [showActionsMenu, setShowActionsMenu] = React.useState(false);
-  const [showStatusMenu, setShowStatusMenu] = React.useState(false);
-  const menuRef = React.useRef<HTMLDivElement>(null);
-  const statusRef = React.useRef<HTMLDivElement>(null);
 
-  const statusStyles = getStatusStyles(status);
+  // Build details array
+  const details: DetailItem[] = [];
 
-  // Close menus when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowActionsMenu(false);
-      }
-      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
-        setShowStatusMenu(false);
-      }
-    };
+  // Performance metrics section
+  if (bmcCount > 0 || societyCount > 0 || farmerCount > 0 || totalCollections > 0 || totalRevenue > 0) {
+    const metrics = [];
+    
+    if (bmcCount > 0) metrics.push({ label: 'BMCs', value: bmcCount, icon: Factory, bgColor: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-blue-700 dark:text-blue-300', iconColor: 'text-blue-600 dark:text-blue-400' });
+    if (societyCount > 0) metrics.push({ label: 'Societies', value: societyCount, icon: Building2, bgColor: 'bg-green-50 dark:bg-green-900/20', textColor: 'text-green-700 dark:text-green-300', iconColor: 'text-green-600 dark:text-green-400' });
+    if (farmerCount > 0) metrics.push({ label: 'Farmers', value: farmerCount.toLocaleString(), icon: Users, bgColor: 'bg-purple-50 dark:bg-purple-900/20', textColor: 'text-purple-700 dark:text-purple-300', iconColor: 'text-purple-600 dark:text-purple-400' });
+    if (totalCollections > 0) metrics.push({ label: 'Collections', value: `${totalCollections.toLocaleString()} L`, icon: TrendingUp, bgColor: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-700 dark:text-amber-300', iconColor: 'text-amber-600 dark:text-amber-400' });
+    if (totalRevenue > 0) metrics.push({ label: 'Revenue', value: `₹${totalRevenue.toLocaleString()}`, icon: DollarSign, bgColor: 'bg-emerald-50 dark:bg-emerald-900/20', textColor: 'text-emerald-700 dark:text-emerald-300', iconColor: 'text-emerald-600 dark:text-emerald-400' });
+    
+    details.push({
+      icon: null,
+      text: (
+        <div className="flex flex-wrap gap-1.5">
+          {metrics.map((metric, idx) => (
+            <div key={idx} className={`inline-flex items-center gap-1.5 ${metric.bgColor} rounded-md px-2 py-1`}>
+              <metric.icon className={`w-3 h-3 ${metric.iconColor} flex-shrink-0`} />
+              <span className={`text-xs font-semibold ${metric.textColor} whitespace-nowrap`}>
+                {metric.value}
+              </span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                {metric.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )
+    });
+  }
 
-    if (showActionsMenu || showStatusMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showActionsMenu, showStatusMenu]);
+  // Contact details
+  if (location) details.push({ icon: <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: location });
+  if (contactPerson) details.push({ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: contactPerson });
+  if (phone) details.push({ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: phone });
+  if (email) details.push({ icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: email });
+  if (capacity && capacity > 0) details.push({ icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Capacity: ${capacity.toLocaleString()} L` });
+  if (monthlyTarget && monthlyTarget > 0) details.push({ icon: <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Target: ${monthlyTarget.toLocaleString()} L/month` });
+  details.push({ icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Created: ${new Date(createdAt).toLocaleDateString()}` });
 
   return (
-    <div
-      className={`relative border rounded-xl p-5 transition-all duration-300 hover:shadow-lg ${
-        isSelected
-          ? 'border-blue-500 dark:border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 shadow-md ring-2 ring-blue-200 dark:ring-blue-700'
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600'
-      }`}
+    <motion.div
+      key={id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`relative bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-200 hover:border-green-200 dark:hover:border-green-700 flex flex-col ${isSelected ? 'ring-2 ring-green-500 border-green-500' : ''}`}
     >
-      {/* Header Section */}
-      <div className="flex items-start justify-between mb-4">
-        {/* Left: Checkbox & Dairy Info */}
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          {onToggleSelection && (
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={onToggleSelection}
-              className="mt-1 w-4 h-4 text-blue-600 dark:text-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2 cursor-pointer transition-transform hover:scale-110"
-            />
-          )}
-          
-          {/* Dairy Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <Milk className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" title={name}>
+      <div className="p-4 sm:p-6 flex flex-col flex-1">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3 sm:mb-4">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+            {onToggleSelection && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={onToggleSelection}
+                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+            )}
+            <div className="p-1.5 sm:p-2 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg flex-shrink-0">
+              <div className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400">
+                <Milk className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
                 {highlightText(name, searchQuery)}
               </h3>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                 {highlightText(dairyId, searchQuery)}
+              </p>
+            </div>
+          </div>
+          <StatusDropdown
+            currentStatus={status}
+            onStatusChange={(newStatus) => onStatusChange(newStatus as 'active' | 'inactive' | 'maintenance')}
+          />
+        </div>
+
+        {/* Details */}
+        <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4 flex-1">
+          {details.map((detail, index) => (
+            <div key={index} className={`flex items-center text-xs sm:text-sm ${detail.className || 'text-gray-600 dark:text-gray-400'}`}>
+              {detail.icon && (
+                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 flex-shrink-0">
+                  {detail.icon}
+                </div>
+              )}
+              <span className={typeof detail.text === 'string' && (detail.text.includes('@') || detail.text.length > 30) ? 'truncate' : ''}>
+                {typeof detail.text === 'string' ? highlightText(detail.text, searchQuery) : detail.text}
               </span>
-              
-              {/* Status Badge - Clickable */}
-              <div className="relative" ref={statusRef}>
-                <button
-                  onClick={() => setShowStatusMenu(!showStatusMenu)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold transition-all hover:opacity-80 ${statusStyles.bgColor} ${statusStyles.textColor}`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${statusStyles.dotColor}`} />
-                  {statusStyles.label}
-                </button>
-
-                {/* Status Change Dropdown */}
-                {showStatusMenu && (
-                  <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-                    <div className="py-1">
-                      <button
-                        onClick={() => {
-                          onStatusChange('active');
-                          setShowStatusMenu(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-green-50 dark:hover:bg-green-900/30 flex items-center gap-2"
-                      >
-                        <div className="w-2 h-2 rounded-full bg-green-600" />
-                        <span className="text-green-700 dark:text-green-300">Active</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          onStatusChange('inactive');
-                          setShowStatusMenu(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
-                      >
-                        <div className="w-2 h-2 rounded-full bg-red-600" />
-                        <span className="text-red-700 dark:text-red-300">Inactive</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          onStatusChange('maintenance');
-                          setShowStatusMenu(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-amber-50 dark:hover:bg-amber-900/30 flex items-center gap-2"
-                      >
-                        <div className="w-2 h-2 rounded-full bg-amber-600" />
-                        <span className="text-amber-700 dark:text-amber-300">Maintenance</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
-          </div>
+          ))}
         </div>
 
-        {/* Right: Actions Menu */}
-        <div className="relative flex-shrink-0" ref={menuRef}>
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
+          <div className="flex space-x-1 sm:space-x-2">
+            <button
+              onClick={onEdit}
+              className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 touch-target sm:min-h-0 sm:min-w-0 flex items-center justify-center"
+              title={t.common?.edit || 'Edit'}
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 touch-target sm:min-h-0 sm:min-w-0 flex items-center justify-center"
+              title={t.common?.delete || 'Delete'}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
           <button
-            onClick={() => setShowActionsMenu(!showActionsMenu)}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="Actions"
+            onClick={onView}
+            className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors flex items-center gap-1.5 sm:gap-2 min-h-[44px] sm:min-h-0"
           >
-            <MoreVertical className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">{t.common?.view || 'View Details'}</span>
+            <span className="sm:hidden">{t.common?.view || 'View'}</span>
           </button>
-
-          {/* Actions Dropdown */}
-          {showActionsMenu && (
-            <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-              <div className="py-1">
-                <button
-                  onClick={() => {
-                    onView();
-                    setShowActionsMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
-                >
-                  <Eye className="w-4 h-4" />
-                  {t.common?.view || 'View Details'}
-                </button>
-                <button
-                  onClick={() => {
-                    onEdit();
-                    setShowActionsMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300"
-                >
-                  <Edit3 className="w-4 h-4" />
-                  {t.common?.edit || 'Edit'}
-                </button>
-                <div className="border-t border-gray-200 dark:border-gray-700" />
-                <button
-                  onClick={() => {
-                    onDelete();
-                    setShowActionsMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-3 text-red-600 dark:text-red-400"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {t.common?.delete || 'Delete'}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
-
-      {/* Details Section */}
-      <div className="space-y-2.5">
-        {location && (
-          <div className="flex items-start gap-2 text-xs">
-            <MapPin className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="text-gray-700 dark:text-gray-300 break-words">
-              {highlightText(location, searchQuery)}
-            </span>
-          </div>
-        )}
-
-        {contactPerson && (
-          <div className="flex items-start gap-2 text-xs">
-            <User className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="text-gray-700 dark:text-gray-300 break-words">
-              {highlightText(contactPerson, searchQuery)}
-            </span>
-          </div>
-        )}
-
-        {phone && (
-          <div className="flex items-start gap-2 text-xs">
-            <Phone className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="text-gray-700 dark:text-gray-300">
-              {highlightText(phone, searchQuery)}
-            </span>
-          </div>
-        )}
-
-        {email && (
-          <div className="flex items-start gap-2 text-xs">
-            <Mail className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="text-gray-700 dark:text-gray-300 break-all">
-              {highlightText(email, searchQuery)}
-            </span>
-          </div>
-        )}
-
-        {capacity !== undefined && capacity > 0 && (
-          <div className="flex items-start gap-2 text-xs">
-            <Building2 className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="text-gray-700 dark:text-gray-300">
-              Capacity: {capacity.toLocaleString()} L
-            </span>
-          </div>
-        )}
-
-        {monthlyTarget !== undefined && monthlyTarget > 0 && (
-          <div className="flex items-start gap-2 text-xs">
-            <Activity className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-            <span className="text-gray-700 dark:text-gray-300">
-              Target: {monthlyTarget.toLocaleString()} L/month
-            </span>
-          </div>
-        )}
-
-        <div className="flex items-start gap-2 text-xs">
-          <Calendar className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
-          <span className="text-gray-700 dark:text-gray-300">
-            Created: {new Date(createdAt).toLocaleDateString()}
-          </span>
-        </div>
-      </div>
-
-      {/* Footer - View Button */}
-      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={onView}
-          className="w-full px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <Eye className="w-4 h-4" />
-          {t.dairyManagement?.viewDetails || 'View Details'}
-        </button>
-      </div>
-    </div>
+    </motion.div>
   );
 }

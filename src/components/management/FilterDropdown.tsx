@@ -1094,12 +1094,14 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         )}
 
         {/* Item Count */}
-        <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-          {icon}
-          <span className="font-medium">
-            {filteredCount}/{totalCount} items
-          </span>
-        </div>
+        {(filteredCount > 0 || totalCount > 0) && (
+          <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+            {icon}
+            <span className="font-medium">
+              {filteredCount}/{totalCount} items
+            </span>
+          </div>
+        )}
 
         {/* Active Search Query Badge */}
         {searchQuery && (
