@@ -26,7 +26,7 @@ import {
   PageHeader,
   StatusMessage,
   StatsCard,
-  FilterControls,
+  SearchAndFilter,
   EmptyState,
   ConfirmDeleteModal
 } from '@/components';
@@ -467,21 +467,18 @@ export default function DairyManagement() {
       </div>
 
       {/* Filter Controls */}
-      <FilterControls
-        icon={<Building2 className="w-4 h-4 flex-shrink-0" />}
-        showingText={`${t.dairyManagement.showing} ${filteredDairies.length} ${t.dairyManagement.of} ${dairies.length} ${t.dairyManagement.dairies}`}
-        filterLabel={`${t.dairyManagement.filter}:`}
-        filterValue={statusFilter}
-        filterOptions={[
+      <SearchAndFilter
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search dairies by name, ID, location, or contact..."
+        statusValue={statusFilter}
+        onStatusChange={(value) => setStatusFilter(value as typeof statusFilter)}
+        statusOptions={[
           { value: 'all', label: `${t.dashboard.all} ${t.dairyManagement.status}` },
           { value: 'active', label: t.dashboard.active },
           { value: 'inactive', label: t.dashboard.inactive },
           { value: 'maintenance', label: t.dairyManagement.maintenance }
         ]}
-        onFilterChange={(value) => setStatusFilter(value as typeof statusFilter)}
-        searchQuery={searchTerm}
-        onSearchChange={setSearchTerm}
-        searchPlaceholder="Search dairies by name, ID, location, or contact..."
       />
 
       {/* Main Content */}
@@ -509,7 +506,6 @@ export default function DairyManagement() {
               societyCount={dairy.societyCount}
               farmerCount={dairy.farmerCount}
               totalCollections={dairy.totalCollections}
-              collectionCount={dairy.collectionCount}
               totalRevenue={dairy.totalRevenue}
               onEdit={() => handleEditClick(dairy)}
               onDelete={() => handleDeleteClick(dairy)}
