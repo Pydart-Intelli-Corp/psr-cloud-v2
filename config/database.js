@@ -9,6 +9,7 @@ module.exports = {
     host: process.env.DB_HOST || '168.231.121.19',
     port: parseInt(process.env.DB_PORT || '3306'),
     dialect: 'mysql',
+    timezone: '+05:30',
     dialectOptions: {
       ssl: (process.env.DB_SSL_CA && process.env.DB_SSL_CA.trim() !== '') ? {
         require: true,

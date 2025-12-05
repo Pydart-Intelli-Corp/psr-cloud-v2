@@ -44,34 +44,24 @@ interface Notification {
   time: string;
   type: 'info' | 'warning' | 'success' | 'error';
   read: boolean;
+  societyId?: number;
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    title: 'New User Registration',
-    message: 'A new farmer has registered and is awaiting approval.',
-    time: '2 minutes ago',
-    type: 'info',
-    read: false
-  },
-  {
-    id: '2',
-    title: 'System Maintenance',
-    message: 'Scheduled maintenance will occur tonight at 2:00 AM.',
-    time: '1 hour ago',
-    type: 'warning',
-    read: false
-  },
-  {
-    id: '3',
-    title: 'Report Generated',
-    message: 'Monthly dairy production report is ready for review.',
-    time: '3 hours ago',
-    type: 'success',
-    read: true
-  }
-];
+interface PausedSectionNotification {
+  sectionPulseId: number;
+  societyId: number;
+  societyName: string;
+  societyCode: string;
+  bmcId: number;
+  bmcName: string;
+  dairyFarmId: number;
+  dairyName: string;
+  pulseDate: string;
+  pausedSince: string;
+  lastChecked: string;
+  inactiveDays: number;
+  totalCollections: number;
+}
 
 const roleColors: Record<UserRole, string> = {
   [UserRole.SUPER_ADMIN]: 'from-green-600 to-emerald-600',    // Primary green gradient
@@ -158,13 +148,87 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
   const [showProfile, setShowProfile] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showMobileLanguage, setShowMobileLanguage] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [pausedSections, setPausedSections] = useState<PausedSectionNotification[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const pathname = usePathname();
   
   const notificationRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const languageRef = useRef<HTMLDivElement>(null);
+
+  // Fetch paused sections notifications
+  useEffect(() => {
+    const fetchPausedSections = async () => {
+      try {
+        setIsLoadingNotifications(true);
+        
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          console.warn('No auth token found for notifications');
+          return;
+        }
+        
+        const response = await fetch('/api/admin/notifications/paused-sections', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setPausedSections(result.data);
+            
+            // Convert paused sections to notifications
+            const pausedNotifications: Notification[] = result.data.map((section: PausedSectionNotification) => ({
+              id: `paused-${section.sectionPulseId}`,
+              title: 'Section Paused',
+              message: `${section.dairyName} > ${section.bmcName} > ${section.societyName} (${section.societyCode})`,
+              time: getRelativeTime(section.lastChecked),
+              type: 'warning' as const,
+              read: false,
+              societyId: section.societyId
+            }));
+            
+            setNotifications(pausedNotifications);
+          }
+        } else if (response.status === 401) {
+          console.warn('Unauthorized: Token may be expired');
+        }
+      } catch (error) {
+        console.error('Error fetching paused sections:', error);
+      } finally {
+        setIsLoadingNotifications(false);
+      }
+    };
+
+    // Fetch immediately
+    fetchPausedSections();
+    
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchPausedSections, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get relative time from timestamp
+  const getRelativeTime = (timestamp: string): string => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -220,6 +284,17 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
     setNotifications(prev => 
       prev.map(n => n.id === id ? { ...n, read: true } : n)
     );
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id);
+    
+    // Navigate to society details if societyId is present
+    if (notification.societyId) {
+      window.location.href = `/admin/society/${notification.societyId}`;
+    }
+    
+    setShowNotifications(false);
   };
 
   const markAllAsRead = () => {
@@ -431,11 +506,16 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
                   </div>
 
                   <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 120px)' }}>
-                    {notifications.length > 0 ? (
+                    {isLoadingNotifications ? (
+                      <div className="p-8 sm:p-12 text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">Loading notifications...</p>
+                      </div>
+                    ) : notifications.length > 0 ? (
                       notifications.map((notification) => (
                         <div
                           key={notification.id}
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={() => handleNotificationClick(notification)}
                           className={`p-3 sm:p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors active:bg-gray-100 dark:active:bg-gray-600 ${
                             !notification.read ? 'bg-green-50 dark:bg-green-900/20' : ''
                           }`}

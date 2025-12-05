@@ -458,6 +458,28 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_society_id\` (\`society_id\`),
         INDEX \`idx_statistics_date\` (\`statistics_date\`),
         INDEX \`idx_created_at\` (\`created_at\`)
+      )`,
+
+      // Section Pulse table (Tracks section start/end pulse and inactivity)
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`section_pulse\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`society_id\` INT NOT NULL,
+        \`pulse_date\` DATE NOT NULL,
+        \`first_collection_time\` DATETIME DEFAULT NULL COMMENT 'Section start pulse - first collection of the day',
+        \`last_collection_time\` DATETIME DEFAULT NULL COMMENT 'Last collection recorded',
+        \`section_end_time\` DATETIME DEFAULT NULL COMMENT 'Section end pulse - 60 min after last collection',
+        \`pulse_status\` ENUM('not_started', 'active', 'ended', 'inactive') DEFAULT 'not_started' COMMENT 'Current pulse status',
+        \`total_collections\` INT DEFAULT 0 COMMENT 'Total collections for the day',
+        \`inactive_days\` INT DEFAULT 0 COMMENT 'Number of consecutive days without pulse',
+        \`last_checked\` DATETIME DEFAULT NULL COMMENT 'Last time status was checked/updated',
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (\`society_id\`) REFERENCES \`${schemaName}\`.\`societies\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        UNIQUE KEY \`unique_society_date\` (\`society_id\`, \`pulse_date\`),
+        INDEX \`idx_society_id\` (\`society_id\`),
+        INDEX \`idx_pulse_date\` (\`pulse_date\`),
+        INDEX \`idx_pulse_status\` (\`pulse_status\`),
+        INDEX \`idx_last_checked\` (\`last_checked\`)
       )`
     ];
     

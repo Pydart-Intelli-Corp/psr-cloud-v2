@@ -47,7 +47,8 @@ interface SalesStats {
 }
 
 // Helper function to highlight matching text in search results
-const highlightText = (text: string | number, searchQuery: string) => {
+const highlightText = (text: string | number | null | undefined, searchQuery: string) => {
+  if (!text && text !== 0) return text || '';
   if (!searchQuery) return text;
   
   const textStr = text.toString();

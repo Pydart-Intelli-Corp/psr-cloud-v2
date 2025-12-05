@@ -27,6 +27,7 @@ const createSequelizeInstance = () => {
         port: parseInt(process.env.DB_PORT || '3306'),
         dialect: 'mysql',
         dialectModule: mysql2,
+        timezone: '+05:30', // Use Indian Standard Time (IST)
         dialectOptions: {
           ssl: sslConfig,
           connectTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30') * 1000,

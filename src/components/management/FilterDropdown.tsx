@@ -36,6 +36,7 @@ interface FilterDropdownProps {
   showChannelFilter?: boolean;
   showShiftFilter?: boolean;
   hideMainFilterButton?: boolean;
+  hideSocietyFilter?: boolean;
 }
 
 /**
@@ -73,7 +74,8 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   showDateFilter = false,
   showChannelFilter = false,
   showShiftFilter = false,
-  hideMainFilterButton = false
+  hideMainFilterButton = false,
+  hideSocietyFilter = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
@@ -519,7 +521,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         )}
 
         {/* Society Filter Button */}
-        {societies && societies.length > 0 && (
+        {!hideSocietyFilter && societies && societies.length > 0 && (
         <div className="relative" ref={societyDropdownRef}>
           <button
             onClick={() => setSocietyDropdownOpen(!societyDropdownOpen)}

@@ -48,6 +48,7 @@ export {
   StatusMessage, 
   StatsCard, 
   FilterControls, 
+  FilterDropdown,
   StatusDropdown, 
   ItemCard, 
   EmptyState, 

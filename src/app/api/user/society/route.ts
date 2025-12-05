@@ -103,13 +103,53 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Get all societies from admin's schema with BMC names
+    // Get all societies from admin's schema with BMC names and 30-day statistics
     const [societies] = await sequelize.query(`
       SELECT 
         s.id, s.name, s.society_id, s.location, s.president_name, s.contact_phone, s.bmc_id, s.status,
-        b.name as bmc_name, s.created_at, s.updated_at 
+        b.name as bmc_name, s.created_at, s.updated_at,
+        COALESCE(COUNT(DISTINCT mc.id), 0) as total_collections_30d,
+        COALESCE(SUM(mc.quantity), 0) as total_quantity_30d,
+        COALESCE(SUM(mc.total_amount), 0) as total_amount_30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weighted_fat_30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weighted_snf_30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.clr_value * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weighted_clr_30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END) > 0 
+            THEN ROUND(
+              SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.water_percentage * mc.quantity ELSE 0 END) / 
+              SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END), 
+              2
+            )
+            ELSE 0 
+          END, 0
+        ) as weighted_water_30d
       FROM \`${schemaName}\`.\`societies\` s
       LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc 
+        ON mc.society_id = s.id 
+        AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      GROUP BY s.id, s.name, s.society_id, s.location, s.president_name, s.contact_phone, 
+               s.bmc_id, s.status, b.name, s.created_at, s.updated_at
       ORDER BY s.created_at DESC
     `);
 

@@ -4,6 +4,7 @@ import {
   ESP32ResponseHelper, 
   InputValidator 
 } from '@/lib/external-api';
+import { SectionPulseTracker } from '@/lib/sectionPulseTracker';
 
 interface CollectionInput {
   societyId: string;
@@ -293,7 +294,7 @@ async function handleRequest(
         machine_version,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '+05:30'), CONVERT_TZ(NOW(), '+00:00', '+05:30'))
       ON DUPLICATE KEY UPDATE
         farmer_name = VALUES(farmer_name),
         channel = VALUES(channel),
@@ -311,7 +312,7 @@ async function handleRequest(
         bonus = VALUES(bonus),
         machine_type = VALUES(machine_type),
         machine_version = VALUES(machine_version),
-        updated_at = NOW()
+        updated_at = CONVERT_TZ(NOW(), '+00:00', '+05:30')
     `;
 
     const insertParams = [
@@ -349,9 +350,36 @@ async function handleRequest(
     console.log(`   Fat: ${collectionData.fat}%, SNF: ${collectionData.snf}%`);
     console.log(`   Quantity: ${collectionData.quantity}L, Rate: ${collectionData.rate}, Total: ${collectionData.totalAmount}, Bonus: ${collectionData.bonus}`);
 
-    await sequelize.query(insertQuery, { replacements: insertParams });
+    const queryResult = await sequelize.query(insertQuery, { replacements: insertParams }) as any;
+    
+    // Check if this was a new insert or an update
+    // For Sequelize raw queries with INSERT...ON DUPLICATE KEY UPDATE:
+    // - Returns array [lastInsertId, affectedRows]
+    // - affectedRows = 1 means INSERT (new record)
+    // - affectedRows = 2 means UPDATE (duplicate key, existing record updated)
+    const [lastInsertId, affectedRows] = queryResult;
+    console.log(`📊 Query result - lastInsertId: ${lastInsertId}, affectedRows: ${affectedRows}`);
+    
+    const isNewCollection = affectedRows === 1;
 
-    console.log(`✅ Collection record saved successfully`);
+    console.log(`✅ Collection record saved successfully${isNewCollection ? ' (new collection)' : ' (duplicate updated)'}`);
+
+    // Update section pulse tracking
+    try {
+      const collectionDateTime = `${formattedDate} ${formattedTime}`;
+      await SectionPulseTracker.updatePulseOnCollection(
+        sequelize,
+        schemaName,
+        actualSocietyId,
+        collectionDateTime,
+        isNewCollection  // Pass flag to indicate if this is a new collection
+      );
+      console.log(`✅ Section pulse updated successfully`);
+    } catch (pulseError) {
+      // Log pulse tracking error but don't fail the collection save
+      console.error(`⚠️ Failed to update section pulse:`, pulseError);
+    }
+
     console.log(`${'='.repeat(80)}\n`);
 
     // Return success response
