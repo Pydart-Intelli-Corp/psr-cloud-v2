@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Droplet, Truck, DollarSign } from 'lucide-react';
 import CollectionReports from '@/components/reports/CollectionReports';
@@ -41,9 +42,24 @@ const tabs: TabConfig[] = [
   }
 ];
 
-export default function ReportsPage() {
+function ReportsPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ReportType>('collection');
   const [globalSearch, setGlobalSearch] = useState('');
+  const [initialSocietyId, setInitialSocietyId] = useState<string | null>(null);
+  const [initialSocietyName, setInitialSocietyName] = useState<string | null>(null);
+
+  // Read URL parameters on mount
+  useEffect(() => {
+    const societyId = searchParams.get('societyId');
+    const societyName = searchParams.get('societyName');
+    
+    if (societyId) {
+      setInitialSocietyId(societyId);
+      setInitialSocietyName(societyName);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
 
   // Listen to global search event from header
   useEffect(() => {
@@ -60,7 +76,7 @@ export default function ReportsPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'collection':
-        return <CollectionReports key="collection" globalSearch={globalSearch} />;
+        return <CollectionReports key="collection" globalSearch={globalSearch} initialSocietyId={initialSocietyId} initialSocietyName={initialSocietyName} />;
       case 'dispatch':
         return <DispatchReports key="dispatch" globalSearch={globalSearch} />;
       case 'sales':
@@ -136,5 +152,18 @@ export default function ReportsPage() {
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function ReportsPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      </div>
+    }>
+      <ReportsPage />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Users, UserCheck, Phone, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload } from 'lucide-react';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
@@ -36,6 +36,7 @@ import { Society, Farmer } from '@/types';
 const FarmerManagement = () => {
   const { t } = useLanguage();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [farmers, setFarmers] = useState<Farmer[]>([]);
   const [societies, setSocieties] = useState<Society[]>([]);
   const [machines, setMachines] = useState<Array<{id: number, machineId: string, machineType: string, societyId?: number, societyName?: string}>>([]);
@@ -141,6 +142,22 @@ const FarmerManagement = () => {
       }
     }
   }, [societyFilter, machineFilter, machines]);
+
+  // Read URL parameters and initialize society filter on mount
+  useEffect(() => {
+    const societyId = searchParams.get('societyId');
+    const societyName = searchParams.get('societyName');
+    
+    if (societyId && !societyFilter.includes(societyId)) {
+      setSocietyFilter([societyId]);
+      
+      // Show success message with society name
+      if (societyName) {
+        setSuccess(`Filter Applied: ${decodeURIComponent(societyName)}`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
 
   const fetchFarmers = useCallback(async () => {
     try {
@@ -2142,4 +2159,17 @@ const FarmerManagement = () => {
   );
 };
 
-export default FarmerManagement;
+// Wrapper component with Suspense boundary for useSearchParams
+const FarmerManagementWrapper = () => {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      </div>
+    }>
+      <FarmerManagement />
+    </Suspense>
+  );
+};
+
+export default FarmerManagementWrapper;

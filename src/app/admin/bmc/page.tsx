@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { 
@@ -15,7 +15,14 @@ import {
   Activity,
   Building2,
   Milk,
-  Save
+  Save,
+  Edit3,
+  Trash2,
+  Users,
+  TrendingUp,
+  Award,
+  Eye,
+  Plus
 } from 'lucide-react';
 import { 
   FlowerSpinner, 
@@ -29,10 +36,11 @@ import {
   StatusMessage,
   StatsCard,
   FilterControls,
-  ItemCard,
   EmptyState,
-  ConfirmDeleteModal
+  ConfirmDeleteModal,
+  StatusDropdown
 } from '@/components';
+import FloatingActionButton from '@/components/management/FloatingActionButton';
 
 interface BMC {
   id: number;
@@ -50,6 +58,13 @@ interface BMC {
   createdAt: string;
   lastActivity?: string;
   societyCount?: number;
+  totalCollections30d?: number;
+  totalQuantity30d?: number;
+  totalAmount30d?: number;
+  weightedFat30d?: number;
+  weightedSnf30d?: number;
+  weightedClr30d?: number;
+  weightedWater30d?: number;
 }
 
 interface BMCFormData {
@@ -88,6 +103,7 @@ interface Dairy {
 
 export default function BMCManagement() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useUser();
   const { t } = useLanguage();
   
@@ -104,6 +120,7 @@ export default function BMCManagement() {
   const [formLoading, setFormLoading] = useState(false);
   const [searchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
+  const [dairyFilter, setDairyFilter] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ 
@@ -430,13 +447,23 @@ export default function BMCManagement() {
     
     const matchesStatus = statusFilter === 'all' || bmc.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    const matchesDairy = dairyFilter.length === 0 || dairyFilter.includes(bmc.dairyFarmId?.toString() || '');
+    
+    return matchesSearch && matchesStatus && matchesDairy;
   });
 
   useEffect(() => {
     fetchBMCs();
     fetchDairies();
   }, [fetchBMCs, fetchDairies]);
+
+  // Handle URL parameters for dairy filter
+  useEffect(() => {
+    const dairyFilterParam = searchParams.get('dairyFilter');
+    if (dairyFilterParam && dairies.length > 0) {
+      setDairyFilter([dairyFilterParam]);
+    }
+  }, [searchParams, dairies]);
 
   if (!user) {
     return (
@@ -454,10 +481,7 @@ export default function BMCManagement() {
           title="BMC Management"
           subtitle="Manage your Bulk Milk Cooling Centers"
           icon={<Factory className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
-          refreshText="Refresh"
-          addButtonText="Add BMC"
           onRefresh={fetchBMCs}
-          onAdd={handleAddBMCClick}
         />
 
         {/* Success/Error Messages */}
@@ -472,6 +496,119 @@ export default function BMCManagement() {
             error={error}
           />
         )}
+
+        {/* Top Performers Section */}
+        {bmcs.length > 0 && (() => {
+          const bmcsWithStats = bmcs.filter(b => b.totalQuantity30d && Number(b.totalQuantity30d) > 0);
+          
+          if (bmcsWithStats.length === 0) return null;
+
+          const topCollection = [...bmcsWithStats].sort((a, b) => 
+            Number(b.totalQuantity30d || 0) - Number(a.totalQuantity30d || 0)
+          )[0];
+          
+          const topRevenue = [...bmcsWithStats].sort((a, b) => 
+            Number(b.totalAmount30d || 0) - Number(a.totalAmount30d || 0)
+          )[0];
+          
+          const topFat = [...bmcsWithStats].sort((a, b) => 
+            Number(b.weightedFat30d || 0) - Number(a.weightedFat30d || 0)
+          )[0];
+          
+          const topSnf = [...bmcsWithStats].sort((a, b) => 
+            Number(b.weightedSnf30d || 0) - Number(a.weightedSnf30d || 0)
+          )[0];
+          
+          const mostCollections = [...bmcsWithStats].sort((a, b) => 
+            Number(b.totalCollections30d || 0) - Number(a.totalCollections30d || 0)
+          )[0];
+          
+          const leastWater = [...bmcsWithStats].sort((a, b) => 
+            Number(a.weightedWater30d || 100) - Number(b.weightedWater30d || 100)
+          )[0];
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+              {topCollection && (
+                <div 
+                  className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-700 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">Top Collection (30d)</h3>
+                    <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <p className="text-lg font-bold text-green-800 dark:text-green-200">{topCollection.name}</p>
+                  <p className="text-sm text-green-600 dark:text-green-400">{Number(topCollection.totalQuantity30d || 0).toFixed(2)} L</p>
+                </div>
+              )}
+              
+              {topRevenue && (
+                <div 
+                  className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Top Revenue (30d)</h3>
+                    <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <p className="text-lg font-bold text-blue-800 dark:text-blue-200">{topRevenue.name}</p>
+                  <p className="text-sm text-blue-600 dark:text-blue-400">₹{Number(topRevenue.totalAmount30d || 0).toFixed(2)}</p>
+                </div>
+              )}
+              
+              {topFat && (
+                <div 
+                  className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Best Quality (30d)</h3>
+                    <Eye className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <p className="text-lg font-bold text-purple-800 dark:text-purple-200">{topFat.name}</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">{Number(topFat.weightedFat30d || 0).toFixed(2)}% Fat</p>
+                </div>
+              )}
+              
+              {topSnf && (
+                <div 
+                  className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-100">Best SNF (30d)</h3>
+                    <TrendingUp className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <p className="text-lg font-bold text-orange-800 dark:text-orange-200">{topSnf.name}</p>
+                  <p className="text-sm text-orange-600 dark:text-orange-400">{Number(topSnf.weightedSnf30d || 0).toFixed(2)}% SNF</p>
+                </div>
+              )}
+              
+              {mostCollections && (
+                <div 
+                  className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-4 rounded-lg border border-pink-200 dark:border-pink-700 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-pink-900 dark:text-pink-100">Most Active (30d)</h3>
+                    <Award className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                  </div>
+                  <p className="text-lg font-bold text-pink-800 dark:text-pink-200">{mostCollections.name}</p>
+                  <p className="text-sm text-pink-600 dark:text-pink-400">{Number(mostCollections.totalCollections30d || 0)} Collections</p>
+                </div>
+              )}
+              
+              {leastWater && (
+                <div 
+                  className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 p-4 rounded-lg border border-emerald-200 dark:border-emerald-700 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Best Purity (30d)</h3>
+                    <Award className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{leastWater.name}</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">{Number(leastWater.weightedWater30d || 0).toFixed(2)}% Water</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
@@ -525,28 +662,154 @@ export default function BMCManagement() {
         ) : filteredBMCs.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {filteredBMCs.map((bmc) => (
-              <ItemCard
-                key={bmc.id}
-                id={bmc.id}
-                name={bmc.name}
-                identifier={`ID: ${bmc.bmcId}`}
-                status={bmc.status}
-                icon={<Factory className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
-                onStatusChange={(status) => handleStatusChange(bmc, status as 'active' | 'inactive' | 'maintenance')}
-                details={[
-                  ...(bmc.dairyFarmName ? [{ icon: <Milk className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: bmc.dairyFarmName }] : []),
-                  ...(bmc.location ? [{ icon: <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: bmc.location }] : []),
-                  ...(bmc.contactPerson ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: bmc.contactPerson }] : []),
-                  ...(bmc.phone ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: bmc.phone }] : []),
-                  ...(bmc.email ? [{ icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: bmc.email }] : []),
-                  ...(bmc.capacity ? [{ icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Capacity: ${bmc.capacity} L` }] : []),
-                  ...(bmc.createdAt ? [{ icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Added: ${new Date(bmc.createdAt).toLocaleDateString()}` }] : [])
-                ]}
-                onEdit={() => handleEditClick(bmc)}
-                onDelete={() => handleDeleteClick(bmc)}
-                onView={() => router.push(`/admin/bmc/${bmc.id}`)}
-                viewText={t.bmcManagement.viewDetails}
-              />
+              <div key={bmc.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg transition-all duration-200 overflow-visible border border-gray-200 dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700 relative z-10 hover:z-20">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-4 border-b border-gray-200 dark:border-gray-700 rounded-t-lg">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="p-2 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg flex-shrink-0">
+                        <Factory className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{bmc.name}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{bmc.bmcId}</p>
+                      </div>
+                    </div>
+                    <StatusDropdown
+                      currentStatus={bmc.status}
+                      onStatusChange={(status) => handleStatusChange(bmc, status as 'active' | 'inactive' | 'maintenance')}
+                      options={[
+                        {
+                          status: 'active',
+                          label: 'Active',
+                          color: 'bg-green-500',
+                          bgColor: 'hover:bg-green-50 dark:hover:bg-green-900/30'
+                        },
+                        {
+                          status: 'inactive',
+                          label: 'Inactive',
+                          color: 'bg-red-500',
+                          bgColor: 'hover:bg-red-50 dark:hover:bg-red-900/30'
+                        },
+                        {
+                          status: 'maintenance',
+                          label: 'Maintenance',
+                          color: 'bg-yellow-500',
+                          bgColor: 'hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
+                        }
+                      ]}
+                      compact={true}
+                    />
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 space-y-3">
+                  {/* Basic Info - Two Columns */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{bmc.contactPerson || 'No Contact'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{bmc.phone || 'No Phone'}</span>
+                    </div>
+                  </div>
+
+                  {/* Location & Dairy - Two Columns */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{bmc.location || 'No Location'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Milk className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      <span className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">{bmc.dairyFarmName || 'No Dairy'}</span>
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-3"></div>
+
+                  {/* 30-Day Statistics Header */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Last 30 Days</span>
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                  </div>
+
+                  {/* Collections & Quantity */}
+                  <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Collections</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{Number(bmc.totalCollections30d || 0)}</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">{Number(bmc.totalQuantity30d || 0).toFixed(2)} Liters</div>
+                    </div>
+                  </div>
+
+                  {/* Quality Metrics - Three Columns */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-2 text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Fat</div>
+                      <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{Number(bmc.weightedFat30d || 0).toFixed(2)}%</div>
+                    </div>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">SNF</div>
+                      <div className="text-sm font-bold text-purple-600 dark:text-purple-400">{Number(bmc.weightedSnf30d || 0).toFixed(2)}%</div>
+                    </div>
+                    <div className="bg-pink-50 dark:bg-pink-900/20 rounded-lg p-2 text-center">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">CLR</div>
+                      <div className="text-sm font-bold text-pink-600 dark:text-pink-400">{Number(bmc.weightedClr30d || 0).toFixed(1)}</div>
+                    </div>
+                  </div>
+
+                  {/* Revenue */}
+                  <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Revenue</span>
+                    </div>
+                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                      ₹{Number(bmc.totalAmount30d || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2 rounded-b-lg">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditClick(bmc)}
+                      className="p-2 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
+                      title="Edit"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(bmc)}
+                      className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Societies Count - Clickable */}
+                  <button
+                    onClick={() => router.push(`/admin/society?bmcFilter=${bmc.id}`)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
+                    title={`View ${bmc.societyCount || 0} societies under ${bmc.name}`}
+                  >
+                    <Building2 className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 font-medium transition-colors">
+                      {bmc.societyCount || 0} Societies
+                    </span>
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         ) : (
@@ -561,7 +824,25 @@ export default function BMCManagement() {
         )}
       </div>
 
-      {/* Add BMC Modal */}
+      {/* Floating Action Button */}
+      <FloatingActionButton
+        actions={[
+          {
+            icon: <Plus className="w-6 h-6 text-white" />,
+            label: 'Add BMC',
+            onClick: () => {
+              setFieldErrors({});
+              setError('');
+              setShowAddForm(true);
+              fetchDairies();
+            },
+            color: 'bg-gradient-to-br from-green-500 to-green-600'
+          }
+        ]}
+        directClick={true}
+      />
+
+      {/* Add BMC Modal - Positioned outside main container */}
       <FormModal
         isOpen={showAddForm}
         onClose={() => {

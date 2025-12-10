@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
@@ -128,8 +128,9 @@ const initialFormData: MachineFormData = {
   disablePasswordInheritance: false
 };
 
-export default function MachineManagement() {
+function MachineManagement() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useUser();
   const { } = useLanguage();
   
@@ -622,6 +623,23 @@ export default function MachineManagement() {
       }
     }
   }, [societyFilter, machineFilter, machines]);
+
+  // Read URL parameters and initialize society filter on mount
+  useEffect(() => {
+    const societyId = searchParams.get('societyId');
+    const societyName = searchParams.get('societyName');
+    
+    if (societyId && !societyFilter.includes(societyId)) {
+      setSocietyFilter([societyId]);
+      
+      // Show success message with society name
+      if (societyName) {
+        setSuccess(`Filter Applied: ${decodeURIComponent(societyName)}`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
 
   // Handle add form submission
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -3059,3 +3077,18 @@ export default function MachineManagement() {
     </>
   );
 }
+
+// Wrapper component with Suspense boundary for useSearchParams
+function MachineManagementWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      </div>
+    }>
+      <MachineManagement />
+    </Suspense>
+  );
+}
+
+export default MachineManagementWrapper;

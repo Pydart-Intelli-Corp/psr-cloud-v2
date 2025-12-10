@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Get all dairy farms from admin's schema with enhanced data
+    // Get all dairy farms from admin's schema with enhanced data and 30-day statistics
     const [dairyFarms] = await sequelize.query(`
       SELECT 
         d.id, 
@@ -137,14 +137,44 @@ export async function GET(request: NextRequest) {
         d.updated_at as updatedAt,
         COUNT(DISTINCT b.id) as bmcCount,
         COUNT(DISTINCT s.id) as societyCount,
-        COUNT(DISTINCT f.id) as farmerCount,
-        COALESCE(SUM(mc.quantity), 0) as totalCollections,
-        COALESCE(COUNT(DISTINCT mc.id), 0) as collectionCount,
-        COALESCE(SUM(mc.total_amount), 0) as totalRevenue
+        COALESCE(COUNT(DISTINCT mc.id), 0) as totalCollections30d,
+        COALESCE(SUM(mc.quantity), 0) as totalQuantity30d,
+        COALESCE(SUM(mc.total_amount), 0) as totalAmount30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weightedFat30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weightedSnf30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.clr_value * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weightedClr30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END) > 0 
+            THEN ROUND(
+              SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.water_percentage * mc.quantity ELSE 0 END) / 
+              SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END), 
+              2
+            )
+            ELSE 0 
+          END, 0
+        ) as weightedWater30d
       FROM \`${schemaName}\`.\`dairy_farms\` d
       LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON b.dairy_farm_id = d.id
       LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
-      LEFT JOIN \`${schemaName}\`.\`farmers\` f ON f.society_id = s.id
       LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc ON mc.society_id = s.id
         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       GROUP BY d.id, d.name, d.dairy_id, d.location, d.contact_person, d.phone, d.email, 
@@ -152,13 +182,7 @@ export async function GET(request: NextRequest) {
       ORDER BY d.created_at DESC
     `);
 
-    // Add calculated fields to each dairy farm
-    const dairyFarmsWithCalculatedData = (dairyFarms as Array<Record<string, unknown>>).map(farm => ({
-      ...farm,
-      lastActivity: farm.updatedAt || farm.createdAt
-    }));
-
-    return createSuccessResponse('Dairy farms retrieved successfully', dairyFarmsWithCalculatedData);
+    return createSuccessResponse('Dairy farms retrieved successfully', dairyFarms);
 
   } catch (error: unknown) {
     console.error('Error retrieving dairy farms:', error);

@@ -160,29 +160,22 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
     }
   };
 
-  // Handle mouse enter - expand after small delay
+  // Handle mouse enter - expand immediately
   const handleMouseEnter = () => {
-    // Expand after 1 second delay when collapsed
+    // Expand immediately when collapsed
     if (isCollapsed) {
       clearTimers();
       setIsHovered(true);
-      hoverTimerRef.current = setTimeout(() => {
-        onToggle(); // Expand after brief delay
-      }, 1000);
+      onToggle(); // Expand immediately on hover
     } else {
       setIsHovered(true);
     }
   };
 
-  // Handle mouse leave
+  // Handle mouse leave - keep expanded until clicked outside
   const handleMouseLeave = () => {
     setIsHovered(false);
     clearTimers();
-    
-    // Start inactivity timer if expanded and not pinned
-    if (!isCollapsed && !isPinned) {
-      resetInactivityTimer();
-    }
   };
 
   // Handle click on toggle button
@@ -191,20 +184,26 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
     onToggle();
   };
 
-  // Reset timer on any interaction
+  // Handle click outside to collapse
   useEffect(() => {
-    // Only reset inactivity timer when expanded
-    if (!isCollapsed && !isPinned) {
-      resetInactivityTimer();
-    }
-    
-    // Cleanup on unmount only
+    const handleClickOutside = (event: MouseEvent) => {
+      const sidebar = document.querySelector('aside');
+      if (sidebar && !sidebar.contains(event.target as Node) && !isCollapsed && !isPinned) {
+        onToggle(); // Collapse when clicking outside
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+
+    // Cleanup on unmount
     return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
       if (inactivityTimerRef.current) {
         clearTimeout(inactivityTimerRef.current);
       }
     };
-  }, [isCollapsed, isPinned, isHovered]);
+  }, [isCollapsed, isPinned, onToggle]);
 
   // Detect route changes for loading state
   if (pathname !== prevPathname) {

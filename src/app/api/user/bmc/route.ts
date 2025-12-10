@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Get all BMCs from admin's schema with enhanced data
+    // Get all BMCs from admin's schema with enhanced data and 30-day statistics
     const [bmcs] = await sequelize.query(`
       SELECT 
         b.id, 
@@ -140,24 +140,54 @@ export async function GET(request: NextRequest) {
         b.monthly_target as monthlyTarget,
         b.created_at as createdAt, 
         b.updated_at as updatedAt,
-        COUNT(DISTINCT s.id) as societyCount
+        COUNT(DISTINCT s.id) as societyCount,
+        COALESCE(COUNT(DISTINCT mc.id), 0) as totalCollections30d,
+        COALESCE(SUM(mc.quantity), 0) as totalQuantity30d,
+        COALESCE(SUM(mc.total_amount), 0) as totalAmount30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weightedFat30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weightedSnf30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(mc.quantity) > 0 
+            THEN ROUND(SUM(mc.clr_value * mc.quantity) / SUM(mc.quantity), 2)
+            ELSE 0 
+          END, 0
+        ) as weightedClr30d,
+        COALESCE(
+          CASE 
+            WHEN SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END) > 0 
+            THEN ROUND(
+              SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.water_percentage * mc.quantity ELSE 0 END) / 
+              SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END), 
+              2
+            )
+            ELSE 0 
+          END, 0
+        ) as weightedWater30d
       FROM \`${schemaName}\`.\`bmcs\` b
       LEFT JOIN \`${schemaName}\`.\`dairy_farms\` d ON d.id = b.dairy_farm_id
       LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc 
+        ON mc.society_id = s.id 
+        AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
       GROUP BY b.id, b.name, b.bmc_id, b.dairy_farm_id, d.name, b.location, b.contactPerson, 
                b.phone, b.email, b.capacity, b.status, b.monthly_target, b.created_at, b.updated_at
       ORDER BY b.created_at DESC
     `);
 
-    // Add calculated fields to each BMC
-    const bmcsWithCalculatedData = (bmcs as Array<Record<string, unknown>>).map(bmc => ({
-      ...bmc,
-      farmerCount: 0, // Will be calculated when farmers table is added
-      totalMilkCollection: 0, // Will be calculated from collection records
-      lastActivity: bmc.updatedAt || bmc.createdAt
-    }));
-
-    return createSuccessResponse('BMCs retrieved successfully', bmcsWithCalculatedData);
+    return createSuccessResponse('BMCs retrieved successfully', bmcs);
 
   } catch (error: unknown) {
     console.error('Error retrieving BMCs:', error);

@@ -101,9 +101,11 @@ const getChannelDisplay = (channel: string): string => {
 
 interface CollectionReportsProps {
   globalSearch?: string;
+  initialSocietyId?: string | null;
+  initialSocietyName?: string | null;
 }
 
-export default function CollectionReports({ globalSearch = '' }: CollectionReportsProps) {
+export default function CollectionReports({ globalSearch = '', initialSocietyId = null, initialSocietyName = null }: CollectionReportsProps) {
   const [records, setRecords] = useState<CollectionRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<CollectionRecord[]>([]);
   const [stats, setStats] = useState<CollectionStats>({
@@ -156,6 +158,25 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [bulkDeletePassword, setBulkDeletePassword] = useState('');
+
+  // Initialize society filter from URL parameters
+  useEffect(() => {
+    if (initialSocietyId) {
+      // Find society by society_id string (e.g., "S101")
+      const society = societiesData.find(s => s.society_id === initialSocietyId);
+      
+      if (society && !societyFilter.includes(society.id.toString())) {
+        setSocietyFilter([society.id.toString()]);
+        
+        // Show success message with society name
+        if (initialSocietyName) {
+          setSuccessMessage(`Filter Applied: ${decodeURIComponent(initialSocietyName)}`);
+          setTimeout(() => setSuccessMessage(''), 5000);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [societiesData]); // Run when societies data loads
 
   useEffect(() => {
     const fetchDairiesAndBmcs = async () => {
@@ -1102,6 +1123,7 @@ export default function CollectionReports({ globalSearch = '' }: CollectionRepor
       {/* Bulk Actions Toolbar */}
       <BulkActionsToolbar
         selectedCount={selectedRecords.size}
+        totalCount={filteredRecords.length}
         onBulkDelete={handleBulkDeleteClick}
         onClearSelection={handleClearSelection}
         itemType="record"

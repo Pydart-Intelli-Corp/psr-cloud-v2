@@ -419,3 +419,119 @@ export async function GET(
     return createErrorResponse('Failed to fetch society details', 500);
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: societyId } = await params;
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return createErrorResponse('Authentication required', 401);
+    }
+
+    const payload = verifyToken(token);
+    if (!payload || payload.role !== 'admin') {
+      return createErrorResponse('Admin access required', 403);
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const { name, location, presidentName, contactPhone, status } = body;
+
+    // Validate required fields
+    if (!name || !name.trim()) {
+      return createErrorResponse('Society name is required', 400);
+    }
+
+    // Validate status
+    const validStatuses = ['active', 'inactive', 'maintenance'];
+    if (status && !validStatuses.includes(status)) {
+      return createErrorResponse('Invalid status value', 400);
+    }
+
+    await connectDB();
+    const { getModels } = await import('@/models');
+    const { sequelize, User } = getModels();
+
+    const admin = await User.findByPk(payload.id);
+    if (!admin || !admin.dbKey) {
+      return createErrorResponse('Admin schema not found', 404);
+    }
+
+    const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+    console.log(`[Society Update API] Updating society ${societyId} in schema: ${schemaName}`);
+
+    // Check if society exists
+    const [existingSociety] = await sequelize.query<{ id: number }>(
+      `SELECT id FROM \`${schemaName}\`.\`societies\` WHERE id = ? LIMIT 1`,
+      { replacements: [societyId] }
+    );
+
+    if (!existingSociety || existingSociety.length === 0) {
+      return createErrorResponse('Society not found', 404);
+    }
+
+    // Update society
+    await sequelize.query(
+      `UPDATE \`${schemaName}\`.\`societies\`
+       SET name = ?,
+           location = ?,
+           president_name = ?,
+           contact_phone = ?,
+           status = ?,
+           updated_at = NOW()
+       WHERE id = ?`,
+      {
+        replacements: [
+          name.trim(),
+          location || null,
+          presidentName || null,
+          contactPhone || null,
+          status || 'active',
+          societyId
+        ]
+      }
+    );
+
+    console.log(`[Society Update API] Successfully updated society ${societyId}`);
+
+    // Fetch updated society data with joins (same structure as GET endpoint)
+    const [updatedSociety] = await sequelize.query(
+      `SELECT 
+        s.id,
+        s.society_id as societyId,
+        s.name,
+        s.location,
+        s.president_name as presidentName,
+        s.contact_phone as contactPhone,
+        s.bmc_id as bmcId,
+        b.name as bmcName,
+        b.bmc_id as bmcIdentifier,
+        b.dairy_farm_id as dairyId,
+        df.name as dairyName,
+        df.dairy_id as dairyIdentifier,
+        s.status,
+        DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as createdAt,
+        DATE_FORMAT(s.updated_at, '%Y-%m-%d %H:%i:%s') as updatedAt
+      FROM \`${schemaName}\`.\`societies\` s
+      LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
+      LEFT JOIN \`${schemaName}\`.\`dairy_farms\` df ON b.dairy_farm_id = df.id
+      WHERE s.id = ?
+      LIMIT 1`,
+      { replacements: [societyId] }
+    );
+
+    return createSuccessResponse('Society updated successfully', {
+      society: updatedSociety[0]
+    });
+
+  } catch (error: unknown) {
+    console.error('[Society Update API] Error:', error);
+    return createErrorResponse('Failed to update society details', 500);
+  }
+}

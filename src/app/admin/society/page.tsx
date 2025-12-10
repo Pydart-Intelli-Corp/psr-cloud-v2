@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
@@ -98,6 +98,7 @@ const initialFormData: SocietyFormData = {
 
 export default function SocietyManagement() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useUser();
   const { t } = useLanguage();
   
@@ -741,13 +742,25 @@ export default function SocietyManagement() {
     fetchBmcs();
     fetchPulseData();
     
+    // Apply BMC filter from URL if present
+    const bmcFilterParam = searchParams.get('bmcFilter');
+    if (bmcFilterParam) {
+      setBmcFilter([bmcFilterParam]);
+    }
+    
+    // Apply Dairy filter from URL if present
+    const dairyFilterParam = searchParams.get('dairyFilter');
+    if (dairyFilterParam) {
+      setDairyFilter([dairyFilterParam]);
+    }
+    
     // Poll pulse data every 30 seconds for live updates
     const pulseInterval = setInterval(() => {
       fetchPulseData();
     }, 30000); // 30 seconds
     
     return () => clearInterval(pulseInterval);
-  }, [fetchSocieties, fetchDairies, fetchBmcs, fetchPulseData]);
+  }, [fetchSocieties, fetchDairies, fetchBmcs, fetchPulseData, searchParams]);
 
   // Don't render until user is loaded from context
   if (!user) {
