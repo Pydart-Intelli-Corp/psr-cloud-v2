@@ -2108,6 +2108,7 @@ const FarmerManagement = () => {
       {/* Floating Bulk Actions Toolbar */}
       <BulkActionsToolbar
         selectedCount={selectedFarmers.size}
+        totalCount={farmers.length}
         onBulkDelete={() => setShowDeleteConfirm(true)}
         onBulkDownload={handleBulkDownload}
         onBulkStatusUpdate={handleBulkStatusUpdate}

@@ -624,6 +624,7 @@ export default function MachineStatisticsPage() {
         {/* Bulk Actions Toolbar */}
         <BulkActionsToolbar
           selectedCount={selectedStatistics.size}
+          totalCount={statistics.length}
           onBulkDelete={() => setShowDeleteConfirm(true)}
           onClearSelection={() => {
             setSelectedStatistics(new Set());

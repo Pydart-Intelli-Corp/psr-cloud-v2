@@ -1031,6 +1031,7 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
       {/* Bulk Actions Toolbar */}
       <BulkActionsToolbar
         selectedCount={selectedRecords.size}
+        totalCount={filteredRecords.length}
         onBulkDelete={handleBulkDeleteClick}
         onClearSelection={handleClearSelection}
         itemType="record"

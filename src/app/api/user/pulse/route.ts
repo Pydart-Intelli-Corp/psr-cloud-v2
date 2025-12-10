@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
  * Helper function to generate human-readable pulse status message
  */
 function getPulseStatusMessage(pulse: {
-  pulseStatus: 'not_started' | 'active' | 'ended' | 'inactive';
+  pulseStatus: 'not_started' | 'active' | 'ended' | 'inactive' | 'paused';
   firstCollectionTime: Date | null;
   lastCollectionTime: Date | null;
   sectionEndTime: Date | null;
@@ -159,6 +159,9 @@ function getPulseStatusMessage(pulse: {
         return `Active - Last collection ${minutesAgo} min ago`;
       }
       return 'Active';
+    
+    case 'paused':
+      return 'Section paused';
     
     case 'ended':
       if (pulse.sectionEndTime) {

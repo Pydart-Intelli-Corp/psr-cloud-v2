@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { QueryTypes } from 'sequelize';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
@@ -467,9 +468,9 @@ export async function PUT(
     console.log(`[Society Update API] Updating society ${societyId} in schema: ${schemaName}`);
 
     // Check if society exists
-    const [existingSociety] = await sequelize.query<{ id: number }>(
+    const existingSociety = await sequelize.query<{ id: number }>(
       `SELECT id FROM \`${schemaName}\`.\`societies\` WHERE id = ? LIMIT 1`,
-      { replacements: [societyId] }
+      { replacements: [societyId], type: QueryTypes.SELECT }
     );
 
     if (!existingSociety || existingSociety.length === 0) {

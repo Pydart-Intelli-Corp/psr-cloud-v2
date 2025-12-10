@@ -958,6 +958,7 @@ export default function RatechartManagement() {
             ).length;
             return selectedGroupCount;
           })()}
+          totalCount={societyFilteredGroupedCharts.length}
           onBulkDelete={() => setShowDeleteConfirm(true)}
           onClearSelection={() => {
             setSelectedCharts(new Set());

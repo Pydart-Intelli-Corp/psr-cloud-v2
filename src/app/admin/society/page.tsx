@@ -1144,7 +1144,7 @@ export default function SocietyManagement() {
                     const getTooltip = () => {
                       if (!societyPulse) return 'No Pulse';
                       
-                      const formatDateTime = (dateTime: Date | string | null, addOffset = false) => {
+                      const formatDateTime = (dateTime: Date | string | null | undefined, addOffset = false) => {
                         if (!dateTime) return 'N/A';
                         const str = dateTime.toString();
                         const dateMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);

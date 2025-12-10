@@ -955,6 +955,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       {/* Bulk Actions Toolbar */}
       <BulkActionsToolbar
         selectedCount={selectedRecords.size}
+        totalCount={filteredRecords.length}
         onBulkDelete={handleBulkDeleteClick}
         onClearSelection={handleClearSelection}
         itemType="record"

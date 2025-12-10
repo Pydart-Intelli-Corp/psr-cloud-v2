@@ -2931,6 +2931,7 @@ function MachineManagement() {
       {/* Bulk Actions Toolbar */}
       <BulkActionsToolbar
         selectedCount={selectedMachines.size}
+        totalCount={machines.length}
         onBulkDelete={() => setShowDeleteConfirm(true)}
         onBulkStatusUpdate={handleBulkStatusUpdate}
         onClearSelection={() => {
