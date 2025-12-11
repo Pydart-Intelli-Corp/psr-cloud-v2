@@ -14,7 +14,6 @@ import {
   User,
   Calendar,
   Activity,
-  Edit3,
   Trash2,
   Building2,
   Users,
@@ -23,7 +22,9 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  X
+  X,
+  RefreshCw,
+  Edit3
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -32,6 +33,7 @@ import {
   EmptyState,
   ConfirmDeleteModal
 } from '@/components';
+import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 
 interface DairyDetails {
   id: number;
@@ -213,6 +215,8 @@ export default function DairyDetails() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
+  const [showBmcsNavigateConfirm, setShowBmcsNavigateConfirm] = useState(false);
+  const [showSocietiesNavigateConfirm, setShowSocietiesNavigateConfirm] = useState(false);
   const [formData, setFormData] = useState<DairyFormData>({
     name: '',
     dairyId: '',
@@ -470,11 +474,11 @@ export default function DairyDetails() {
               
               <div className="flex items-center gap-2 sm:gap-3">
                 <button 
-                  onClick={handleEditClick}
-                  className="flex items-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-green-600 dark:text-green-500 border border-green-600 dark:border-green-500 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors min-h-[44px]"
+                  onClick={fetchDairyDetails}
+                  className="flex items-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-blue-600 dark:text-blue-500 border border-blue-600 dark:border-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors min-h-[44px]"
                 >
-                  <Edit3 className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">{t.common.edit}</span>
+                  <RefreshCw className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{t.common.refresh || 'Refresh'}</span>
                 </button>
                 <button 
                   onClick={handleDeleteClick}
@@ -529,177 +533,193 @@ export default function DairyDetails() {
         <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-              {/* Basic Information - Full width on mobile */}
+              {/* Main Content - 2/3 width on desktop */}
               <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">{t.dairyManagement.dairyDetails}</h3>
-                  <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                    {dairy.location && (
-                      <div className="flex items-start gap-3">
-                        <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.dairyManagement.location}</p>
-                          <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 break-words">{dairy.location}</p>
-                        </div>
-                      </div>
-                    )}
-                    {dairy.contactPerson && (
-                      <div className="flex items-start gap-3">
-                        <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.dairyManagement.contactPerson}</p>
-                          <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 break-words">{dairy.contactPerson}</p>
-                        </div>
-                      </div>
-                    )}
-                    {dairy.phone && (
-                      <div className="flex items-start gap-3">
-                        <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.dairyManagement.phone}</p>
-                          <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 break-all">{dairy.phone}</p>
-                        </div>
-                      </div>
-                    )}
-                    {dairy.email && (
-                      <div className="flex items-start gap-3">
-                        <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.dairyManagement.email}</p>
-                          <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 break-all">{dairy.email}</p>
-                        </div>
-                      </div>
-                    )}
-                    {dairy.capacity && (
-                      <div className="flex items-start gap-3">
-                        <Milk className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.dashboard.capacity}</p>
-                          <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100">{dairy.capacity.toLocaleString()} Liters</p>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-start gap-3">
-                      <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                {/* Statistics Grid - 4 gradient cards in 2x2 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div 
+                    className={`bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white transition-all ${
+                      analytics.totalBmcs > 0 ? 'cursor-pointer hover:shadow-xl hover:scale-105 active:scale-95' : 'opacity-60 cursor-not-allowed'
+                    }`}
+                    onClick={() => analytics.totalBmcs > 0 && setShowBmcsNavigateConfirm(true)}
+                  >
+                    <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{t.common.createdAt}</p>
-                        <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100">{new Date(dairy.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs sm:text-sm font-medium text-blue-100">Total Collections (30d)</p>
+                        <p className="text-2xl sm:text-3xl font-bold mt-1">{analytics.totalCollections?.toLocaleString() || 0}</p>
+                        <p className="text-xs sm:text-sm text-blue-100 mt-1">{analytics.totalBmcs > 0 ? '• Click to view BMCs' : 'No BMCs connected'}</p>
                       </div>
+                      <Milk className="w-10 h-10 sm:w-12 sm:h-12 text-blue-100 flex-shrink-0" />
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-green-100">Total Volume (30d)</p>
+                        <p className="text-2xl sm:text-3xl font-bold mt-1">{analytics.totalQuantity?.toLocaleString() || 0}L</p>
+                        <p className="text-xs sm:text-sm text-green-100 mt-1">Milk collected</p>
+                      </div>
+                      <TrendingUp className="w-10 h-10 sm:w-12 sm:h-12 text-green-100 flex-shrink-0" />
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-orange-100">Total Revenue (30d)</p>
+                        <p className="text-2xl sm:text-3xl font-bold mt-1">₹{analytics.totalRevenue?.toLocaleString() || 0}</p>
+                        <p className="text-xs sm:text-sm text-orange-100 mt-1">Avg: ₹{analytics.avgRate?.toFixed(2) || 0}/L</p>
+                      </div>
+                      <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-orange-100 flex-shrink-0" />
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white transition-all ${
+                      analytics.totalSocieties > 0 ? 'cursor-pointer hover:shadow-xl hover:scale-105 active:scale-95' : 'opacity-60 cursor-not-allowed'
+                    }`}
+                    onClick={() => analytics.totalSocieties > 0 && setShowSocietiesNavigateConfirm(true)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-purple-100">Connected Societies</p>
+                        <p className="text-2xl sm:text-3xl font-bold mt-1">{analytics.totalSocieties || 0}</p>
+                        <p className="text-xs sm:text-sm text-purple-100 mt-1">{analytics.totalSocieties > 0 ? '• Click to view' : 'No societies'}</p>
+                      </div>
+                      <Users className="w-10 h-10 sm:w-12 sm:h-12 text-purple-100 flex-shrink-0" />
                     </div>
                   </div>
                 </div>
 
-                {/* Statistics Cards - Mobile: 1 column, Tablet: 2 columns */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Connected BMCs</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{analytics.totalBmcs || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Bulk Milk Coolers</p>
+                {/* Dairy Information */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.dairyManagement.dairyDetails}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Column 1: Basic Info */}
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <Milk className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-600 dark:text-gray-400">Dairy ID</p>
+                          <p className="font-semibold text-sm text-gray-900 dark:text-white break-words">{dairy.dairyId}</p>
+                        </div>
                       </div>
-                      <Building2 className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-500 flex-shrink-0" />
+
+                      {dairy.capacity && (
+                        <div className="flex items-start gap-3">
+                          <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dashboard.capacity}</p>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white">{dairy.capacity.toLocaleString()} Liters</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {dairy.monthlyTarget && dairy.monthlyTarget > 0 && (
+                        <div className="flex items-start gap-3">
+                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Monthly Target</p>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white">{dairy.monthlyTarget.toLocaleString()} Liters</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Column 2: Contact Info */}
+                    <div className="space-y-3">
+                      {dairy.location && (
+                        <div className="flex items-start gap-3">
+                          <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.location}</p>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-words">{dairy.location}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {dairy.contactPerson && (
+                        <div className="flex items-start gap-3">
+                          <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.contactPerson}</p>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-words">{dairy.contactPerson}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {dairy.phone && (
+                        <div className="flex items-start gap-3">
+                          <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.phone}</p>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-all">{dairy.phone}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {dairy.email && (
+                        <div className="flex items-start gap-3">
+                          <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.email}</p>
+                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-all">{dairy.email}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                </div>
 
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Active Societies</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{analytics.totalSocieties || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Registered societies</p>
-                      </div>
-                      <Users className="w-7 h-7 sm:w-8 sm:h-8 text-green-600 dark:text-green-500 flex-shrink-0" />
+                {/* Quality Metrics */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Quality Metrics (30 Days)</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="text-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg FAT</p>
+                      <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-500">{analytics.avgFat?.toFixed(2) || '0.00'}%</p>
                     </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Registered Farmers</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{analytics.totalFarmers || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Total farmers</p>
-                      </div>
-                      <User className="w-7 h-7 sm:w-8 sm:h-8 text-emerald-600 dark:text-emerald-500 flex-shrink-0" />
+                    <div className="text-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg SNF</p>
+                      <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-500">{analytics.avgSnf?.toFixed(2) || '0.00'}%</p>
                     </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Total Machines</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{analytics.totalMachines || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Active machines</p>
-                      </div>
-                      <Activity className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-600 dark:text-indigo-500 flex-shrink-0" />
+                    <div className="text-center p-3 sm:p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total BMCs</p>
+                      <p className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-500">{analytics.totalBmcs || 0}</p>
                     </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">30-Day Collections</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{analytics.totalCollections?.toLocaleString() || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{analytics.totalQuantity?.toLocaleString() || 0}L collected</p>
-                      </div>
-                      <Milk className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-500 flex-shrink-0" />
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenue (30d)</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">₹{analytics.totalRevenue?.toLocaleString() || 0}</p>
-                        {dairy.monthlyTarget && dairy.monthlyTarget > 0 ? (
-                          <p className="text-xs sm:text-sm text-yellow-600 dark:text-yellow-500 mt-1">
-                            Target: {dairy.monthlyTarget.toLocaleString()}L
-                          </p>
-                        ) : (
-                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Avg rate: ₹{analytics.avgRate?.toFixed(2) || 0}/L</p>
-                        )}
-                      </div>
-                      <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 text-orange-600 dark:text-orange-500 flex-shrink-0" />
+                    <div className="text-center p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Farmers</p>
+                      <p className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-500">{analytics.totalFarmers || 0}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Quick Actions - Moved to bottom on mobile, sidebar on desktop */}
+              {/* Sidebar - 1/3 width on desktop */}
               <div className="lg:col-span-1">
                 <div className="sticky top-4 space-y-4 sm:space-y-6">
-                  {/* Quick Actions */}
+                  {/* Timeline */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">{t.dashboard.quickActions}</h3>
-                    <div className="space-y-2 sm:space-y-3">
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors min-h-[44px]">
-                        <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                        <span className="truncate">Manage BMCs</span>
-                      </button>
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors min-h-[44px]">
-                        <Building2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                        <span className="truncate">View Societies</span>
-                      </button>
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors min-h-[44px]">
-                        <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                        <span className="truncate">Production Reports</span>
-                      </button>
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors min-h-[44px]">
-                        <Activity className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                        <span className="truncate">Quality Monitoring</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Last Activity */}
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Last Activity</h3>
-                    {dairy.lastActivity && (
-                      <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                        <Activity className="w-4 h-4 flex-shrink-0" />
-                        <span className="break-words">Last seen: {new Date(dairy.lastActivity).toLocaleString()}</span>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Timeline</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-600 dark:text-gray-400">{t.common.createdAt}</p>
+                          <p className="font-medium text-sm text-gray-900 dark:text-white">{new Date(dairy.createdAt).toLocaleDateString()}</p>
+                        </div>
                       </div>
-                    )}
+                      {dairy.lastActivity && (
+                        <div className="flex items-start gap-3">
+                          <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Last Activity</p>
+                            <p className="font-medium text-sm text-gray-900 dark:text-white">{new Date(dairy.lastActivity).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1364,6 +1384,34 @@ export default function DairyDetails() {
         onConfirm={handleConfirmDelete}
         itemName={dairyData?.dairy.name || 'this dairy'}
         itemType="Dairy"
+      />
+
+      {/* BMCs Navigation Confirmation Modal */}
+      <NavigationConfirmModal
+        isOpen={showBmcsNavigateConfirm}
+        onClose={() => setShowBmcsNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowBmcsNavigateConfirm(false);
+          if (dairyData?.dairy.id) {
+            router.push(`/admin/bmc?dairyFilter=${dairyData.dairy.id}`);
+          }
+        }}
+        title="Navigate to BMCs"
+        message={`You will be redirected to view all BMCs under ${dairyData?.dairy.name || 'this dairy'}. Any unsaved changes will be lost. Continue?`}
+      />
+
+      {/* Societies Navigation Confirmation Modal */}
+      <NavigationConfirmModal
+        isOpen={showSocietiesNavigateConfirm}
+        onClose={() => setShowSocietiesNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowSocietiesNavigateConfirm(false);
+          if (dairyData?.dairy.id) {
+            router.push(`/admin/society?dairyFilter=${dairyData.dairy.id}`);
+          }
+        }}
+        title="Navigate to Societies"
+        message={`You will be redirected to view all societies under ${dairyData?.dairy.name || 'this dairy'}. Any unsaved changes will be lost. Continue?`}
       />
     </div>
   );

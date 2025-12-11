@@ -5,6 +5,7 @@ import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneVal
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LineChart,
   Line,
@@ -30,10 +31,12 @@ import {
   Users,
   TrendingUp,
   Award,
+  Droplets,
   Eye,
   Plus,
   BarChart3,
-  X
+  X,
+  ExternalLink
 } from 'lucide-react';
 import { 
   FlowerSpinner, 
@@ -52,6 +55,7 @@ import {
   StatusDropdown
 } from '@/components';
 import FloatingActionButton from '@/components/management/FloatingActionButton';
+import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 
 interface BMC {
   id: number;
@@ -141,6 +145,8 @@ export default function BMCManagement() {
   }>({});
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [graphMetric, setGraphMetric] = useState<'quantity' | 'revenue' | 'fat' | 'snf' | 'collections' | 'water'>('quantity');
+  const [showSocietiesAlert, setShowSocietiesAlert] = useState(false);
+  const [bmcForNavigation, setBmcForNavigation] = useState<BMC | null>(null);
 
   // Fetch dairies for dropdown
   const fetchDairies = useCallback(async () => {
@@ -629,54 +635,25 @@ export default function BMCManagement() {
               
               {leastWater && (
                 <div 
-                  className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 p-4 rounded-lg border border-emerald-200 dark:border-emerald-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 rounded-lg border border-red-200 dark:border-red-700 cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => {
                     setGraphMetric('water');
                     setShowGraphModal(true);
                   }}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Best Purity (30d)</h3>
-                    <Award className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-semibold text-red-900 dark:text-red-100">Most Water (30d)</h3>
+                    <Droplets className="w-5 h-5 text-red-600 dark:text-red-400" />
                   </div>
-                  <p className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{leastWater.name}</p>
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">{Number(leastWater.weightedWater30d || 0).toFixed(2)}% Water</p>
+                  <p className="text-lg font-bold text-red-800 dark:text-red-200">{leastWater.name}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400">{Number(leastWater.weightedWater30d || 0).toFixed(2)}% Water</p>
                 </div>
               )}
             </div>
           );
         })()}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-          <StatsCard
-            title="Total BMCs"
-            value={bmcs.length}
-            icon={<Building2 className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="gray"
-          />
-          
-          <StatsCard
-            title="Active"
-            value={bmcs.filter(b => b.status === 'active').length}
-            icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="green"
-          />
-
-          <StatsCard
-            title="Inactive"
-            value={bmcs.filter(b => b.status === 'inactive').length}
-            icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="red"
-          />
-
-          <StatsCard
-            title="Maintenance"
-            value={bmcs.filter(b => b.status === 'maintenance').length}
-            icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
-            color="yellow"
-          />
-        </div>
+        {/* Stats Cards removed per request */}
 
         {/* Filter Controls */}
         <FilterControls
@@ -834,17 +811,31 @@ export default function BMCManagement() {
                     </button>
                   </div>
                   
-                  {/* Societies Count - Clickable */}
-                  <button
-                    onClick={() => router.push(`/admin/society?bmcFilter=${bmc.id}`)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
-                    title={`View ${bmc.societyCount || 0} societies under ${bmc.name}`}
-                  >
-                    <Building2 className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 font-medium transition-colors">
-                      {bmc.societyCount || 0} Societies
-                    </span>
-                  </button>
+                  {/* Right side actions */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setBmcForNavigation(bmc);
+                        setShowSocietiesAlert(true);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
+                      title={`View ${bmc.societyCount || 0} societies under ${bmc.name}`}
+                    >
+                      <Building2 className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 font-medium transition-colors">
+                        {bmc.societyCount || 0} Societies
+                      </span>
+                    </button>
+                    
+                    <button
+                      onClick={() => router.push(`/admin/bmc/${bmc.id}`)}
+                      className="flex items-center px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      <span>View</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1189,6 +1180,24 @@ export default function BMCManagement() {
         message="Are you sure you want to delete this BMC? This action cannot be undone."
       />
 
+      {/* Societies Navigation Alert Modal */}
+      <NavigationConfirmModal
+        isOpen={showSocietiesAlert && !!bmcForNavigation}
+        onClose={() => {
+          setShowSocietiesAlert(false);
+          setBmcForNavigation(null);
+        }}
+        onConfirm={() => {
+          setShowSocietiesAlert(false);
+          router.push(`/admin/society?bmcFilter=${bmcForNavigation?.id}`);
+          setBmcForNavigation(null);
+        }}
+        title="Navigate to Society Management"
+        message={`View all societies from ${bmcForNavigation?.name} in the Society Management page with filters applied.`}
+        confirmText="Go to Society Management"
+        cancelText="Cancel"
+      />
+
       {/* Graph Modal */}
       {showGraphModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1239,7 +1248,7 @@ export default function BMCManagement() {
                     case 'fat': return '#8b5cf6';
                     case 'snf': return '#f97316';
                     case 'collections': return '#ec4899';
-                    case 'water': return '#10b981';
+                    case 'water': return '#ef4444';
                     default: return '#6b7280';
                   }
                 };

@@ -29,6 +29,7 @@ import {
   Users,
   TrendingUp,
   Award,
+  Droplets,
   Eye,
   BarChart3,
   X
@@ -50,6 +51,7 @@ import {
   StatusDropdown
 } from '@/components';
 import FloatingActionButton from '@/components/management/FloatingActionButton';
+import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 
 interface Dairy {
   id: number;
@@ -124,6 +126,9 @@ export default function DairyManagement() {
   }>({});
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [graphMetric, setGraphMetric] = useState<'quantity' | 'revenue' | 'fat' | 'snf' | 'collections' | 'water'>('quantity');
+  const [showBmcsAlert, setShowBmcsAlert] = useState(false);
+  const [showSocietiesAlert, setShowSocietiesAlert] = useState(false);
+  const [dairyForNavigation, setDairyForNavigation] = useState<Dairy | null>(null);
 
 
   // Fetch dairies
@@ -556,66 +561,25 @@ export default function DairyManagement() {
             
             {leastWater && (
               <div 
-                className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 p-4 rounded-lg border border-emerald-200 dark:border-emerald-700 cursor-pointer hover:shadow-lg transition-shadow"
+                className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 rounded-lg border border-red-200 dark:border-red-700 cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => {
                   setGraphMetric('water');
                   setShowGraphModal(true);
                 }}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Best Purity (30d)</h3>
-                  <Award className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-sm font-semibold text-red-900 dark:text-red-100">Most Water (30d)</h3>
+                  <Droplets className="w-5 h-5 text-red-600 dark:text-red-400" />
                 </div>
-                <p className="text-lg font-bold text-emerald-800 dark:text-emerald-200">{leastWater.name}</p>
-                <p className="text-sm text-emerald-600 dark:text-emerald-400">{Number(leastWater.weightedWater30d || 0).toFixed(2)}% Water</p>
+                <p className="text-lg font-bold text-red-800 dark:text-red-200">{leastWater.name}</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{Number(leastWater.weightedWater30d || 0).toFixed(2)}% Water</p>
               </div>
             )}
           </div>
         );
       })()}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <StatsCard
-          title={t.dairyManagement.registeredDairies}
-          value={dairies.length}
-          icon={<Building2 className="w-5 h-5 sm:w-6 sm:h-6" />}
-          color="gray"
-          clickable={true}
-          isActive={statusFilter === 'all'}
-          onClick={() => setStatusFilter('all')}
-        />
-        
-        <StatsCard
-          title={t.dashboard.active}
-          value={dairies.filter(d => d.status === 'active').length}
-          icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
-          color="green"
-          clickable={true}
-          isActive={statusFilter === 'active'}
-          onClick={() => setStatusFilter('active')}
-        />
-
-        <StatsCard
-          title={t.dashboard.inactive}
-          value={dairies.filter(d => d.status === 'inactive').length}
-          icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
-          color="red"
-          clickable={true}
-          isActive={statusFilter === 'inactive'}
-          onClick={() => setStatusFilter('inactive')}
-        />
-
-        <StatsCard
-          title={t.dairyManagement.maintenance}
-          value={dairies.filter(d => d.status === 'maintenance').length}
-          icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" />}
-          color="yellow"
-          clickable={true}
-          isActive={statusFilter === 'maintenance'}
-          onClick={() => setStatusFilter('maintenance')}
-        />
-      </div>
+      {/* Stats Cards removed per request */}
 
       {/* Filter Controls */}
       <FilterControls
@@ -759,7 +723,7 @@ export default function DairyManagement() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleEditClick(dairy)}
-                    className="p-2 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                    className="p-2 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30"
                     title="Edit"
                   >
                     <Edit3 className="w-4 h-4" />
@@ -773,23 +737,39 @@ export default function DairyManagement() {
                   </button>
                 </div>
                 
-                {/* BMCs and Societies Count - Clickable */}
+                {/* Right side actions */}
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => router.push(`/admin/bmc?dairyFilter=${dairy.id}`)}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors group"
+                    onClick={() => {
+                      setDairyForNavigation(dairy);
+                      setShowBmcsAlert(true);
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors group"
                     title={`View ${dairy.bmcCount || 0} BMCs under ${dairy.name}`}
                   >
-                    <Factory className="w-3.5 h-3.5 text-gray-400 group-hover:text-green-500 transition-colors" />
-                    <span className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 font-medium">{dairy.bmcCount || 0}</span>
+                    <Factory className="w-3.5 h-3.5 text-gray-400 group-hover:text-orange-500 transition-colors" />
+                    <span className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 font-medium">{dairy.bmcCount || 0}</span>
                   </button>
+                  
                   <button
-                    onClick={() => router.push(`/admin/society?dairyFilter=${dairy.id}`)}
+                    onClick={() => {
+                      setDairyForNavigation(dairy);
+                      setShowSocietiesAlert(true);
+                    }}
                     className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors group"
                     title={`View ${dairy.societyCount || 0} societies under ${dairy.name}`}
                   >
                     <Building2 className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors" />
                     <span className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 font-medium">{dairy.societyCount || 0}</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => router.push(`/admin/dairy/${dairy.id}`)}
+                    className="flex items-center px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                    title="View Details"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    <span>View</span>
                   </button>
                 </div>
               </div>
@@ -1053,6 +1033,42 @@ export default function DairyManagement() {
         itemType="dairy"
       />
 
+      {/* BMCs Navigation Alert Modal */}
+      <NavigationConfirmModal
+        isOpen={showBmcsAlert && !!dairyForNavigation}
+        onClose={() => {
+          setShowBmcsAlert(false);
+          setDairyForNavigation(null);
+        }}
+        onConfirm={() => {
+          setShowBmcsAlert(false);
+          router.push(`/admin/bmc?dairyFilter=${dairyForNavigation?.id}`);
+          setDairyForNavigation(null);
+        }}
+        title="Navigate to BMC Management"
+        message={`View all BMCs from ${dairyForNavigation?.name} in the BMC Management page with filters applied.`}
+        confirmText="Go to BMC Management"
+        cancelText="Cancel"
+      />
+
+      {/* Societies Navigation Alert Modal */}
+      <NavigationConfirmModal
+        isOpen={showSocietiesAlert && !!dairyForNavigation}
+        onClose={() => {
+          setShowSocietiesAlert(false);
+          setDairyForNavigation(null);
+        }}
+        onConfirm={() => {
+          setShowSocietiesAlert(false);
+          router.push(`/admin/society?dairyFilter=${dairyForNavigation?.id}`);
+          setDairyForNavigation(null);
+        }}
+        title="Navigate to Society Management"
+        message={`View all societies from ${dairyForNavigation?.name} in the Society Management page with filters applied.`}
+        confirmText="Go to Society Management"
+        cancelText="Cancel"
+      />
+
       {/* Graph Modal */}
       {showGraphModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1103,7 +1119,7 @@ export default function DairyManagement() {
                     case 'fat': return '#8b5cf6';
                     case 'snf': return '#f97316';
                     case 'collections': return '#ec4899';
-                    case 'water': return '#10b981';
+                    case 'water': return '#ef4444';
                     default: return '#6b7280';
                   }
                 };

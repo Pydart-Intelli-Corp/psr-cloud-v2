@@ -14,6 +14,7 @@ import {
   EmptyState,
   StatusMessage
 } from '@/components';
+import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 
 interface Society {
   id: number;
@@ -1121,334 +1122,84 @@ export default function SocietyDetails() {
       </div>
 
       {/* Navigation Confirmation Modal */}
-      <AnimatePresence>
-        {showNavigateConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowNavigateConfirm(false);
-              }
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                  <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                
-                <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-gray-100 mb-2">
-                  Navigate to Farmer Management
-                </h3>
-                
-                <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-6">
-                  View all farmers from{' '}
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.society.name}</span>
-                  {' '}in the Farmer Management page with filters applied.
-                </p>
-
-                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowNavigateConfirm(false)}
-                    className="w-full px-4 py-2.5 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNavigateConfirm(false);
-                      if (data?.society) {
-                        router.push(`/admin/farmer?societyId=${data.society.id}&societyName=${encodeURIComponent(data.society.name)}`);
-                      }
-                    }}
-                    className="w-full flex items-center justify-center px-4 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Go to Farmer Management
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <NavigationConfirmModal
+        isOpen={showNavigateConfirm}
+        onClose={() => setShowNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowNavigateConfirm(false);
+          if (data?.society) {
+            router.push(`/admin/farmer?societyId=${data.society.id}&societyName=${encodeURIComponent(data.society.name)}`);
+          }
+        }}
+        title="Navigate to Farmer Management"
+        message={`View all farmers from ${data?.society.name} in the Farmer Management page with filters applied.`}
+        confirmText="Go to Farmer Management"
+        cancelText="Cancel"
+      />
 
       {/* Machine Navigation Confirmation Modal */}
-      <AnimatePresence>
-        {showMachineNavigateConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowMachineNavigateConfirm(false);
-              }
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 dark:bg-green-900/30 rounded-full">
-                  <Settings className="w-6 h-6 text-green-600 dark:text-green-400" />
-                </div>
-                
-                <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-gray-100 mb-2">
-                  Navigate to Machine Management
-                </h3>
-                
-                <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-6">
-                  View all machines from{' '}
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.society.name}</span>
-                  {' '}in the Machine Management page with filters applied.
-                </p>
-
-                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowMachineNavigateConfirm(false)}
-                    className="w-full px-4 py-2.5 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMachineNavigateConfirm(false);
-                      if (data?.society) {
-                        router.push(`/admin/machine?societyId=${data.society.id}&societyName=${encodeURIComponent(data.society.name)}`);
-                      }
-                    }}
-                    className="w-full flex items-center justify-center px-4 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Go to Machine Management
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <NavigationConfirmModal
+        isOpen={showMachineNavigateConfirm}
+        onClose={() => setShowMachineNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowMachineNavigateConfirm(false);
+          if (data?.society) {
+            router.push(`/admin/machine?societyId=${data.society.id}&societyName=${encodeURIComponent(data.society.name)}`);
+          }
+        }}
+        title="Navigate to Machine Management"
+        message={`View all machines from ${data?.society.name} in the Machine Management page with filters applied.`}
+        confirmText="Go to Machine Management"
+        cancelText="Cancel"
+      />
 
       {/* Collection Navigation Confirmation Modal */}
-      <AnimatePresence>
-        {showCollectionNavigateConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowCollectionNavigateConfirm(false);
-              }
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                  <Droplet className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                
-                <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-gray-100 mb-2">
-                  Navigate to Reports Management
-                </h3>
-                
-                <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-6">
-                  View all collection reports from{' '}
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.society.name}</span>
-                  {' '}in the Reports Management page with filters applied.
-                </p>
-
-                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCollectionNavigateConfirm(false)}
-                    className="w-full px-4 py-2.5 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCollectionNavigateConfirm(false);
-                      if (data?.society) {
-                        router.push(`/admin/reports?societyId=${data.society.societyId}&societyName=${encodeURIComponent(data.society.name)}`);
-                      }
-                    }}
-                    className="w-full flex items-center justify-center px-4 py-2.5 bg-purple-600 dark:bg-purple-700 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Go to Reports Management
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <NavigationConfirmModal
+        isOpen={showCollectionNavigateConfirm}
+        onClose={() => setShowCollectionNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowCollectionNavigateConfirm(false);
+          if (data?.society) {
+            router.push(`/admin/reports?societyId=${data.society.societyId}&societyName=${encodeURIComponent(data.society.name)}`);
+          }
+        }}
+        title="Navigate to Reports Management"
+        message={`View all collection reports from ${data?.society.name} in the Reports Management page with filters applied.`}
+        confirmText="Go to Reports Management"
+        cancelText="Cancel"
+      />
 
       {/* Dairy Navigation Confirmation Modal */}
-      <AnimatePresence>
-        {showDairyNavigateConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowDairyNavigateConfirm(false);
-              }
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                  <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                
-                <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-gray-100 mb-2">
-                  Navigate to Dairy Details
-                </h3>
-                
-                <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-6">
-                  View complete details of{' '}
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.society.dairyName}</span>
-                  {' '}in the Dairy Management page.
-                </p>
-
-                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowDairyNavigateConfirm(false)}
-                    className="w-full px-4 py-2.5 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDairyNavigateConfirm(false);
-                      if (data?.society.dairyId) {
-                        router.push(`/admin/dairy/${data.society.dairyId}`);
-                      }
-                    }}
-                    className="w-full flex items-center justify-center px-4 py-2.5 bg-blue-600 dark:bg-blue-700 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Go to Dairy Details
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <NavigationConfirmModal
+        isOpen={showDairyNavigateConfirm}
+        onClose={() => setShowDairyNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowDairyNavigateConfirm(false);
+          if (data?.society.dairyId) {
+            router.push(`/admin/dairy/${data.society.dairyId}`);
+          }
+        }}
+        title="Navigate to Dairy Details"
+        message={`View complete details of ${data?.society.dairyName} in the Dairy Management page.`}
+        confirmText="Go to Dairy Details"
+        cancelText="Cancel"
+      />
 
       {/* BMC Navigation Confirmation Modal */}
-      <AnimatePresence>
-        {showBmcNavigateConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowBmcNavigateConfirm(false);
-              }
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-green-100 dark:bg-green-900/30 rounded-full">
-                  <Building2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                </div>
-                
-                <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-gray-100 mb-2">
-                  Navigate to BMC Details
-                </h3>
-                
-                <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-6">
-                  View complete details of{' '}
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{data?.society.bmcName}</span>
-                  {' '}in the BMC Management page.
-                </p>
-
-                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowBmcNavigateConfirm(false)}
-                    className="w-full px-4 py-2.5 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBmcNavigateConfirm(false);
-                      if (data?.society.bmcId) {
-                        router.push(`/admin/bmc/${data.society.bmcId}`);
-                      }
-                    }}
-                    className="w-full flex items-center justify-center px-4 py-2.5 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Go to BMC Details
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <NavigationConfirmModal
+        isOpen={showBmcNavigateConfirm}
+        onClose={() => setShowBmcNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowBmcNavigateConfirm(false);
+          if (data?.society.bmcId) {
+            router.push(`/admin/bmc/${data.society.bmcId}`);
+          }
+        }}
+        title="Navigate to BMC Details"
+        message={`View complete details of ${data?.society.bmcName} in the BMC Management page.`}
+        confirmText="Go to BMC Details"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

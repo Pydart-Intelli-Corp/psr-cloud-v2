@@ -180,11 +180,13 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
 
   // Handle click on toggle button
   const handleToggleClick = () => {
-    setIsPinned(!isCollapsed); // Pin when expanding, unpin when collapsing
+    // Set isPinned to true BEFORE calling onToggle
+    // This way when isCollapsed changes via parent, isPinned stays true
+    setIsPinned(!isPinned);
     onToggle();
   };
 
-  // Handle click outside to collapse
+  // Handle click outside to collapse (only if not pinned)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const sidebar = document.querySelector('aside');
@@ -335,16 +337,27 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
             )}
           </AnimatePresence>
           
+          {
+            // Compute readable title and icon classes to indicate active/pinned state
+          }
           <button
             onClick={handleToggleClick}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
-            title={isPinned ? "Pinned - Click to unpin" : "Click to pin"}
+            className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative`}
+            title={
+              isCollapsed
+                ? 'Click to expand and lock'
+                : isPinned
+                  ? 'Locked (pinned) — click to collapse'
+                  : 'Click to pin'
+            }
           >
             {isCollapsed ? (
-              <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ChevronRight className={`w-5 h-5 ${isPinned ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`} />
             ) : (
-              <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ChevronLeft className={`w-5 h-5 ${isPinned ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`} />
             )}
+
+            {/* Small indicator dot when pinned and expanded */}
             {isPinned && !isCollapsed && (
               <div className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
             )}
