@@ -406,28 +406,7 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center space-x-3 p-3 text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-colors"
-        >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          <AnimatePresence mode="wait">
-            {!isCollapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.2 }}
-                className="body-medium font-medium"
-              >
-                {t.nav.logout}
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </button>
-      </div>
+      {/* Footer - (Logout removed from sidebar per request) */}
     </motion.aside>
     </>
   );

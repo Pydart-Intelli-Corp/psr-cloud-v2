@@ -20,7 +20,8 @@ import {
   Building2,
   Tractor,
   BarChart3,
-  FileText
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import { UserRole } from '@/types/user';
 import Link from 'next/link';
@@ -148,6 +149,7 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
   const [showProfile, setShowProfile] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
   const [showMobileLanguage, setShowMobileLanguage] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [pausedSections, setPausedSections] = useState<PausedSectionNotification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -788,7 +790,7 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
                         {/* Logout Section for Admin/Super Admin */}
                         <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                           <button
-                            onClick={onLogout}
+                            onClick={() => setShowLogoutConfirm(true)}
                             className="w-full flex items-center space-x-3 p-2.5 sm:p-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/30 rounded-lg transition-colors"
                           >
                             <LogOut className="w-4 h-4 flex-shrink-0" />
@@ -887,7 +889,7 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
                           <hr className="my-2 border-gray-200 dark:border-gray-700" />
                           
                           <button
-                            onClick={onLogout}
+                            onClick={() => setShowLogoutConfirm(true)}
                             className="w-full flex items-center space-x-3 p-2.5 sm:p-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/30 rounded-lg transition-colors"
                           >
                             <LogOut className="w-4 h-4 flex-shrink-0" />
@@ -902,6 +904,68 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Logout Confirmation Dialog */}
+        <AnimatePresence>
+          {showLogoutConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowLogoutConfirm(false);
+                }
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+                    <AlertCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-gray-100 mb-2">
+                    Confirm Logout
+                  </h3>
+                  
+                  <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-6">
+                    Are you sure you want to logout? This action cannot be undone.
+                  </p>
+
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoutConfirm(false)}
+                      className="w-full px-4 py-2.5 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLogoutConfirm(false);
+                        onLogout();
+                      }}
+                      className="w-full flex items-center justify-center px-4 py-2.5 bg-amber-600 dark:bg-amber-700 text-white rounded-lg hover:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </header>
   );

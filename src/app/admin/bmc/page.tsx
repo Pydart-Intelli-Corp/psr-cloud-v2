@@ -5,6 +5,15 @@ import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneVal
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import { 
   Factory, 
   MapPin,
@@ -22,7 +31,9 @@ import {
   TrendingUp,
   Award,
   Eye,
-  Plus
+  Plus,
+  BarChart3,
+  X
 } from 'lucide-react';
 import { 
   FlowerSpinner, 
@@ -128,6 +139,8 @@ export default function BMCManagement() {
     name?: string;
     phone?: string;
   }>({});
+  const [showGraphModal, setShowGraphModal] = useState(false);
+  const [graphMetric, setGraphMetric] = useState<'quantity' | 'revenue' | 'fat' | 'snf' | 'collections' | 'water'>('quantity');
 
   // Fetch dairies for dropdown
   const fetchDairies = useCallback(async () => {
@@ -531,7 +544,11 @@ export default function BMCManagement() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
               {topCollection && (
                 <div 
-                  className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-700 hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setGraphMetric('quantity');
+                    setShowGraphModal(true);
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">Top Collection (30d)</h3>
@@ -544,7 +561,11 @@ export default function BMCManagement() {
               
               {topRevenue && (
                 <div 
-                  className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700 hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setGraphMetric('revenue');
+                    setShowGraphModal(true);
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Top Revenue (30d)</h3>
@@ -557,7 +578,11 @@ export default function BMCManagement() {
               
               {topFat && (
                 <div 
-                  className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700 hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setGraphMetric('fat');
+                    setShowGraphModal(true);
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Best Quality (30d)</h3>
@@ -570,7 +595,11 @@ export default function BMCManagement() {
               
               {topSnf && (
                 <div 
-                  className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700 hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setGraphMetric('snf');
+                    setShowGraphModal(true);
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-100">Best SNF (30d)</h3>
@@ -583,7 +612,11 @@ export default function BMCManagement() {
               
               {mostCollections && (
                 <div 
-                  className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-4 rounded-lg border border-pink-200 dark:border-pink-700 hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-4 rounded-lg border border-pink-200 dark:border-pink-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setGraphMetric('collections');
+                    setShowGraphModal(true);
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-pink-900 dark:text-pink-100">Most Active (30d)</h3>
@@ -596,7 +629,11 @@ export default function BMCManagement() {
               
               {leastWater && (
                 <div 
-                  className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 p-4 rounded-lg border border-emerald-200 dark:border-emerald-700 hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 p-4 rounded-lg border border-emerald-200 dark:border-emerald-700 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => {
+                    setGraphMetric('water');
+                    setShowGraphModal(true);
+                  }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">Best Purity (30d)</h3>
@@ -1151,6 +1188,149 @@ export default function BMCManagement() {
         itemName={selectedBMC?.name || ''}
         message="Are you sure you want to delete this BMC? This action cannot be undone."
       />
+
+      {/* Graph Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {graphMetric === 'quantity' && 'Collection Volume - Last 30 Days'}
+                  {graphMetric === 'revenue' && 'Revenue - Last 30 Days'}
+                  {graphMetric === 'fat' && 'Average Fat % - Last 30 Days'}
+                  {graphMetric === 'snf' && 'Average SNF % - Last 30 Days'}
+                  {graphMetric === 'collections' && 'Number of Collections - Last 30 Days'}
+                  {graphMetric === 'water' && 'Average Water % - Last 30 Days'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowGraphModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* Graph Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {(() => {
+                const bmcsWithStats = bmcs.filter(b => b.totalQuantity30d && b.totalQuantity30d > 0);
+                
+                // Prepare data for line chart (all BMCs)
+                const chartData = bmcsWithStats.map(bmc => ({
+                  name: bmc.name,
+                  bmcId: bmc.bmcId,
+                  value: graphMetric === 'quantity' ? (bmc.totalQuantity30d || 0) :
+                         graphMetric === 'revenue' ? (bmc.totalAmount30d || 0) :
+                         graphMetric === 'fat' ? (bmc.weightedFat30d || 0) :
+                         graphMetric === 'snf' ? (bmc.weightedSnf30d || 0) :
+                         graphMetric === 'collections' ? (bmc.totalCollections30d || 0) :
+                         (bmc.weightedWater30d || 0)
+                })).sort((a, b) => b.value - a.value);
+
+                // Get color and settings
+                const getLineColor = () => {
+                  switch(graphMetric) {
+                    case 'quantity': return '#10b981';
+                    case 'revenue': return '#3b82f6';
+                    case 'fat': return '#8b5cf6';
+                    case 'snf': return '#f97316';
+                    case 'collections': return '#ec4899';
+                    case 'water': return '#10b981';
+                    default: return '#6b7280';
+                  }
+                };
+
+                return chartData.length > 0 ? (
+                  <div className="w-full h-[500px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 80 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45}
+                          textAnchor="end"
+                          height={100}
+                          interval={0}
+                          tick={{ fontSize: 11 }}
+                          stroke="#6b7280"
+                          label={{ 
+                            value: 'BMC Name', 
+                            position: 'insideBottom', 
+                            offset: -5,
+                            style: { fontSize: 13, fontWeight: 500, fill: '#9ca3af' }
+                          }}
+                        />
+                        <YAxis 
+                          label={{ 
+                            value: graphMetric === 'revenue' ? 'Revenue (₹)' : 
+                                   graphMetric === 'fat' || graphMetric === 'snf' || graphMetric === 'water' ? 'Percentage (%)' : 
+                                   graphMetric === 'quantity' ? 'Volume (L)' : 'Count', 
+                            angle: -90, 
+                            position: 'insideLeft',
+                            style: { fontSize: 13, fontWeight: 500, fill: '#9ca3af' }
+                          }}
+                          stroke="#6b7280"
+                        />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: '#1f2937',
+                            border: 'none',
+                            borderRadius: '0.5rem',
+                            color: '#fff',
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                          }}
+                          formatter={(value: any) => {
+                            if (graphMetric === 'revenue') {
+                              return ['₹' + Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })];
+                            }
+                            if (graphMetric === 'fat' || graphMetric === 'snf' || graphMetric === 'water') {
+                              return [Number(value).toFixed(2) + '%'];
+                            }
+                            if (graphMetric === 'quantity') {
+                              return [Number(value).toFixed(2) + ' L'];
+                            }
+                            return [Number(value)];
+                          }}
+                          labelFormatter={(label: string) => `BMC: ${label}`}
+                          cursor={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke={getLineColor()} 
+                          strokeWidth={2}
+                          dot={{ fill: getLineColor(), r: 4 }}
+                          activeDot={{ r: 6 }}
+                          isAnimationActive={true}
+                          name="Value"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[500px]">
+                    <div className="text-center">
+                      <BarChart3 className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-600 dark:text-gray-400 text-lg">No data available for this metric</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Showing performance metrics for all BMCs over the last 30 days. Click the X to close this view.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
