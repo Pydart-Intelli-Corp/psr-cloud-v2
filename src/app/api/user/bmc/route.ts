@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
     // Get all BMCs from admin's schema with enhanced data and 30-day statistics
+    // Using independent subqueries to avoid JOIN duplication issues
     const [bmcs] = await sequelize.query(`
       SELECT 
         b.id, 
@@ -140,32 +141,71 @@ export async function GET(request: NextRequest) {
         b.monthly_target as monthlyTarget,
         b.created_at as createdAt, 
         b.updated_at as updatedAt,
-        COUNT(DISTINCT s.id) as societyCount,
-        COALESCE(COUNT(DISTINCT mc.id), 0) as totalCollections30d,
-        COALESCE(SUM(mc.quantity), 0) as totalQuantity30d,
-        COALESCE(SUM(mc.total_amount), 0) as totalAmount30d,
-        COALESCE(
+        
+        -- Society count
+        (SELECT COUNT(*) FROM \`${schemaName}\`.\`societies\` WHERE bmc_id = b.id) as societyCount,
+        
+        -- Farmer count (across all societies in this BMC)
+        (SELECT COUNT(*) FROM \`${schemaName}\`.\`farmers\` f 
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON f.society_id = s.id 
+         WHERE s.bmc_id = b.id) as farmerCount,
+        
+        -- Total collections (30 days)
+        (SELECT COUNT(*) FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalCollections30d,
+        
+        -- Total quantity (30 days)
+        (SELECT COALESCE(SUM(mc.quantity), 0) FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalQuantity30d,
+        
+        -- Total amount/revenue (30 days)
+        (SELECT COALESCE(SUM(mc.total_amount), 0) FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalAmount30d,
+        
+        -- Weighted Fat (30 days)
+        (SELECT COALESCE(
           CASE 
             WHEN SUM(mc.quantity) > 0 
             THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
             ELSE 0 
-          END, 0
-        ) as weightedFat30d,
-        COALESCE(
+          END, 0)
+         FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as weightedFat30d,
+        
+        -- Weighted SNF (30 days)
+        (SELECT COALESCE(
           CASE 
             WHEN SUM(mc.quantity) > 0 
             THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
             ELSE 0 
-          END, 0
-        ) as weightedSnf30d,
-        COALESCE(
+          END, 0)
+         FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as weightedSnf30d,
+        
+        -- Weighted CLR (30 days)
+        (SELECT COALESCE(
           CASE 
             WHEN SUM(mc.quantity) > 0 
             THEN ROUND(SUM(mc.clr_value * mc.quantity) / SUM(mc.quantity), 2)
             ELSE 0 
-          END, 0
-        ) as weightedClr30d,
-        COALESCE(
+          END, 0)
+         FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as weightedClr30d,
+        
+        -- Weighted Water (30 days)
+        (SELECT COALESCE(
           CASE 
             WHEN SUM(CASE WHEN mc.water_percentage IS NOT NULL THEN mc.quantity ELSE 0 END) > 0 
             THEN ROUND(
@@ -174,16 +214,36 @@ export async function GET(request: NextRequest) {
               2
             )
             ELSE 0 
-          END, 0
-        ) as weightedWater30d
+          END, 0)
+         FROM \`${schemaName}\`.\`milk_collections\` mc
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as weightedWater30d,
+        
+        -- Dispatch metrics (30 days)
+        (SELECT COUNT(*) FROM \`${schemaName}\`.\`milk_dispatches\` md
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON md.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND md.dispatch_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalDispatches30d,
+        
+        (SELECT COALESCE(SUM(md.quantity), 0) FROM \`${schemaName}\`.\`milk_dispatches\` md
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON md.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND md.dispatch_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as dispatchedQuantity30d,
+        
+        -- Sales metrics (30 days)
+        (SELECT COUNT(*) FROM \`${schemaName}\`.\`milk_sales\` ms
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON ms.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND ms.sales_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalSales30d,
+        
+        (SELECT COALESCE(SUM(ms.total_amount), 0) FROM \`${schemaName}\`.\`milk_sales\` ms
+         INNER JOIN \`${schemaName}\`.\`societies\` s ON ms.society_id = s.id
+         WHERE s.bmc_id = b.id 
+         AND ms.sales_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as salesAmount30d
+        
       FROM \`${schemaName}\`.\`bmcs\` b
       LEFT JOIN \`${schemaName}\`.\`dairy_farms\` d ON d.id = b.dairy_farm_id
-      LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
-      LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc 
-        ON mc.society_id = s.id 
-        AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-      GROUP BY b.id, b.name, b.bmc_id, b.dairy_farm_id, d.name, b.location, b.contactPerson, 
-               b.phone, b.email, b.capacity, b.status, b.monthly_target, b.created_at, b.updated_at
       ORDER BY b.created_at DESC
     `);
 
@@ -208,7 +268,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id } = body;
+    const { id, newBmcId } = body;
 
     if (!id) {
       return createErrorResponse('BMC ID is required', 400);
@@ -237,6 +297,40 @@ export async function DELETE(request: NextRequest) {
       return createErrorResponse('BMC not found', 404);
     }
 
+    // Check if there are societies under this BMC
+    const [societies] = await sequelize.query(`
+      SELECT COUNT(*) as count FROM \`${schemaName}\`.\`societies\` WHERE bmc_id = ?
+    `, { replacements: [id] });
+
+    const societyCount = (societies as any)[0]?.count || 0;
+
+    // If societies exist and no newBmcId provided, return error with society info
+    if (societyCount > 0 && !newBmcId) {
+      return createErrorResponse('Cannot delete BMC with active societies. Transfer societies first.', 400, {
+        hasSocieties: true,
+        societyCount
+      });
+    }
+
+    // If newBmcId provided, transfer all societies
+    if (newBmcId && societyCount > 0) {
+      // Verify new BMC exists
+      const [newBMC] = await sequelize.query(`
+        SELECT id, name FROM \`${schemaName}\`.\`bmcs\` WHERE id = ?
+      `, { replacements: [newBmcId] });
+
+      if (!newBMC || newBMC.length === 0) {
+        return createErrorResponse('Target BMC not found', 404);
+      }
+
+      // Transfer all societies to new BMC
+      await sequelize.query(`
+        UPDATE \`${schemaName}\`.\`societies\` SET bmc_id = ? WHERE bmc_id = ?
+      `, { replacements: [newBmcId, id] });
+
+      console.log(`✅ Transferred ${societyCount} societies from BMC ${id} to BMC ${newBmcId}`);
+    }
+
     // Delete BMC from admin's schema
     await sequelize.query(`
       DELETE FROM \`${schemaName}\`.\`bmcs\` WHERE id = ?
@@ -244,7 +338,9 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`✅ BMC deleted successfully from schema: ${schemaName}`);
 
-    return createSuccessResponse('BMC deleted successfully');
+    return createSuccessResponse('BMC deleted successfully', {
+      transferredSocieties: societyCount
+    });
 
   } catch (error: unknown) {
     console.error('Error deleting BMC:', error);

@@ -250,33 +250,23 @@ export async function GET(
     try {
       const [analyticsResult] = await sequelize.query(`
         SELECT 
-          COUNT(DISTINCT f.id) as totalFarmers,
-          COUNT(DISTINCT CASE WHEN f.status = 'active' THEN f.id END) as activeFarmers,
-          COUNT(DISTINCT m.id) as totalMachines,
-          COUNT(DISTINCT CASE WHEN m.status = 'active' THEN m.id END) as activeMachines,
-          COUNT(DISTINCT mc.id) as totalCollections,
-          COUNT(DISTINCT md.id) as totalDispatches,
-          COUNT(DISTINCT ms.id) as totalSales,
-          COALESCE(SUM(mc.quantity), 0) as totalQuantityCollected,
-          COALESCE(SUM(md.quantity), 0) as totalQuantityDispatched,
-          COALESCE(SUM(ms.quantity), 0) as totalQuantitySold,
-          COALESCE(SUM(mc.total_amount), 0) as totalRevenue,
-          COALESCE(AVG(mc.fat_percentage), 0) as avgFat,
-          COALESCE(AVG(mc.snf_percentage), 0) as avgSnf,
-          COALESCE(AVG(mc.rate_per_liter), 0) as avgRate
-        FROM \`${schemaName}\`.\`societies\` s
-        LEFT JOIN \`${schemaName}\`.\`farmers\` f ON f.society_id = s.id
-        LEFT JOIN \`${schemaName}\`.\`machines\` m ON m.society_id = s.id
-        LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc ON mc.society_id = s.id
-          AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        LEFT JOIN \`${schemaName}\`.\`milk_dispatches\` md ON md.society_id = s.id
-          AND md.dispatch_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        LEFT JOIN \`${schemaName}\`.\`milk_sales\` ms ON ms.society_id = s.id
-          AND ms.sales_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        WHERE s.id = ?
-      `, { replacements: [societyId] });
+          (SELECT COUNT(DISTINCT f.id) FROM \`${schemaName}\`.\`farmers\` f WHERE f.society_id = ?) as totalFarmers,
+          (SELECT COUNT(DISTINCT f.id) FROM \`${schemaName}\`.\`farmers\` f WHERE f.society_id = ? AND f.status = 'active') as activeFarmers,
+          (SELECT COUNT(DISTINCT m.id) FROM \`${schemaName}\`.\`machines\` m WHERE m.society_id = ?) as totalMachines,
+          (SELECT COUNT(DISTINCT m.id) FROM \`${schemaName}\`.\`machines\` m WHERE m.society_id = ? AND m.status = 'active') as activeMachines,
+          (SELECT COUNT(mc.id) FROM \`${schemaName}\`.\`milk_collections\` mc WHERE mc.society_id = ? AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalCollections,
+          (SELECT COUNT(md.id) FROM \`${schemaName}\`.\`milk_dispatches\` md WHERE md.society_id = ? AND md.dispatch_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalDispatches,
+          (SELECT COUNT(ms.id) FROM \`${schemaName}\`.\`milk_sales\` ms WHERE ms.society_id = ? AND ms.sales_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalSales,
+          (SELECT COALESCE(SUM(mc.quantity), 0) FROM \`${schemaName}\`.\`milk_collections\` mc WHERE mc.society_id = ? AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalQuantityCollected,
+          (SELECT COALESCE(SUM(md.quantity), 0) FROM \`${schemaName}\`.\`milk_dispatches\` md WHERE md.society_id = ? AND md.dispatch_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalQuantityDispatched,
+          (SELECT COALESCE(SUM(ms.quantity), 0) FROM \`${schemaName}\`.\`milk_sales\` ms WHERE ms.society_id = ? AND ms.sales_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalQuantitySold,
+          (SELECT COALESCE(SUM(mc.total_amount), 0) FROM \`${schemaName}\`.\`milk_collections\` mc WHERE mc.society_id = ? AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as totalRevenue,
+          (SELECT COALESCE(AVG(mc.fat_percentage), 0) FROM \`${schemaName}\`.\`milk_collections\` mc WHERE mc.society_id = ? AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as avgFat,
+          (SELECT COALESCE(AVG(mc.snf_percentage), 0) FROM \`${schemaName}\`.\`milk_collections\` mc WHERE mc.society_id = ? AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as avgSnf,
+          (SELECT COALESCE(AVG(mc.rate_per_liter), 0) FROM \`${schemaName}\`.\`milk_collections\` mc WHERE mc.society_id = ? AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as avgRate
+      `, { replacements: [societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId, societyId] });
       analytics = (analyticsResult as Array<Record<string, unknown>>)[0] as typeof analytics;
-      console.log(`[Society Details API] Analytics: ${analytics.totalCollections} collections, ${analytics.totalFarmers} farmers`);
+      console.log(`[Society Details API] Analytics - Collections: ${analytics.totalCollections}, Revenue: ₹${analytics.totalRevenue}, Qty Collected: ${analytics.totalQuantityCollected}L, Qty Dispatched: ${analytics.totalQuantityDispatched}L, Dispatches: ${analytics.totalDispatches}, Sales: ${analytics.totalSales}`);
     } catch (error) {
       console.error('[Society Details API] Error fetching analytics:', error);
     }

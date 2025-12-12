@@ -7,12 +7,15 @@ import {
   ArrowLeft, Users, MapPin, Phone, User, Building2,
   Info, Truck, ShoppingCart, Settings, BarChart3,
   Droplet, DollarSign, AlertCircle, Zap, Award, ExternalLink,
-  Edit, Save, X
+  Edit, Save, X, RefreshCw, Trash2
 } from 'lucide-react';
+import { validateIndianPhone, formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation';
+import { validateEmailQuick } from '@/lib/emailValidation';
 import { 
   LoadingSpinner, 
   EmptyState,
-  StatusMessage
+  StatusMessage,
+  ConfirmDeleteModal
 } from '@/components';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 
@@ -203,6 +206,7 @@ export default function SocietyDetails() {
   const [showCollectionNavigateConfirm, setShowCollectionNavigateConfirm] = useState(false);
   const [showDairyNavigateConfirm, setShowDairyNavigateConfirm] = useState(false);
   const [showBmcNavigateConfirm, setShowBmcNavigateConfirm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -212,6 +216,10 @@ export default function SocietyDetails() {
     status: 'active' as 'active' | 'inactive' | 'maintenance'
   });
   const [saveLoading, setSaveLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({
+    contactPhone: '',
+    email: ''
+  });
 
   const fetchSocietyDetails = useCallback(async () => {
     try {
@@ -317,7 +325,7 @@ export default function SocietyDetails() {
 
   const handleEditToggle = () => {
     if (isEditing) {
-      // Cancel editing - reset form data
+      // Cancel editing - reset form data and clear errors
       if (data?.society) {
         setEditFormData({
           name: data.society.name || '',
@@ -327,14 +335,42 @@ export default function SocietyDetails() {
           status: data.society.status || 'active'
         });
       }
+      setValidationErrors({ contactPhone: '', email: '' });
     }
     setIsEditing(!isEditing);
+  };
+
+  const handlePhoneChange = (value: string) => {
+    const formatted = formatPhoneInput(value);
+    setEditFormData({ ...editFormData, contactPhone: formatted });
+    // Clear error when user starts typing
+    if (validationErrors.contactPhone) {
+      setValidationErrors({ ...validationErrors, contactPhone: '' });
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    if (editFormData.contactPhone) {
+      const error = validatePhoneOnBlur(editFormData.contactPhone);
+      setValidationErrors({ ...validationErrors, contactPhone: error });
+    }
   };
 
   const handleSaveDetails = async () => {
     try {
       setSaveLoading(true);
       setError('');
+
+      // Validate phone number before saving
+      if (editFormData.contactPhone) {
+        const phoneValidation = validateIndianPhone(editFormData.contactPhone);
+        if (!phoneValidation.isValid) {
+          setValidationErrors({ ...validationErrors, contactPhone: phoneValidation.error || 'Invalid phone number' });
+          setError('Please fix validation errors before saving');
+          setSaveLoading(false);
+          return;
+        }
+      }
 
       const token = localStorage.getItem('authToken');
       if (!token) {
@@ -379,6 +415,55 @@ export default function SocietyDetails() {
       setError(errorMessage);
     } finally {
       setSaveLoading(false);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async (password: string) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch('/api/user/society/delete', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id: params.id, password })
+      });
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem('authToken');
+          router.push('/login');
+          return;
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to delete society');
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        setShowDeleteModal(false);
+        router.push('/admin/society');
+      } else {
+        throw new Error(result.message || 'Failed to delete society');
+      }
+    } catch (error) {
+      console.error('Error deleting society:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete society');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -438,11 +523,28 @@ export default function SocietyDetails() {
               </div>
             </div>
 
-            {/* Status Badge */}
-            <div className="flex items-center gap-2 flex-wrap px-2">
+            {/* Bottom Row: Status + Actions */}
+            <div className="flex items-center justify-between gap-3">
               <span className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full border ${getStatusColor(society.status)}`}>
                 {society.status}
               </span>
+              
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button 
+                  onClick={fetchSocietyDetails}
+                  className="flex items-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-blue-600 dark:text-blue-500 border border-blue-600 dark:border-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors min-h-[44px]"
+                >
+                  <RefreshCw className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+                <button 
+                  onClick={handleDeleteClick}
+                  className="flex items-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-red-600 dark:text-red-500 border border-red-600 dark:border-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors min-h-[44px]"
+                >
+                  <Trash2 className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -564,6 +666,7 @@ export default function SocietyDetails() {
                     <div className="flex-1">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Collected</p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">{formatNumber(analytics.totalQuantityCollected)} L</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Last 30 days</p>
                     </div>
                   </div>
                 </div>
@@ -577,6 +680,7 @@ export default function SocietyDetails() {
                     <div className="flex-1">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Dispatched</p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">{formatNumber(analytics.totalQuantityDispatched)} L</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Last 30 days</p>
                     </div>
                   </div>
                 </div>
@@ -590,6 +694,7 @@ export default function SocietyDetails() {
                     <div className="flex-1">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Dispatch Count</p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">{formatNumber(analytics.totalDispatches)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Last 30 days</p>
                     </div>
                   </div>
                 </div>
@@ -603,6 +708,7 @@ export default function SocietyDetails() {
                     <div className="flex-1">
                       <p className="text-xs text-gray-600 dark:text-gray-400">Total Sales</p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">{formatNumber(analytics.totalSales)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Last 30 days</p>
                     </div>
                   </div>
                 </div>
@@ -957,13 +1063,29 @@ export default function SocietyDetails() {
                       Contact Phone
                     </label>
                     {isEditing ? (
-                      <input
-                        type="tel"
-                        value={editFormData.contactPhone}
-                        onChange={(e) => setEditFormData({ ...editFormData, contactPhone: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                        placeholder="Enter contact phone"
-                      />
+                      <div>
+                        <input
+                          type="tel"
+                          value={editFormData.contactPhone}
+                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          onBlur={handlePhoneBlur}
+                          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
+                            validationErrors.contactPhone 
+                              ? 'border-red-500 dark:border-red-500' 
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                          placeholder="Enter 10-digit mobile number"
+                          maxLength={10}
+                        />
+                        {validationErrors.contactPhone && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {validationErrors.contactPhone}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Indian mobile number (10 digits, starts with 6-9)
+                        </p>
+                      </div>
                     ) : (
                       <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                         <p className="text-gray-900 dark:text-white">{society.contactPhone || 'N/A'}</p>
@@ -1160,11 +1282,26 @@ export default function SocietyDetails() {
         onConfirm={() => {
           setShowCollectionNavigateConfirm(false);
           if (data?.society) {
-            router.push(`/admin/reports?societyId=${data.society.societyId}&societyName=${encodeURIComponent(data.society.name)}`);
+            // Calculate date range: last 30 days
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            const formatDate = (date: Date) => {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            };
+            
+            const fromDate = formatDate(thirtyDaysAgo);
+            const toDate = formatDate(today);
+            
+            router.push(`/admin/reports?societyId=${data.society.societyId}&societyName=${encodeURIComponent(data.society.name)}&fromDate=${fromDate}&toDate=${toDate}`);
           }
         }}
         title="Navigate to Reports Management"
-        message={`View all collection reports from ${data?.society.name} in the Reports Management page with filters applied.`}
+        message={`View all collection reports from ${data?.society.name} for the last 30 days in the Reports Management page with filters applied.`}
         confirmText="Go to Reports Management"
         cancelText="Cancel"
       />
@@ -1199,6 +1336,15 @@ export default function SocietyDetails() {
         message={`View complete details of ${data?.society.bmcName} in the BMC Management page.`}
         confirmText="Go to BMC Details"
         cancelText="Cancel"
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        itemName={data?.society.name || 'this society'}
+        itemType="Society"
       />
     </div>
   );

@@ -27,7 +27,8 @@ import {
   Settings,
   Edit,
   Save,
-  X
+  X,
+  Users
 } from 'lucide-react';
 import { 
   LoadingSpinner, 
@@ -36,6 +37,9 @@ import {
   ConfirmDeleteModal 
 } from '@/components';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
+import TransferSocietiesModal from '@/components/modals/TransferSocietiesModal';
+import { validateIndianPhone, formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
+import { validateEmailQuick } from '@/lib/emailValidation';
 
 interface BMCDetails {
   id: number;
@@ -64,6 +68,10 @@ interface BMCDetails {
   weightedSnf30d?: number;
   weightedClr30d?: number;
   weightedWater30d?: number;
+  totalDispatches30d?: number;
+  dispatchedQuantity30d?: number;
+  totalSales30d?: number;
+  salesAmount30d?: number;
 }
 
 export default function BMCDetails() {
@@ -77,12 +85,21 @@ export default function BMCDetails() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'details'>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [societies, setSocieties] = useState<any[]>([]);
+  const [availableBMCs, setAvailableBMCs] = useState<any[]>([]);
   const [showSocietiesNavigateConfirm, setShowSocietiesNavigateConfirm] = useState(false);
   const [showDairyNavigateConfirm, setShowDairyNavigateConfirm] = useState(false);
+  const [showCollectionsNavigateConfirm, setShowCollectionsNavigateConfirm] = useState(false);
+  const [showFarmersNavigateConfirm, setShowFarmersNavigateConfirm] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    phone?: string;
+    email?: string;
+  }>({});
   const [editFormData, setEditFormData] = useState({
     name: '',
     location: '',
@@ -144,8 +161,93 @@ export default function BMCDetails() {
     }
   }, [bmcIdParam, router]);
 
-  // Delete BMC
+  // Fetch societies under this BMC
+  const fetchSocieties = async () => {
+    if (!bmc) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/society', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const bmcSocieties = result.data?.filter((s: any) => s.bmcId === bmc.id) || [];
+        setSocieties(bmcSocieties);
+        return bmcSocieties;
+      }
+    } catch (error) {
+      console.error('Error fetching societies:', error);
+    }
+    return [];
+  };
+
+  // Fetch available BMCs for transfer
+  const fetchAvailableBMCs = async () => {
+    if (!bmc) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/bmc', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const otherBMCs = result.data?.filter((b: any) => b.id !== bmc.id) || [];
+        setAvailableBMCs(otherBMCs);
+      }
+    } catch (error) {
+      console.error('Error fetching BMCs:', error);
+    }
+  };
+
+  // Initiate delete - check for societies first
   const handleDeleteBMC = async () => {
+    if (!bmc) return;
+    setShowDeleteModal(false);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      
+      // Try to delete without transfer first
+      const response = await fetch('/api/user/bmc', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id: bmc.id })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setSuccess('BMC deleted successfully! Redirecting...');
+        setTimeout(() => router.push('/admin/bmc'), 2000);
+      } else if (result.data?.hasSocieties) {
+        // Has societies - show transfer modal
+        const bmcSocieties = await fetchSocieties();
+        await fetchAvailableBMCs();
+        setShowTransferModal(true);
+      } else {
+        setError(result.error || 'Failed to delete BMC');
+      }
+    } catch (error) {
+      console.error('Error deleting BMC:', error);
+      setError('Failed to delete BMC');
+    }
+  };
+
+  // Handle transfer and delete
+  const handleTransferAndDelete = async (newBmcId: number) => {
     if (!bmc) return;
 
     try {
@@ -156,19 +258,24 @@ export default function BMCDetails() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: bmc.id })
+        body: JSON.stringify({ 
+          id: bmc.id,
+          newBmcId 
+        })
       });
 
+      const result = await response.json();
+
       if (response.ok) {
-        setSuccess('BMC deleted successfully! Redirecting...');
+        setShowTransferModal(false);
+        setSuccess(`Transferred ${result.data?.transferredSocieties || 0} societies and deleted BMC successfully! Redirecting...`);
         setTimeout(() => router.push('/admin/bmc'), 2000);
       } else {
-        const error = await response.json();
-        setError(error.error || 'Failed to delete BMC');
+        setError(result.error || 'Failed to transfer and delete BMC');
       }
     } catch (error) {
-      console.error('Error deleting BMC:', error);
-      setError('Failed to delete BMC');
+      console.error('Error transferring and deleting BMC:', error);
+      setError('Failed to transfer and delete BMC');
     }
   };
 
@@ -201,9 +308,30 @@ export default function BMCDetails() {
     }
   };
 
+  // Phone validation handlers
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhoneInput(e.target.value);
+    setEditFormData({ ...editFormData, phone: formatted });
+    // Clear error when user starts typing
+    if (validationErrors.phone) {
+      setValidationErrors({ ...validationErrors, phone: undefined });
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    const error = validatePhoneOnBlur(editFormData.phone);
+    setValidationErrors({ ...validationErrors, phone: error });
+  };
+
+  // Email validation handler
+  const handleEmailBlur = () => {
+    const error = validateEmailQuick(editFormData.email);
+    setValidationErrors({ ...validationErrors, email: error });
+  };
+
   const handleEditToggle = () => {
     if (isEditing) {
-      // Cancel editing - reset form data
+      // Cancel editing - reset form data and clear validation errors
       if (bmc) {
         setEditFormData({
           name: bmc.name || '',
@@ -214,12 +342,26 @@ export default function BMCDetails() {
           status: bmc.status || 'active'
         });
       }
+      setValidationErrors({});
     }
     setIsEditing(!isEditing);
   };
 
   const handleSaveDetails = async () => {
     try {
+      // Validate before saving
+      const phoneError = validatePhoneOnBlur(editFormData.phone);
+      const emailError = validateEmailQuick(editFormData.email);
+
+      if (phoneError || emailError) {
+        setValidationErrors({
+          phone: phoneError,
+          email: emailError
+        });
+        setError('Please fix validation errors before saving');
+        return;
+      }
+
       setSaveLoading(true);
       setError('');
 
@@ -381,7 +523,12 @@ export default function BMCDetails() {
                   {/* Comprehensive Statistics Grid - 30 Day Metrics */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     {/* Total Collections */}
-                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                    <div 
+                      onClick={() => (bmc.totalCollections30d || 0) > 0 && setShowCollectionsNavigateConfirm(true)}
+                      className={`bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all ${
+                        (bmc.totalCollections30d || 0) > 0 ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-not-allowed opacity-60'
+                      }`}
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <Droplet className="w-8 h-8 text-white/80" />
                         <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
@@ -389,7 +536,7 @@ export default function BMCDetails() {
                         </div>
                       </div>
                       <p className="text-white/90 font-medium text-sm">Collections</p>
-                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                      <p className="text-white/70 text-xs mt-1">{(bmc.totalCollections30d || 0) > 0 ? 'Click to view • Last 30 days' : 'Last 30 days'}</p>
                     </div>
 
                     {/* Total Quantity */}
@@ -400,7 +547,7 @@ export default function BMCDetails() {
                           <span className="text-xl sm:text-2xl font-bold text-white block">{Number(bmc.totalQuantity30d || 0).toFixed(0)} L</span>
                         </div>
                       </div>
-                      <p className="text-white/90 font-medium text-sm">Volume</p>
+                      <p className="text-white/90 font-medium text-sm">Collected</p>
                       <p className="text-white/70 text-xs mt-1">Last 30 days</p>
                     </div>
 
@@ -409,7 +556,7 @@ export default function BMCDetails() {
                       <div className="flex items-center justify-between mb-2">
                         <TrendingUp className="w-8 h-8 text-white/80" />
                         <div className="flex-1 text-right">
-                          <span className="text-lg sm:text-xl font-bold text-white block">₹{((bmc.totalAmount30d || 0) / 100000).toFixed(1)}L</span>
+                          <span className="text-lg sm:text-xl font-bold text-white block">₹{Number(bmc.totalAmount30d || 0).toLocaleString()}</span>
                         </div>
                       </div>
                       <p className="text-white/90 font-medium text-sm">Total Revenue</p>
@@ -432,12 +579,65 @@ export default function BMCDetails() {
                       <p className="text-white/90 font-medium text-sm">Societies</p>
                       <p className="text-white/70 text-xs mt-1">{(bmc.societyCount || 0) > 0 ? 'Click to view' : 'No societies'}</p>
                     </div>
+
+                    {/* Farmers Count */}
+                    <div 
+                      onClick={() => (bmc.farmerCount || 0) > 0 && setShowFarmersNavigateConfirm(true)}
+                      className={`bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all ${
+                        (bmc.farmerCount || 0) > 0 ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-not-allowed opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <Users className="w-8 h-8 text-white/80" />
+                        <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                          <span className="text-2xl font-bold text-white">{bmc.farmerCount || 0}</span>
+                        </div>
+                      </div>
+                      <p className="text-white/90 font-medium text-sm">Farmers</p>
+                      <p className="text-white/70 text-xs mt-1">{(bmc.farmerCount || 0) > 0 ? 'Click to view' : 'Total registered'}</p>
+                    </div>
+
+                    {/* Avg Fat */}
+                    <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <Eye className="w-8 h-8 text-white/80" />
+                        <div className="flex-1 text-right">
+                          <span className="text-xl sm:text-2xl font-bold text-white block">{Number(bmc.weightedFat30d || 0).toFixed(2)}%</span>
+                        </div>
+                      </div>
+                      <p className="text-white/90 font-medium text-sm">Avg Fat</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                    </div>
+
+                    {/* Avg SNF */}
+                    <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <Award className="w-8 h-8 text-white/80" />
+                        <div className="flex-1 text-right">
+                          <span className="text-xl sm:text-2xl font-bold text-white block">{Number(bmc.weightedSnf30d || 0).toFixed(2)}%</span>
+                        </div>
+                      </div>
+                      <p className="text-white/90 font-medium text-sm">Avg SNF</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                    </div>
+
+                    {/* Avg CLR */}
+                    <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <Activity className="w-8 h-8 text-white/80" />
+                        <div className="flex-1 text-right">
+                          <span className="text-xl sm:text-2xl font-bold text-white block">{Number(bmc.weightedClr30d || 0).toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <p className="text-white/90 font-medium text-sm">Avg CLR</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                    </div>
                   </div>
 
                   {/* Main Content Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     {/* Left Column - BMC Info & Quality Metrics */}
-                    <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+                    <div className="lg:col-span-2 space-y-4 sm:gap-6">
                       {/* BMC Information Card */}
                       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
@@ -526,61 +726,75 @@ export default function BMCDetails() {
                         </div>
                       </div>
 
-                      {/* Quality Metrics - 30 Days */}
+                      {/* Volume Details - 30 Days */}
                       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                          <Award className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                          Quality Metrics (Last 30 Days)
+                          <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
+                          Collected, Dispatch and Sales Details (Last 30 Days)
                         </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                          {/* Fat */}
-                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                                <Eye className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                          {/* Collected */}
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-green-500 rounded-lg">
+                                <Milk className="w-5 h-5 text-white" />
                               </div>
                               <div className="flex-1">
-                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg Fat %</p>
-                                <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(bmc.weightedFat30d || 0).toFixed(2)}%</p>
+                                <p className="text-xs text-green-700 dark:text-green-300 font-medium">Collected</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-green-600 dark:text-green-400">Volume:</span>
+                                <span className="text-sm font-bold text-green-900 dark:text-green-100">{Number(bmc.totalQuantity30d || 0).toLocaleString()} L</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-green-600 dark:text-green-400">Count:</span>
+                                <span className="text-sm font-bold text-green-900 dark:text-green-100">{Number(bmc.totalCollections30d || 0).toLocaleString()}</span>
                               </div>
                             </div>
                           </div>
 
-                          {/* SNF */}
-                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                                <Award className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                          {/* Dispatched */}
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-blue-500 rounded-lg">
+                                <TrendingUp className="w-5 h-5 text-white" />
                               </div>
                               <div className="flex-1">
-                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg SNF %</p>
-                                <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(bmc.weightedSnf30d || 0).toFixed(2)}%</p>
+                                <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Dispatched</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-blue-600 dark:text-blue-400">Volume:</span>
+                                <span className="text-sm font-bold text-blue-900 dark:text-blue-100">{Number(bmc.dispatchedQuantity30d || 0).toLocaleString()} L</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-blue-600 dark:text-blue-400">Count:</span>
+                                <span className="text-sm font-bold text-blue-900 dark:text-blue-100">{Number(bmc.totalDispatches30d || 0).toLocaleString()}</span>
                               </div>
                             </div>
                           </div>
 
-                          {/* CLR */}
-                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-pink-100 dark:bg-pink-900/30 rounded-lg">
-                                <Activity className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                          {/* Sales */}
+                          <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg p-4 border border-orange-200 dark:border-orange-700">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-orange-500 rounded-lg">
+                                <Award className="w-5 h-5 text-white" />
                               </div>
                               <div className="flex-1">
-                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg CLR</p>
-                                <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(bmc.weightedClr30d || 0).toFixed(1)}</p>
+                                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium">Sales</p>
                               </div>
                             </div>
-                          </div>
-
-                          {/* Water */}
-                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
-                                <Droplet className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-orange-600 dark:text-orange-400">Amount:</span>
+                                <span className="text-sm font-bold text-orange-900 dark:text-orange-100">₹{Number(bmc.salesAmount30d || 0).toLocaleString()}</span>
                               </div>
-                              <div className="flex-1">
-                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg Water %</p>
-                                <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(bmc.weightedWater30d || 0).toFixed(2)}%</p>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-orange-600 dark:text-orange-400">Count:</span>
+                                <span className="text-sm font-bold text-orange-900 dark:text-orange-100">{Number(bmc.totalSales30d || 0).toLocaleString()}</span>
                               </div>
                             </div>
                           </div>
@@ -747,13 +961,26 @@ export default function BMCDetails() {
                           Phone Number
                         </label>
                         {isEditing ? (
-                          <input
-                            type="tel"
-                            value={editFormData.phone}
-                            onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter phone number"
-                          />
+                          <div>
+                            <input
+                              type="tel"
+                              value={editFormData.phone}
+                              onChange={handlePhoneChange}
+                              onBlur={handlePhoneBlur}
+                              maxLength={10}
+                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
+                                validationErrors.phone 
+                                  ? 'border-red-500 dark:border-red-500' 
+                                  : 'border-gray-300 dark:border-gray-600'
+                              }`}
+                              placeholder="Enter 10-digit phone number"
+                            />
+                            {validationErrors.phone && (
+                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                {validationErrors.phone}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.phone || 'N/A'}</p>
@@ -767,13 +994,31 @@ export default function BMCDetails() {
                           Email
                         </label>
                         {isEditing ? (
-                          <input
-                            type="email"
-                            value={editFormData.email}
-                            onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter email"
-                          />
+                          <div>
+                            <input
+                              type="email"
+                              value={editFormData.email}
+                              onChange={(e) => {
+                                setEditFormData({ ...editFormData, email: e.target.value });
+                                // Clear error when user starts typing
+                                if (validationErrors.email) {
+                                  setValidationErrors({ ...validationErrors, email: undefined });
+                                }
+                              }}
+                              onBlur={handleEmailBlur}
+                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
+                                validationErrors.email 
+                                  ? 'border-red-500 dark:border-red-500' 
+                                  : 'border-gray-300 dark:border-gray-600'
+                              }`}
+                              placeholder="Enter email address"
+                            />
+                            {validationErrors.email && (
+                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                {validationErrors.email}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.email || 'N/A'}</p>
@@ -848,6 +1093,17 @@ export default function BMCDetails() {
         message={`${t.bmcManagement.confirmDelete} ${bmc?.name}? ${t.bmcManagement.deleteWarning}`}
       />
 
+      {/* Transfer Societies Modal */}
+      <TransferSocietiesModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        onConfirm={handleTransferAndDelete}
+        bmcName={bmc?.name || ''}
+        bmcId={bmc?.id || 0}
+        societies={societies}
+        availableBMCs={availableBMCs}
+      />
+
       {/* Societies Navigation Confirmation Modal */}
       <NavigationConfirmModal
         isOpen={showSocietiesNavigateConfirm}
@@ -877,6 +1133,43 @@ export default function BMCDetails() {
         title="Navigate to Dairy Details"
         message={`View complete details of ${bmc?.dairyFarmName} in the Dairy Management page.`}
         confirmText="Go to Dairy Details"
+        cancelText="Cancel"
+      />
+
+      {/* Collections Navigation Confirmation Modal */}
+      <NavigationConfirmModal
+        isOpen={showCollectionsNavigateConfirm}
+        onClose={() => setShowCollectionsNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowCollectionsNavigateConfirm(false);
+          if (bmc) {
+            const today = new Date();
+            const last30Days = new Date(today);
+            last30Days.setDate(today.getDate() - 30);
+            const fromDate = last30Days.toISOString().split('T')[0];
+            const toDate = today.toISOString().split('T')[0];
+            router.push(`/admin/reports?fromDate=${fromDate}&toDate=${toDate}&bmcFilter=${bmc.id}`);
+          }
+        }}
+        title="Navigate to Collection Reports"
+        message={`View last 30 days collection reports for ${bmc?.name} with filters applied.`}
+        confirmText="Go to Reports"
+        cancelText="Cancel"
+      />
+
+      {/* Farmers Navigation Confirmation Modal */}
+      <NavigationConfirmModal
+        isOpen={showFarmersNavigateConfirm}
+        onClose={() => setShowFarmersNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowFarmersNavigateConfirm(false);
+          if (bmc) {
+            router.push(`/admin/farmer?bmcFilter=${bmc.id}`);
+          }
+        }}
+        title="Navigate to Farmer Management"
+        message={`View all farmers under ${bmc?.name} in the Farmer Management page with filters applied.`}
+        confirmText="Go to Farmer Management"
         cancelText="Cancel"
       />
     </>

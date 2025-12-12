@@ -22,15 +22,17 @@ export function createSuccessResponse<T = unknown>(
   );
 }
 
-export function createErrorResponse(
+export function createErrorResponse<T = unknown>(
   error: string,
-  status: number = 400
-): NextResponse<ApiResponse> {
+  status: number = 400,
+  data?: T
+): NextResponse<ApiResponse<T>> {
   return NextResponse.json(
     {
       success: false,
       message: 'Error occurred',
       error,
+      data,
     },
     { status }
   );

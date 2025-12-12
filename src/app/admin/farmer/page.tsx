@@ -148,6 +148,7 @@ const FarmerManagement = () => {
     const societyId = searchParams.get('societyId');
     const societyName = searchParams.get('societyName');
     const dairyFilterParam = searchParams.get('dairyFilter');
+    const bmcFilterParam = searchParams.get('bmcFilter');
     
     if (societyId && !societyFilter.includes(societyId)) {
       setSocietyFilter([societyId]);
@@ -161,6 +162,11 @@ const FarmerManagement = () => {
     if (dairyFilterParam && !dairyFilter.includes(dairyFilterParam)) {
       setDairyFilter([dairyFilterParam]);
       setSuccess('Filter Applied: Dairy');
+    }
+    
+    if (bmcFilterParam && !bmcFilter.includes(bmcFilterParam)) {
+      setBmcFilter([bmcFilterParam]);
+      setSuccess('Filter Applied: BMC');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount

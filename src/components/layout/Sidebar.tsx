@@ -123,89 +123,20 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
   const [isLoading, setIsLoading] = useState(false);
   const [prevPathname, setPrevPathname] = useState(pathname);
   const { t } = useLanguage();
-  
-  // Auto-collapse state management
-  const [isHovered, setIsHovered] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Clear all timers
-  const clearTimers = () => {
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    }
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-  };
-
-  // Reset inactivity timer
-  const resetInactivityTimer = () => {
-    // Only clear inactivity timer, not hover timer
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    }
-    
-    // Only set auto-collapse timer if sidebar is expanded and not pinned
-    if (!isCollapsed && !isPinned) {
-      inactivityTimerRef.current = setTimeout(() => {
-        if (!isPinned && !isHovered) {
-          onToggle(); // Collapse after 3 seconds of inactivity
-        }
-      }, 3000);
-    }
-  };
-
-  // Handle mouse enter - expand immediately
+  // Mouse handlers - only for visual hover state
   const handleMouseEnter = () => {
-    // Expand immediately when collapsed
-    if (isCollapsed) {
-      clearTimers();
-      setIsHovered(true);
-      onToggle(); // Expand immediately on hover
-    } else {
-      setIsHovered(true);
-    }
+    // No auto-expansion on hover - sidebar now expands only on button click
   };
 
-  // Handle mouse leave - keep expanded until clicked outside
+  // Handle mouse leave - no action needed
   const handleMouseLeave = () => {
-    setIsHovered(false);
-    clearTimers();
   };
 
-  // Handle click on toggle button
+  // Simplified toggle - just toggle the state
   const handleToggleClick = () => {
-    // Set isPinned to true BEFORE calling onToggle
-    // This way when isCollapsed changes via parent, isPinned stays true
-    setIsPinned(!isPinned);
     onToggle();
   };
-
-  // Handle click outside to collapse (only if not pinned)
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const sidebar = document.querySelector('aside');
-      if (sidebar && !sidebar.contains(event.target as Node) && !isCollapsed && !isPinned) {
-        onToggle(); // Collapse when clicking outside
-      }
-    };
-
-    // Add event listener
-    document.addEventListener('mousedown', handleClickOutside);
-
-    // Cleanup on unmount
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-      }
-    };
-  }, [isCollapsed, isPinned, onToggle]);
 
   // Detect route changes for loading state
   if (pathname !== prevPathname) {
@@ -337,29 +268,16 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
             )}
           </AnimatePresence>
           
-          {
-            // Compute readable title and icon classes to indicate active/pinned state
-          }
+          {/* Toggle button - click to expand/collapse */}
           <button
             onClick={handleToggleClick}
-            className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative`}
-            title={
-              isCollapsed
-                ? 'Click to expand and lock'
-                : isPinned
-                  ? 'Locked (pinned) — click to collapse'
-                  : 'Click to pin'
-            }
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            title={isCollapsed ? 'Click to expand' : 'Click to collapse'}
           >
             {isCollapsed ? (
-              <ChevronRight className={`w-5 h-5 ${isPinned ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`} />
+              <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             ) : (
-              <ChevronLeft className={`w-5 h-5 ${isPinned ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`} />
-            )}
-
-            {/* Small indicator dot when pinned and expanded */}
-            {isPinned && !isCollapsed && (
-              <div className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full" />
+              <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
             )}
           </button>
         </div>
@@ -367,11 +285,7 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
       </div>
 
       {/* Navigation */}
-      <nav 
-        className="flex-1 p-4 space-y-2"
-        onMouseMove={resetInactivityTimer}
-        onClick={resetInactivityTimer}
-      >
+      <nav className="flex-1 p-4 space-y-2">
         {filteredNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -381,6 +295,7 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
               key={item.href}
               href={item.href}
               className="block"
+              title={isCollapsed ? t.nav[item.labelKey] : undefined}
             >
               <motion.div
                 whileHover={{ x: 4 }}

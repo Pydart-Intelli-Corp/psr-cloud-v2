@@ -56,6 +56,7 @@ import {
 } from '@/components';
 import FloatingActionButton from '@/components/management/FloatingActionButton';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
+import TransferSocietiesModal from '@/components/modals/TransferSocietiesModal';
 
 interface BMC {
   id: number;
@@ -130,6 +131,9 @@ export default function BMCManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [societies, setSocieties] = useState<any[]>([]);
+  const [availableBMCs, setAvailableBMCs] = useState<BMC[]>([]);
   const [selectedBMC, setSelectedBMC] = useState<BMC | null>(null);
   const [formData, setFormData] = useState<BMCFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
@@ -408,13 +412,38 @@ export default function BMCManagement() {
     setShowDeleteModal(true);
   };
 
-  // Delete BMC
+  // Fetch societies under a specific BMC
+  const fetchSocietiesForBMC = async (bmcId: number) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/society', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const bmcSocieties = result.data?.filter((s: any) => s.bmcId === bmcId) || [];
+        return bmcSocieties;
+      }
+    } catch (error) {
+      console.error('Error fetching societies:', error);
+    }
+    return [];
+  };
+
+  // Initiate delete - check for societies first
   const handleConfirmDelete = async () => {
     if (!selectedBMC) return;
+    setShowDeleteModal(false);
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/bmc`, {
+      
+      // Try to delete without transfer first
+      const response = await fetch('/api/user/bmc', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -423,19 +452,66 @@ export default function BMCManagement() {
         body: JSON.stringify({ id: selectedBMC.id })
       });
 
+      const result = await response.json();
+
       if (response.ok) {
         setSuccess('BMC deleted successfully!');
-        setShowDeleteModal(false);
         setSelectedBMC(null);
         await fetchBMCs();
         setTimeout(() => setSuccess(''), 3000);
+      } else if (result.data?.hasSocieties) {
+        // Has societies - fetch data and show transfer modal
+        const bmcSocieties = await fetchSocietiesForBMC(selectedBMC.id);
+        setSocieties(bmcSocieties);
+        
+        // Get other BMCs for transfer
+        const otherBMCs = bmcs.filter(b => b.id !== selectedBMC.id);
+        setAvailableBMCs(otherBMCs);
+        
+        setShowTransferModal(true);
       } else {
-        const error = await response.json();
-        setError(error.error || 'Failed to delete BMC');
+        setError(result.error || 'Failed to delete BMC');
+        setSelectedBMC(null);
       }
     } catch (error) {
       console.error('Error deleting BMC:', error);
       setError('Failed to delete BMC');
+      setSelectedBMC(null);
+    }
+  };
+
+  // Handle transfer and delete
+  const handleTransferAndDelete = async (newBmcId: number) => {
+    if (!selectedBMC) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/bmc', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          id: selectedBMC.id,
+          newBmcId 
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setShowTransferModal(false);
+        setSelectedBMC(null);
+        setSuccess(`Transferred ${result.data?.transferredSocieties || 0} societies and deleted BMC successfully!`);
+        await fetchBMCs();
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(result.error || 'Failed to transfer and delete BMC');
+      }
+    } catch (error) {
+      console.error('Error transferring and deleting BMC:', error);
+      setError('Failed to transfer and delete BMC');
     }
   };
 
@@ -1178,6 +1254,20 @@ export default function BMCManagement() {
         title="Delete BMC"
         itemName={selectedBMC?.name || ''}
         message="Are you sure you want to delete this BMC? This action cannot be undone."
+      />
+
+      {/* Transfer Societies Modal */}
+      <TransferSocietiesModal
+        isOpen={showTransferModal}
+        onClose={() => {
+          setShowTransferModal(false);
+          setSelectedBMC(null);
+        }}
+        onConfirm={handleTransferAndDelete}
+        bmcName={selectedBMC?.name || ''}
+        bmcId={selectedBMC?.id || 0}
+        societies={societies}
+        availableBMCs={availableBMCs}
       />
 
       {/* Societies Navigation Alert Modal */}

@@ -103,9 +103,14 @@ interface CollectionReportsProps {
   globalSearch?: string;
   initialSocietyId?: string | null;
   initialSocietyName?: string | null;
+  initialFromDate?: string | null;
+  initialToDate?: string | null;
+  initialBmcFilter?: string | null;
 }
 
-export default function CollectionReports({ globalSearch = '', initialSocietyId = null, initialSocietyName = null }: CollectionReportsProps) {
+export default function CollectionReports({ globalSearch = '', initialSocietyId = null, initialSocietyName = null, initialFromDate = null, initialToDate = null, initialBmcFilter = null }: CollectionReportsProps) {
+  console.log('CollectionReports received props:', { initialSocietyId, initialSocietyName, initialFromDate, initialToDate });
+  
   const [records, setRecords] = useState<CollectionRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<CollectionRecord[]>([]);
   const [stats, setStats] = useState<CollectionStats>({
@@ -168,15 +173,50 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       if (society && !societyFilter.includes(society.id.toString())) {
         setSocietyFilter([society.id.toString()]);
         
-        // Show success message with society name
+        // Show success message with society name and date range if present
         if (initialSocietyName) {
-          setSuccessMessage(`Filter Applied: ${decodeURIComponent(initialSocietyName)}`);
+          let message = `Filter Applied: ${decodeURIComponent(initialSocietyName)}`;
+          
+          if (initialFromDate && initialToDate) {
+            message += ` • Date: ${initialFromDate} to ${initialToDate}`;
+          }
+          
+          setSuccessMessage(message);
           setTimeout(() => setSuccessMessage(''), 5000);
         }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [societiesData]); // Run when societies data loads
+
+  // Initialize date filters from URL parameters
+  useEffect(() => {
+    if (initialFromDate) {
+      console.log('Setting dateFromFilter to:', initialFromDate);
+      setDateFromFilter(initialFromDate);
+    }
+    
+    if (initialToDate) {
+      console.log('Setting dateToFilter to:', initialToDate);
+      setDateToFilter(initialToDate);
+    }
+    
+    if (initialBmcFilter) {
+      console.log('Setting bmcFilter to:', initialBmcFilter);
+      setBmcFilter([initialBmcFilter]);
+    }
+  }, [initialFromDate, initialToDate, initialBmcFilter]); // Re-run when props change
+
+  // Debug: Log filter states
+  useEffect(() => {
+    console.log('Current filter states:', {
+      dateFromFilter,
+      dateToFilter,
+      societyFilter,
+      recordsCount: records.length,
+      filteredCount: filteredRecords.length
+    });
+  }, [dateFromFilter, dateToFilter, societyFilter, records.length, filteredRecords.length]);
 
   useEffect(() => {
     const fetchDairiesAndBmcs = async () => {
