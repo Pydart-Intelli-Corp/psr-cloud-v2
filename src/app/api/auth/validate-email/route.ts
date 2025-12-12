@@ -1,36 +1,22 @@
 import { NextRequest } from 'next/server';
-import { validateEmailQuick } from '@/lib/emailValidation';
+import { validateEmailQuickResult } from '@/lib/emailValidation';
 import { createErrorResponse, createSuccessResponse } from '@/middleware/auth';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('📧 Email validation request received');
     const body = await request.json();
-    const { email, deep = false } = body;
-    console.log('📧 Validating email:', email, 'deep:', deep);
+    const { email } = body;
+    console.log('📧 Validating email:', email);
 
     if (!email) {
       console.log('❌ No email provided');
       return createErrorResponse('Email is required', 400);
     }
 
-    let validation;
-    
-    try {
-      if (deep) {
-        console.log('🔍 Performing deep validation (MX check)');
-        // Deep validation with MX record check (slower)
-        validation = validateEmailQuick(email) ? { isValid: false, error: validateEmailQuick(email) } : { isValid: true, isDeliverable: true, isFree: false };
-      } else {
-        console.log('⚡ Performing quick validation');
-        // Quick validation without MX check (faster)
-        validation = validateEmailQuick(email);
-      }
-      console.log('✅ Validation result:', validation);
-    } catch (validationError) {
-      console.error('❌ Validation error:', validationError);
-      return createErrorResponse('Email validation service error', 500);
-    }
+    console.log('⚡ Performing quick validation');
+    const validation = validateEmailQuickResult(email);
+    console.log('✅ Validation result:', validation);
 
     const response: {
       email: string;

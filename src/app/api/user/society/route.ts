@@ -224,7 +224,7 @@ export async function DELETE(request: NextRequest) {
       replacements: [societyId]
     });
 
-    const farmerIds = Array.isArray(farmers) ? farmers.map((f: { id: number }) => f.id) : [];
+    const farmerIds = Array.isArray(farmers) ? (farmers as Array<{ id: number }>).map(f => f.id) : [];
 
     // Get rate chart IDs for this society
     const [rateCharts] = await sequelize.query(`
@@ -233,7 +233,7 @@ export async function DELETE(request: NextRequest) {
       replacements: [societyId]
     });
 
-    const rateChartIds = Array.isArray(rateCharts) ? rateCharts.map((rc: { id: number }) => rc.id) : [];
+    const rateChartIds = Array.isArray(rateCharts) ? (rateCharts as Array<{ id: number }>).map(rc => rc.id) : [];
 
     // Start cascade delete (13 steps)
     
