@@ -441,7 +441,21 @@ export async function GET(
           COUNT(DISTINCT f.id) as farmerCount,
           COUNT(DISTINCT mc.id) as collections,
           COALESCE(SUM(mc.quantity), 0) as totalQuantity,
-          COALESCE(SUM(mc.total_amount), 0) as totalRevenue
+          COALESCE(SUM(mc.total_amount), 0) as totalRevenue,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgFat,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgSnf
         FROM \`${schemaName}\`.\`societies\` s
         LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
         LEFT JOIN \`${schemaName}\`.\`farmers\` f ON f.society_id = s.id

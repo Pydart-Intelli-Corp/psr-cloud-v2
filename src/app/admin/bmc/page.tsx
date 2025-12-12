@@ -425,7 +425,7 @@ export default function BMCManagement() {
 
       if (response.ok) {
         const result = await response.json();
-        const bmcSocieties = result.data?.filter((s: any) => s.bmcId === bmcId) || [];
+        const bmcSocieties = result.data?.filter((s: any) => s.bmc_id === bmcId) || [];
         return bmcSocieties;
       }
     } catch (error) {
@@ -481,7 +481,7 @@ export default function BMCManagement() {
   };
 
   // Handle transfer and delete
-  const handleTransferAndDelete = async (newBmcId: number) => {
+  const handleTransferAndDelete = async (newBmcId: number | null, deleteAll: boolean, otp?: string) => {
     if (!selectedBMC) return;
 
     try {
@@ -494,7 +494,9 @@ export default function BMCManagement() {
         },
         body: JSON.stringify({ 
           id: selectedBMC.id,
-          newBmcId 
+          newBmcId,
+          deleteAll,
+          otp
         })
       });
 
@@ -503,15 +505,19 @@ export default function BMCManagement() {
       if (response.ok) {
         setShowTransferModal(false);
         setSelectedBMC(null);
-        setSuccess(`Transferred ${result.data?.transferredSocieties || 0} societies and deleted BMC successfully!`);
+        if (deleteAll) {
+          setSuccess('All data deleted successfully!');
+        } else {
+          setSuccess(`Transferred ${result.data?.transferredSocieties || 0} societies and deleted BMC successfully!`);
+        }
         await fetchBMCs();
         setTimeout(() => setSuccess(''), 3000);
       } else {
-        setError(result.error || 'Failed to transfer and delete BMC');
+        setError(result.error || 'Failed to delete BMC');
       }
     } catch (error) {
-      console.error('Error transferring and deleting BMC:', error);
-      setError('Failed to transfer and delete BMC');
+      console.error('Error deleting BMC:', error);
+      setError('Failed to delete BMC');
     }
   };
 

@@ -268,10 +268,17 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, newBmcId } = body;
+    const { id, newBmcId, deleteAll, otp } = body;
 
     if (!id) {
       return createErrorResponse('BMC ID is required', 400);
+    }
+
+    // If deleteAll is true, OTP verification is required
+    if (deleteAll && !otp) {
+      return createErrorResponse('OTP verification required for complete deletion', 400, {
+        requiresOTP: true
+      });
     }
 
     await connectDB();
@@ -304,16 +311,129 @@ export async function DELETE(request: NextRequest) {
 
     const societyCount = (societies as any)[0]?.count || 0;
 
-    // If societies exist and no newBmcId provided, return error with society info
-    if (societyCount > 0 && !newBmcId) {
-      return createErrorResponse('Cannot delete BMC with active societies. Transfer societies first.', 400, {
+    // If societies exist and no action specified, return error with society info
+    if (societyCount > 0 && !newBmcId && !deleteAll) {
+      return createErrorResponse('Cannot delete BMC with active societies. Transfer societies or use delete all option.', 400, {
         hasSocieties: true,
         societyCount
       });
     }
 
+    // Handle delete all - cascade delete everything
+    if (deleteAll && societyCount > 0) {
+      // Verify OTP before proceeding
+      const { verifyDeleteOTP } = await import('./send-delete-otp/route');
+      const isOtpValid = verifyDeleteOTP(payload.id, id, otp);
+      
+      if (!isOtpValid) {
+        return createErrorResponse('Invalid or expired OTP. Please request a new one.', 400);
+      }
+
+      console.log(`⚠️  OTP verified! Cascade deleting all data under BMC ${id}...`);
+      
+      // Get all society IDs under this BMC
+      const [bmcSocieties] = await sequelize.query(`
+        SELECT id FROM \`${schemaName}\`.\`societies\` WHERE bmc_id = ?
+      `, { replacements: [id] });
+
+      const societyIds = (bmcSocieties as any[]).map((s: any) => s.id);
+
+      if (societyIds.length > 0) {
+        // Delete milk collections (farmer data)
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`milk_collections\` 
+          WHERE farmer_id IN (
+            SELECT id FROM \`${schemaName}\`.\`farmers\` WHERE society_id IN (?)
+          )
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted milk collections`);
+
+        // Delete milk sales (society data)
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`milk_sales\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted milk sales`);
+
+        // Delete milk dispatches (society data)
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`milk_dispatches\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted milk dispatches`);
+
+        // Delete section pulse data
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`section_pulse\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted section pulse data`);
+
+        // Get rate chart IDs for these societies
+        const [rateCharts] = await sequelize.query(`
+          SELECT id FROM \`${schemaName}\`.\`rate_charts\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        const rateChartIds = (rateCharts as any[]).map((rc: any) => rc.id);
+
+        if (rateChartIds.length > 0) {
+          // Delete rate chart download history
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`rate_chart_download_history\` WHERE rate_chart_id IN (?)
+          `, { replacements: [rateChartIds] });
+          console.log(`✅ Deleted rate chart download history`);
+
+          // Delete rate chart data
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`rate_chart_data\` WHERE rate_chart_id IN (?)
+          `, { replacements: [rateChartIds] });
+          console.log(`✅ Deleted rate chart data`);
+
+          // Delete rate charts
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`rate_charts\` WHERE id IN (?)
+          `, { replacements: [rateChartIds] });
+          console.log(`✅ Deleted rate charts`);
+        }
+
+        // Delete machine statistics (has both machine_id and society_id foreign keys)
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`machine_statistics\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted machine statistics`);
+
+        // Delete machine corrections (admin-saved corrections)
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`machine_corrections\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted machine corrections`);
+
+        // Delete machine corrections from machine (device-saved corrections)
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`machine_corrections_from_machine\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted machine corrections from device`);
+
+        // Delete farmers
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`farmers\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted farmers`);
+
+        // Delete machines
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`machines\` WHERE society_id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted machines`);
+
+        // Delete societies
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`societies\` WHERE id IN (?)
+        `, { replacements: [societyIds] });
+        console.log(`✅ Deleted societies`);
+
+        console.log(`✅ Cascade deleted all data: ${societyIds.length} societies and all related data`);
+      }
+    }
+
     // If newBmcId provided, transfer all societies
-    if (newBmcId && societyCount > 0) {
+    if (newBmcId && societyCount > 0 && !deleteAll) {
       // Verify new BMC exists
       const [newBMC] = await sequelize.query(`
         SELECT id, name FROM \`${schemaName}\`.\`bmcs\` WHERE id = ?
@@ -339,7 +459,8 @@ export async function DELETE(request: NextRequest) {
     console.log(`✅ BMC deleted successfully from schema: ${schemaName}`);
 
     return createSuccessResponse('BMC deleted successfully', {
-      transferredSocieties: societyCount
+      transferredSocieties: deleteAll ? 0 : societyCount,
+      deletedAll: deleteAll || false
     });
 
   } catch (error: unknown) {

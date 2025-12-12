@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
+import { validateEmailQuick } from '@/lib/emailValidation';
 import {
   LineChart,
   Line,
@@ -47,11 +49,12 @@ import {
   StatsCard,
   FilterControls,
   EmptyState,
-  ConfirmDeleteModal,
   StatusDropdown
 } from '@/components';
+import DeleteDairyModal from '@/components/modals/DeleteDairyModal';
 import FloatingActionButton from '@/components/management/FloatingActionButton';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
+import TransferBMCsModal from '@/components/modals/TransferBMCsModal';
 
 interface Dairy {
   id: number;
@@ -114,6 +117,7 @@ export default function DairyManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedDairy, setSelectedDairy] = useState<Dairy | null>(null);
   const [formData, setFormData] = useState<DairyFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
@@ -123,12 +127,16 @@ export default function DairyManagement() {
   const [fieldErrors, setFieldErrors] = useState<{
     dairyId?: string;
     name?: string;
+    phone?: string;
+    email?: string;
   }>({});
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [graphMetric, setGraphMetric] = useState<'quantity' | 'revenue' | 'fat' | 'snf' | 'collections' | 'water'>('quantity');
   const [showBmcsAlert, setShowBmcsAlert] = useState(false);
   const [showSocietiesAlert, setShowSocietiesAlert] = useState(false);
   const [dairyForNavigation, setDairyForNavigation] = useState<Dairy | null>(null);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [bmcsForTransfer, setBmcsForTransfer] = useState<Array<{ id: number; name: string; bmcId: string }>>([]);
 
 
   // Fetch dairies
@@ -351,25 +359,107 @@ export default function DairyManagement() {
     }
   };
 
-  // Open delete confirmation modal
-  const handleDeleteClick = (dairy: Dairy) => {
-    setSelectedDairy(dairy);
-    setShowDeleteModal(true);
+  // Fetch BMCs for dairy
+  const fetchBMCsForDairy = async (dairyId: number) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/bmc', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const allBmcs = result.data || [];
+        const filteredBmcs = allBmcs.filter((b: { dairyFarmId: number }) => b.dairyFarmId === dairyId);
+        return filteredBmcs.map((b: { id: number; name: string; bmcId: string }) => ({
+          id: b.id,
+          name: b.name,
+          bmcId: b.bmcId
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching BMCs:', error);
+      return [];
+    }
   };
 
-  // Delete dairy
-  const handleConfirmDelete = async () => {
+  // Open delete confirmation modal
+  const handleDeleteClick = async (dairy: Dairy) => {
+    setSelectedDairy(dairy);
+    
+    // Fetch BMCs for this dairy
+    const bmcs = await fetchBMCsForDairy(dairy.id);
+    setBmcsForTransfer(bmcs);
+    
+    if (bmcs.length > 0) {
+      // Show transfer modal if BMCs exist
+      setShowTransferModal(true);
+    } else {
+      // Store dairy ID for OTP modal and show delete modal
+      (window as any).selectedDairyIdForDelete = dairy.id;
+      setShowDeleteModal(true);
+    }
+  };
+
+  // Handle transfer and delete (or cascade delete)
+  const handleTransferAndDelete = async (newDairyId: number | null, deleteAll: boolean, otp?: string) => {
     if (!selectedDairy) return;
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/dairy`, {
+      const response = await fetch('/api/user/dairy', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: selectedDairy.id })
+        body: JSON.stringify({
+          id: selectedDairy.id,
+          newDairyId,
+          deleteAll,
+          otp
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (deleteAll) {
+          setSuccess('Dairy and all related data deleted successfully!');
+        } else {
+          setSuccess(`${result.data.transferredBMCs} BMC(s) transferred and dairy deleted successfully!`);
+        }
+        setShowTransferModal(false);
+        setSelectedDairy(null);
+        setBmcsForTransfer([]);
+        await fetchDairies();
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(result.message || 'Failed to delete dairy');
+      }
+    } catch (error) {
+      console.error('Error deleting dairy:', error);
+      setError('Failed to delete dairy');
+    }
+  };
+
+  // Delete dairy (no BMCs) with OTP verification
+  const handleConfirmDelete = async (otp: string) => {
+    if (!selectedDairy) return;
+
+    try {
+      setIsDeleting(true);
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/user/dairy?id=${selectedDairy.id}&otp=${otp}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
 
       if (response.ok) {
@@ -380,11 +470,13 @@ export default function DairyManagement() {
         setTimeout(() => setSuccess(''), 3000);
       } else {
         const error = await response.json();
-        setError(error.error || 'Failed to delete dairy');
+        throw new Error(error.error || 'Failed to delete dairy');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting dairy:', error);
-      setError('Failed to delete dairy');
+      throw error;
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -815,7 +907,7 @@ export default function DairyManagement() {
         <form onSubmit={handleAddDairy} className="space-y-4 sm:space-y-6">
           <FormGrid>
             <FormInput
-              label={`${t.dairyManagement.dairyName} ${t.dairyManagement.requiredField}`}
+              label={t.dairyManagement.dairyName}
               value={formData.name}
               onChange={(value) => handleInputChange('name', value)}
               placeholder={t.dairyManagement.enterDairyName}
@@ -824,7 +916,7 @@ export default function DairyManagement() {
             />
 
             <FormInput
-              label={`${t.dairyManagement.dairyId} ${t.dairyManagement.requiredField}`}
+              label={t.dairyManagement.dairyId}
               value={formData.dairyId}
               onChange={(value) => handleInputChange('dairyId', value)}
               placeholder="D-001"
@@ -833,7 +925,7 @@ export default function DairyManagement() {
             />
 
             <FormInput
-              label={`${t.dairyManagement.password} ${t.dairyManagement.requiredField}`}
+              label={t.dairyManagement.password}
               type="password"
               value={formData.password}
               onChange={(value) => handleInputChange('password', value)}
@@ -860,8 +952,20 @@ export default function DairyManagement() {
               label={t.dairyManagement.phone}
               type="tel"
               value={formData.phone}
-              onChange={(value) => handleInputChange('phone', value)}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                handleInputChange('phone', formatted);
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.phone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, phone: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, phone: undefined }));
+                }
+              }}
               placeholder={t.dairyManagement.enterPhoneNumber}
+              error={fieldErrors.phone}
             />
 
             <FormInput
@@ -869,7 +973,16 @@ export default function DairyManagement() {
               type="email"
               value={formData.email}
               onChange={(value) => handleInputChange('email', value)}
+              onBlur={() => {
+                const error = validateEmailQuick(formData.email);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, email: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, email: undefined }));
+                }
+              }}
               placeholder={t.dairyManagement.enterEmail}
+              error={fieldErrors.email}
             />
 
             <FormInput
@@ -924,7 +1037,7 @@ export default function DairyManagement() {
         <form onSubmit={handleUpdateDairy} className="space-y-4 sm:space-y-6">
           <FormGrid>
             <FormInput
-              label={`${t.dairyManagement.dairyName} ${t.dairyManagement.requiredField}`}
+              label={t.dairyManagement.dairyName}
               value={formData.name}
               onChange={(value) => handleInputChange('name', value)}
               placeholder={t.dairyManagement.enterDairyName}
@@ -967,8 +1080,20 @@ export default function DairyManagement() {
               label={t.dairyManagement.phone}
               type="tel"
               value={formData.phone}
-              onChange={(value) => handleInputChange('phone', value)}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                handleInputChange('phone', formatted);
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.phone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, phone: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, phone: undefined }));
+                }
+              }}
               placeholder={t.dairyManagement.enterPhoneNumber}
+              error={fieldErrors.phone}
             />
 
             <FormInput
@@ -976,7 +1101,16 @@ export default function DairyManagement() {
               type="email"
               value={formData.email}
               onChange={(value) => handleInputChange('email', value)}
+              onBlur={() => {
+                const error = validateEmailQuick(formData.email);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, email: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, email: undefined }));
+                }
+              }}
               placeholder={t.dairyManagement.enterEmail}
+              error={fieldErrors.email}
             />
 
             <FormInput
@@ -1022,15 +1156,15 @@ export default function DairyManagement() {
       </FormModal>
 
       {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
+      <DeleteDairyModal
         isOpen={showDeleteModal && !!selectedDairy}
         onClose={() => {
           setShowDeleteModal(false);
           setSelectedDairy(null);
         }}
         onConfirm={handleConfirmDelete}
-        itemName={selectedDairy?.name || ''}
-        itemType="dairy"
+        dairyName={selectedDairy?.name || ''}
+        loading={isDeleting}
       />
 
       {/* BMCs Navigation Alert Modal */}
@@ -1067,6 +1201,22 @@ export default function DairyManagement() {
         message={`View all societies from ${dairyForNavigation?.name} in the Society Management page with filters applied.`}
         confirmText="Go to Society Management"
         cancelText="Cancel"
+      />
+
+      {/* Transfer BMCs Modal */}
+      <TransferBMCsModal
+        isOpen={showTransferModal}
+        onClose={() => {
+          setShowTransferModal(false);
+          setSelectedDairy(null);
+          setBmcsForTransfer([]);
+        }}
+        onConfirm={handleTransferAndDelete}
+        bmcs={bmcsForTransfer}
+        dairies={dairies}
+        dairyName={selectedDairy?.name || ''}
+        currentDairyId={selectedDairy?.id || 0}
+        adminEmail={user?.email || ''}
       />
 
       {/* Graph Modal */}

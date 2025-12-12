@@ -173,11 +173,20 @@ export async function DELETE(request: NextRequest) {
       return createErrorResponse('Admin access required', 403);
     }
 
-    const body = await request.json();
-    const { id } = body;
+    const { searchParams } = new URL(request.url);
+    const societyId = searchParams.get('id');
+    const otp = searchParams.get('otp');
 
-    if (!id) {
-      return createErrorResponse('Society ID is required', 400);
+    if (!societyId || !otp) {
+      return createErrorResponse('Society ID and OTP are required', 400);
+    }
+
+    // Verify OTP
+    const { verifyDeleteOTP } = await import('./send-delete-otp/route');
+    const isValidOTP = verifyDeleteOTP(payload.id, parseInt(societyId), otp);
+    
+    if (!isValidOTP) {
+      return createErrorResponse('Invalid or expired OTP', 401);
     }
 
     await connectDB();
@@ -195,24 +204,162 @@ export async function DELETE(request: NextRequest) {
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
     // Check if society exists
-    const [existingSociety] = await sequelize.query(`
-      SELECT id FROM \`${schemaName}\`.\`societies\` WHERE id = ?
+    const [society] = await sequelize.query(`
+      SELECT id, name FROM \`${schemaName}\`.\`societies\` WHERE id = ?
     `, {
-      replacements: [id]
+      replacements: [societyId]
     });
 
-    if (!Array.isArray(existingSociety) || existingSociety.length === 0) {
+    if (!Array.isArray(society) || society.length === 0) {
       return createErrorResponse('Society not found', 404);
     }
 
-    // Delete the society
+    const societyData = society[0] as { id: number; name: string };
+    console.log(`🗑️ Starting cascade delete for Society ID ${societyId}: ${societyData.name}`);
+
+    // Get all farmers under this society
+    const [farmers] = await sequelize.query(`
+      SELECT id FROM \`${schemaName}\`.\`farmers\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+
+    const farmerIds = Array.isArray(farmers) ? farmers.map((f: { id: number }) => f.id) : [];
+
+    // Get rate chart IDs for this society
+    const [rateCharts] = await sequelize.query(`
+      SELECT id FROM \`${schemaName}\`.\`rate_charts\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+
+    const rateChartIds = Array.isArray(rateCharts) ? rateCharts.map((rc: { id: number }) => rc.id) : [];
+
+    // Start cascade delete (13 steps)
+    
+    // Step 1: Delete milk collections for farmers
+    if (farmerIds.length > 0) {
+      await sequelize.query(`
+        DELETE FROM \`${schemaName}\`.\`milk_collections\` 
+        WHERE farmer_id IN (?)
+      `, {
+        replacements: [farmerIds]
+      });
+      console.log(`✅ Step 1: Deleted milk collections for farmers`);
+    }
+
+    // Step 2: Delete milk sales records
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`milk_sales\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 2: Deleted milk sales records`);
+
+    // Step 3: Delete milk dispatches
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`milk_dispatches\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 3: Deleted milk dispatches`);
+
+    // Step 4: Delete section pulse data
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`section_pulse\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 4: Deleted section pulse data`);
+
+    // Step 5: Delete rate chart download history
+    if (rateChartIds.length > 0) {
+      await sequelize.query(`
+        DELETE FROM \`${schemaName}\`.\`rate_chart_download_history\` 
+        WHERE rate_chart_id IN (?)
+      `, {
+        replacements: [rateChartIds]
+      });
+      console.log(`✅ Step 5: Deleted rate chart download history`);
+    }
+
+    // Step 6: Delete rate chart data
+    if (rateChartIds.length > 0) {
+      await sequelize.query(`
+        DELETE FROM \`${schemaName}\`.\`rate_chart_data\` 
+        WHERE rate_chart_id IN (?)
+      `, {
+        replacements: [rateChartIds]
+      });
+      console.log(`✅ Step 6: Deleted rate chart data`);
+    }
+
+    // Step 7: Delete rate charts
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`rate_charts\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 7: Deleted rate charts`);
+
+    // Step 8: Delete machine statistics
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`machine_statistics\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 8: Deleted machine statistics`);
+
+    // Step 9: Delete machine corrections (admin saved)
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`machine_corrections\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 9: Deleted machine corrections (admin saved)`);
+
+    // Step 10: Delete machine corrections from machine (device saved)
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`machine_corrections_from_machine\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 10: Deleted machine corrections (device saved)`);
+
+    // Step 11: Delete farmers
+    await sequelize.query(`
+      DELETE FROM \`${schemaName}\`.\`farmers\` WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 11: Deleted farmers`);
+
+    // Step 12: Delete machines (society_id will be set to NULL)
+    await sequelize.query(`
+      UPDATE \`${schemaName}\`.\`machines\` SET society_id = NULL WHERE society_id = ?
+    `, {
+      replacements: [societyId]
+    });
+    console.log(`✅ Step 12: Unlinked machines from society`);
+
+    // Step 13: Finally delete the society
     await sequelize.query(`
       DELETE FROM \`${schemaName}\`.\`societies\` WHERE id = ?
     `, {
-      replacements: [id]
+      replacements: [societyId]
     });
+    console.log(`✅ Step 13: Deleted society "${societyData.name}"`);
 
-    return createSuccessResponse('Society deleted successfully', { id });
+    console.log(`🎉 Cascade delete completed successfully for Society ID ${societyId}`);
+
+    return createSuccessResponse('Society and all related data deleted successfully', {
+      societyId: parseInt(societyId),
+      societyName: societyData.name,
+      deletedItems: {
+        farmers: farmerIds.length,
+        rateCharts: rateChartIds.length
+      }
+    });
 
   } catch (error: unknown) {
     console.error('Error deleting society:', error);

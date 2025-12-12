@@ -14,9 +14,9 @@ import { validateEmailQuick } from '@/lib/emailValidation';
 import { 
   LoadingSpinner, 
   EmptyState,
-  StatusMessage,
-  ConfirmDeleteModal
+  StatusMessage
 } from '@/components';
+import DeleteSocietyModal from '@/components/modals/DeleteSocietyModal';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 
 interface Society {
@@ -207,6 +207,7 @@ export default function SocietyDetails() {
   const [showDairyNavigateConfirm, setShowDairyNavigateConfirm] = useState(false);
   const [showBmcNavigateConfirm, setShowBmcNavigateConfirm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -419,27 +420,26 @@ export default function SocietyDetails() {
   };
 
   const handleDeleteClick = () => {
+    // Store society ID for OTP modal
+    (window as { selectedSocietyId?: number }).selectedSocietyId = Number(params.id);
     setShowDeleteModal(true);
   };
 
-  const handleConfirmDelete = async (password: string) => {
+  const handleConfirmDelete = async (otp: string) => {
+    setIsDeleting(true);
     try {
-      setLoading(true);
-      setError('');
-
       const token = localStorage.getItem('authToken');
       if (!token) {
         router.push('/login');
         return;
       }
 
-      const response = await fetch('/api/user/society/delete', {
+      const response = await fetch(`/api/user/society?id=${params.id}&otp=${otp}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ id: params.id, password })
+        }
       });
 
       if (!response.ok) {
@@ -462,8 +462,9 @@ export default function SocietyDetails() {
     } catch (error) {
       console.error('Error deleting society:', error);
       setError(error instanceof Error ? error.message : 'Failed to delete society');
+      setTimeout(() => setError(''), 5000);
     } finally {
-      setLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -1338,13 +1339,13 @@ export default function SocietyDetails() {
         cancelText="Cancel"
       />
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
+      {/* Delete Confirmation Modal with OTP */}
+      <DeleteSocietyModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmDelete}
-        itemName={data?.society.name || 'this society'}
-        itemType="Society"
+        societyName={data?.society.name || ''}
+        loading={isDeleting}
       />
     </div>
   );

@@ -106,7 +106,10 @@ export default function BMCDetails() {
     contactPerson: '',
     phone: '',
     email: '',
-    status: 'active' as 'active' | 'inactive' | 'maintenance'
+    status: 'active' as 'active' | 'inactive' | 'maintenance',
+    capacity: '',
+    monthlyTarget: '',
+    password: ''
   });
 
   // Fetch BMC details
@@ -151,7 +154,10 @@ export default function BMCDetails() {
         contactPerson: bmcData.contactPerson || '',
         phone: bmcData.phone || '',
         email: bmcData.email || '',
-        status: bmcData.status || 'active'
+        status: bmcData.status || 'active',
+        capacity: bmcData.capacity?.toString() || '',
+        monthlyTarget: bmcData.monthlyTarget?.toString() || '',
+        password: '' // Never populate password for security
       });
     } catch (error) {
       console.error('Error fetching BMC details:', error);
@@ -247,7 +253,7 @@ export default function BMCDetails() {
   };
 
   // Handle transfer and delete
-  const handleTransferAndDelete = async (newBmcId: number) => {
+  const handleTransferAndDelete = async (newBmcId: number | null, deleteAll: boolean) => {
     if (!bmc) return;
 
     try {
@@ -260,7 +266,8 @@ export default function BMCDetails() {
         },
         body: JSON.stringify({ 
           id: bmc.id,
-          newBmcId 
+          newBmcId,
+          deleteAll
         })
       });
 
@@ -268,14 +275,18 @@ export default function BMCDetails() {
 
       if (response.ok) {
         setShowTransferModal(false);
-        setSuccess(`Transferred ${result.data?.transferredSocieties || 0} societies and deleted BMC successfully! Redirecting...`);
+        if (deleteAll) {
+          setSuccess('All data deleted successfully! Redirecting...');
+        } else {
+          setSuccess(`Transferred ${result.data?.transferredSocieties || 0} societies and deleted BMC successfully! Redirecting...`);
+        }
         setTimeout(() => router.push('/admin/bmc'), 2000);
       } else {
-        setError(result.error || 'Failed to transfer and delete BMC');
+        setError(result.error || 'Failed to delete BMC');
       }
     } catch (error) {
-      console.error('Error transferring and deleting BMC:', error);
-      setError('Failed to transfer and delete BMC');
+      console.error('Error deleting BMC:', error);
+      setError('Failed to delete BMC');
     }
   };
 
@@ -339,7 +350,10 @@ export default function BMCDetails() {
           contactPerson: bmc.contactPerson || '',
           phone: bmc.phone || '',
           email: bmc.email || '',
-          status: bmc.status || 'active'
+          status: bmc.status || 'active',
+          capacity: bmc.capacity?.toString() || '',
+          monthlyTarget: bmc.monthlyTarget?.toString() || '',
+          password: ''
         });
       }
       setValidationErrors({});
@@ -379,7 +393,15 @@ export default function BMCDetails() {
         },
         body: JSON.stringify({
           id: bmc?.id,
-          ...editFormData
+          name: editFormData.name,
+          location: editFormData.location,
+          contactPerson: editFormData.contactPerson,
+          phone: editFormData.phone,
+          email: editFormData.email,
+          status: editFormData.status,
+          capacity: editFormData.capacity ? parseInt(editFormData.capacity) : undefined,
+          monthlyTarget: editFormData.monthlyTarget ? parseInt(editFormData.monthlyTarget) : undefined,
+          password: editFormData.password || undefined // Only send if provided
         })
       });
 
@@ -1022,6 +1044,68 @@ export default function BMCDetails() {
                         ) : (
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.email || 'N/A'}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Capacity */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Capacity (Liters)
+                        </label>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editFormData.capacity}
+                            onChange={(e) => setEditFormData({ ...editFormData, capacity: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter capacity in liters"
+                            min="0"
+                          />
+                        ) : (
+                          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <p className="text-gray-900 dark:text-white">{bmc.capacity ? `${bmc.capacity.toLocaleString()} L` : 'N/A'}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Monthly Target */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Monthly Target (Liters)
+                        </label>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editFormData.monthlyTarget}
+                            onChange={(e) => setEditFormData({ ...editFormData, monthlyTarget: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter monthly target in liters"
+                            min="0"
+                          />
+                        ) : (
+                          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <p className="text-gray-900 dark:text-white">{bmc.monthlyTarget ? `${bmc.monthlyTarget.toLocaleString()} L` : 'N/A'}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Password */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Password {isEditing && <span className="text-gray-500 text-xs">(Leave blank to keep current)</span>}
+                        </label>
+                        {isEditing ? (
+                          <input
+                            type="password"
+                            value={editFormData.password}
+                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter new password (optional)"
+                          />
+                        ) : (
+                          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                            <p className="text-gray-900 dark:text-white">••••••••</p>
                           </div>
                         )}
                       </div>

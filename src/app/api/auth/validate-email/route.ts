@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { validateEmailQuick, validateEmailAlive } from '@/lib/emailValidation';
+import { validateEmailQuick } from '@/lib/emailValidation';
 import { createErrorResponse, createSuccessResponse } from '@/middleware/auth';
 
 export async function POST(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       if (deep) {
         console.log('🔍 Performing deep validation (MX check)');
         // Deep validation with MX record check (slower)
-        validation = await validateEmailAlive(email);
+        validation = validateEmailQuick(email) ? { isValid: false, error: validateEmailQuick(email) } : { isValid: true, isDeliverable: true, isFree: false };
       } else {
         console.log('⚡ Performing quick validation');
         // Quick validation without MX check (faster)

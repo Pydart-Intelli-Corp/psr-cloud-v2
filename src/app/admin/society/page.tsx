@@ -51,6 +51,7 @@ import { PulseStatus } from '@/components/SectionPulseIndicator';
 import BulkActionsToolbar from '@/components/management/BulkActionsToolbar';
 import FloatingActionButton from '@/components/management/FloatingActionButton';
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
+import DeleteSocietyModal from '@/components/modals/DeleteSocietyModal';
 
 interface Society {
   id: number;
@@ -580,23 +581,19 @@ export default function SocietyManagement() {
 
 
 
-  // Delete society with password confirmation
-  const handleConfirmDelete = async (password: string) => {
+  // Delete society with OTP confirmation
+  const handleConfirmDelete = async (otp: string) => {
     if (!selectedSociety) return;
 
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('/api/user/society/delete', {
+      const response = await fetch(`/api/user/society?id=${selectedSociety.id}&otp=${otp}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          id: selectedSociety.id,
-          password 
-        })
+        }
       });
 
       const data = await response.json();
@@ -605,7 +602,7 @@ export default function SocietyManagement() {
         throw new Error(data.error || 'Failed to delete society');
       }
 
-      setSuccess('Society deleted successfully!');
+      setSuccess('Society and all related data deleted successfully!');
       setShowDeleteModal(false);
       setSelectedSociety(null);
       await fetchSocieties();
@@ -659,6 +656,8 @@ export default function SocietyManagement() {
   // Open delete modal
   const handleDeleteClick = (society: Society) => {
     setSelectedSociety(society);
+    // Store society ID for OTP modal
+    (window as { selectedSocietyId?: number }).selectedSocietyId = society.id;
     setShowDeleteModal(true);
   };
 
@@ -1542,16 +1541,16 @@ export default function SocietyManagement() {
         </form>
       </FormModal>
 
-      {/* Delete Confirmation Modal - Individual Delete */}
-      <PasswordConfirmDialog
+      {/* Delete Confirmation Modal - Individual Delete with OTP */}
+      <DeleteSocietyModal
         isOpen={showDeleteModal && !!selectedSociety}
         onClose={() => {
           setShowDeleteModal(false);
           setSelectedSociety(null);
         }}
         onConfirm={handleConfirmDelete}
-        title={`Delete Society: ${selectedSociety?.name || ''}`}
-        message="Enter your admin password to confirm deletion. This action cannot be undone and will be logged for security purposes."
+        societyName={selectedSociety?.name || ''}
+        loading={isDeleting}
       />
 
       {/* Bulk Delete Password Confirmation Dialog */}

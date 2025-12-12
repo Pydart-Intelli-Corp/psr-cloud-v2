@@ -203,7 +203,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id } = body;
+    const { id, newDairyId, deleteAll, otp } = body;
 
     if (!id) {
       return createErrorResponse('Dairy ID is required', 400);
@@ -232,14 +232,188 @@ export async function DELETE(request: NextRequest) {
       return createErrorResponse('Dairy not found', 404);
     }
 
-    // Delete dairy farm from admin's schema
-    await sequelize.query(`
-      DELETE FROM \`${schemaName}\`.\`dairy_farms\` WHERE id = ?
+    // Get BMCs under this dairy
+    const [bmcs] = await sequelize.query(`
+      SELECT id FROM \`${schemaName}\`.\`bmcs\` WHERE dairy_farm_id = ?
     `, { replacements: [id] });
 
-    console.log(`✅ Dairy farm deleted successfully from schema: ${schemaName}`);
+    const bmcArray = bmcs as Array<{ id: number }>;
 
-    return createSuccessResponse('Dairy farm deleted successfully');
+    // If there are BMCs, handle transfer or cascade delete
+    if (bmcArray.length > 0) {
+      if (deleteAll) {
+        // Verify OTP for cascade delete
+        if (!otp) {
+          return createErrorResponse('OTP is required for delete all operation', 400);
+        }
+
+        const { verifyDeleteOTP } = await import('./send-delete-otp/route');
+        const isValidOTP = verifyDeleteOTP(payload.id, id, otp);
+
+        if (!isValidOTP) {
+          return createErrorResponse('Invalid or expired OTP', 400);
+        }
+
+        console.log(`🗑️ Starting CASCADE DELETE for dairy ${id} and all related data...`);
+
+        // Get all societies under BMCs
+        const bmcIds = bmcArray.map(b => b.id);
+        const [societies] = await sequelize.query(`
+          SELECT id FROM \`${schemaName}\`.\`societies\` WHERE bmc_id IN (?)
+        `, { replacements: [bmcIds] });
+
+        const societyArray = societies as Array<{ id: number }>;
+        
+        if (societyArray.length > 0) {
+          const societyIds = societyArray.map(s => s.id);
+
+          // Step 1: Delete milk collections (via farmers)
+          console.log('Step 1: Deleting milk collections...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`milk_collections\`
+            WHERE farmer_id IN (
+              SELECT id FROM \`${schemaName}\`.\`farmers\` WHERE society_id IN (?)
+            )
+          `, { replacements: [societyIds] });
+
+          // Step 2: Delete milk sales
+          console.log('Step 2: Deleting milk sales...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`milk_sales\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 3: Delete milk dispatches
+          console.log('Step 3: Deleting milk dispatches...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`milk_dispatches\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 4: Delete section pulse
+          console.log('Step 4: Deleting section pulse...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`section_pulse\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 5-7: Delete rate charts
+          console.log('Step 5: Deleting rate chart download history...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`rate_chart_download_history\`
+            WHERE rate_chart_id IN (
+              SELECT id FROM \`${schemaName}\`.\`rate_charts\` WHERE society_id IN (?)
+            )
+          `, { replacements: [societyIds] });
+
+          console.log('Step 6: Deleting rate chart data...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`rate_chart_data\`
+            WHERE rate_chart_id IN (
+              SELECT id FROM \`${schemaName}\`.\`rate_charts\` WHERE society_id IN (?)
+            )
+          `, { replacements: [societyIds] });
+
+          console.log('Step 7: Deleting rate charts...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`rate_charts\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 8: Delete machine statistics
+          console.log('Step 8: Deleting machine statistics...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`machine_statistics\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 9: Delete machine corrections (admin saved)
+          console.log('Step 9: Deleting machine corrections...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`machine_corrections\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 10: Delete machine corrections from machine (device saved)
+          console.log('Step 10: Deleting machine corrections from machine...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`machine_corrections_from_machine\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 11: Delete farmers
+          console.log('Step 11: Deleting farmers...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`farmers\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 12: Delete machines
+          console.log('Step 12: Deleting machines...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`machines\` WHERE society_id IN (?)
+          `, { replacements: [societyIds] });
+
+          // Step 13: Delete societies
+          console.log('Step 13: Deleting societies...');
+          await sequelize.query(`
+            DELETE FROM \`${schemaName}\`.\`societies\` WHERE id IN (?)
+          `, { replacements: [societyIds] });
+        }
+
+        // Step 14: Delete BMCs
+        console.log('Step 14: Deleting BMCs...');
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`bmcs\` WHERE dairy_farm_id = ?
+        `, { replacements: [id] });
+
+        // Step 15: Delete dairy
+        console.log('Step 15: Deleting dairy...');
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`dairy_farms\` WHERE id = ?
+        `, { replacements: [id] });
+
+        console.log(`✅ CASCADE DELETE completed for dairy ${id}`);
+
+        return createSuccessResponse('Dairy and all related data deleted successfully', {
+          deletedAll: true
+        });
+
+      } else {
+        // Transfer BMCs to new dairy
+        if (!newDairyId) {
+          return createErrorResponse('New dairy ID is required for transfer', 400);
+        }
+
+        // Verify new dairy exists
+        const [newDairy] = await sequelize.query(`
+          SELECT id FROM \`${schemaName}\`.\`dairy_farms\` WHERE id = ?
+        `, { replacements: [newDairyId] });
+
+        if (!newDairy || (newDairy as Array<unknown>).length === 0) {
+          return createErrorResponse('New dairy not found', 404);
+        }
+
+        // Transfer all BMCs to new dairy
+        await sequelize.query(`
+          UPDATE \`${schemaName}\`.\`bmcs\` SET dairy_farm_id = ? WHERE dairy_farm_id = ?
+        `, { replacements: [newDairyId, id] });
+
+        console.log(`✅ Transferred ${bmcArray.length} BMCs to dairy ${newDairyId}`);
+
+        // Now delete the dairy
+        await sequelize.query(`
+          DELETE FROM \`${schemaName}\`.\`dairy_farms\` WHERE id = ?
+        `, { replacements: [id] });
+
+        console.log(`✅ Dairy ${id} deleted after transferring BMCs`);
+
+        return createSuccessResponse('BMCs transferred and dairy deleted successfully', {
+          transferredBMCs: bmcArray.length
+        });
+      }
+    } else {
+      // No BMCs, safe to delete directly
+      await sequelize.query(`
+        DELETE FROM \`${schemaName}\`.\`dairy_farms\` WHERE id = ?
+      `, { replacements: [id] });
+
+      console.log(`✅ Dairy ${id} deleted (no BMCs)`);
+
+      return createSuccessResponse('Dairy deleted successfully');
+    }
 
   } catch (error: unknown) {
     console.error('Error deleting dairy farm:', error);

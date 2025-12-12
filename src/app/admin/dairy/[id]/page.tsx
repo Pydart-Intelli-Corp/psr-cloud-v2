@@ -35,6 +35,9 @@ import {
   ConfirmDeleteModal
 } from '@/components';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
+import TransferBMCsModal from '@/components/modals/TransferBMCsModal';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
+import { validateEmailQuick } from '@/lib/emailValidation';
 
 interface DairyDetails {
   id: number;
@@ -215,6 +218,10 @@ export default function DairyDetails() {
   const [activeTab, setActiveTab] = useState<'overview' | 'details'>('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    phone?: string;
+    email?: string;
+  }>({});
   const [editFormData, setEditFormData] = useState({
     name: '',
     location: '',
@@ -225,6 +232,9 @@ export default function DairyDetails() {
   });
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [bmcsForTransfer, setBmcsForTransfer] = useState<Array<{ id: number; name: string; bmcId: string }>>([]);
+  const [allDairies, setAllDairies] = useState<Array<{ id: number; name: string }>>([]);
   const [formLoading, setFormLoading] = useState(false);
   const [showBmcsNavigateConfirm, setShowBmcsNavigateConfirm] = useState(false);
   const [showSocietiesNavigateConfirm, setShowSocietiesNavigateConfirm] = useState(false);
@@ -242,6 +252,56 @@ export default function DairyDetails() {
     status: 'active',
     monthlyTarget: ''
   });
+
+  // Fetch all dairies for transfer dropdown
+  const fetchDairies = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/dairy', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setAllDairies(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dairies:', error);
+    }
+  }, []);
+
+  // Fetch BMCs for this dairy
+  const fetchBMCsForDairy = async (dairyIdToCheck: number) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/bmc', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const allBmcs = result.data || [];
+        const filteredBmcs = allBmcs.filter((b: { dairyFarmId: number }) => b.dairyFarmId === dairyIdToCheck);
+        return filteredBmcs.map((b: { id: number; name: string; bmcId: string }) => ({
+          id: b.id,
+          name: b.name,
+          bmcId: b.bmcId
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching BMCs:', error);
+      return [];
+    }
+  };
 
   const fetchDairyDetails = useCallback(async () => {
     try {
@@ -279,6 +339,99 @@ export default function DairyDetails() {
       setLoading(false);
     }
   }, [dairyId, router]);
+
+  // Handle delete click
+  const handleDeleteClick = async () => {
+    if (!dairyData?.dairy) return;
+    
+    // Fetch BMCs for this dairy
+    const bmcs = await fetchBMCsForDairy(dairyData.dairy.id);
+    setBmcsForTransfer(bmcs);
+    
+    if (bmcs.length > 0) {
+      // Fetch all dairies for transfer dropdown
+      await fetchDairies();
+      setShowTransferModal(true);
+    } else {
+      setShowDeleteModal(true);
+    }
+  };
+
+  // Handle transfer and delete (or cascade delete)
+  const handleTransferAndDelete = async (newDairyId: number | null, deleteAll: boolean, otp?: string) => {
+    if (!dairyData?.dairy) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/dairy', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id: dairyData.dairy.id,
+          newDairyId,
+          deleteAll,
+          otp
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        if (deleteAll) {
+          setSuccess('Dairy and all related data deleted successfully!');
+        } else {
+          setSuccess(`${result.data.transferredBMCs} BMC(s) transferred and dairy deleted successfully!`);
+        }
+        setShowTransferModal(false);
+        
+        // Redirect to dairy list after 2 seconds
+        setTimeout(() => {
+          router.push('/admin/dairy');
+        }, 2000);
+      } else {
+        setError(result.message || 'Failed to delete dairy');
+      }
+    } catch (error) {
+      console.error('Error deleting dairy:', error);
+      setError('Failed to delete dairy');
+    }
+  };
+
+  // Handle simple delete (no BMCs)
+  const handleConfirmDelete = async () => {
+    if (!dairyData?.dairy) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/dairy', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id: dairyData.dairy.id })
+      });
+
+      if (response.ok) {
+        setSuccess('Dairy deleted successfully!');
+        setShowDeleteModal(false);
+        
+        // Redirect to dairy list after 2 seconds
+        setTimeout(() => {
+          router.push('/admin/dairy');
+        }, 2000);
+      } else {
+        const error = await response.json();
+        setError(error.message || 'Failed to delete dairy');
+      }
+    } catch (error) {
+      console.error('Error deleting dairy:', error);
+      setError('Failed to delete dairy');
+    }
+  };
 
   // Update dairy
   const handleUpdateDairy = async (e: React.FormEvent) => {
@@ -343,44 +496,6 @@ export default function DairyDetails() {
       setError('Failed to update dairy');
     } finally {
       setFormLoading(false);
-    }
-  };
-
-  // Open delete confirmation modal
-  const handleDeleteClick = () => {
-    setShowDeleteModal(true);
-  };
-
-  // Delete dairy
-  const handleConfirmDelete = async () => {
-    if (!dairyData?.dairy) return;
-
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/dairy`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ id: dairyData.dairy.id })
-      });
-
-      if (response.ok) {
-        setSuccess('Dairy deleted successfully!');
-        setShowDeleteModal(false);
-        
-        // Redirect to dairy list after successful deletion
-        setTimeout(() => {
-          router.push('/admin/dairy');
-        }, 1000);
-      } else {
-        const error = await response.json();
-        setError(error.error || 'Failed to delete dairy');
-      }
-    } catch (error) {
-      console.error('Error deleting dairy:', error);
-      setError('Failed to delete dairy');
     }
   };
 
@@ -560,9 +675,9 @@ export default function DairyDetails() {
                     {/* Total Revenue */}
                     <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
                       <div className="flex items-center justify-between mb-2">
-                        <BarChart3 className="w-8 h-8 text-white/80" />
+                        <TrendingUp className="w-8 h-8 text-white/80" />
                         <div className="flex-1 text-right">
-                          <span className="text-lg sm:text-xl font-bold text-white block">₹{((analytics.totalRevenue || 0) / 100000).toFixed(1)}L</span>
+                          <span className="text-lg sm:text-xl font-bold text-white block">₹{Number(analytics.totalRevenue || 0).toLocaleString()}</span>
                         </div>
                       </div>
                       <p className="text-white/90 font-medium text-sm">Total Revenue</p>
@@ -698,7 +813,7 @@ export default function DairyDetails() {
                               </div>
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Volume</p>
-                                <p className="text-sm font-bold text-green-600 dark:text-green-400">{Number(dairyData.topPerformers.societies[0].totalQuantity || 0).toFixed(0)}L</p>
+                                <p className="text-sm font-bold text-green-600 dark:text-green-400">{Number(dairyData.topPerformers.societies[0].totalQuantity || 0).toLocaleString()}L</p>
                               </div>
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Avg Fat</p>
@@ -729,7 +844,7 @@ export default function DairyDetails() {
                               </div>
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Volume</p>
-                                <p className="text-sm font-bold text-red-600 dark:text-red-400">{Number(dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1].totalQuantity || 0).toFixed(0)}L</p>
+                                <p className="text-sm font-bold text-red-600 dark:text-red-400">{Number(dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1].totalQuantity || 0).toLocaleString()}L</p>
                               </div>
                               <div>
                                 <p className="text-xs text-gray-600 dark:text-gray-400">Avg Fat</p>
@@ -1092,13 +1207,37 @@ export default function DairyDetails() {
                         Phone Number
                       </label>
                       {isEditing ? (
-                        <input
-                          type="tel"
-                          value={editFormData.phone}
-                          onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                          placeholder="Enter phone number"
-                        />
+                        <div>
+                          <input
+                            type="tel"
+                            value={editFormData.phone}
+                            onChange={(e) => {
+                              const formatted = formatPhoneInput(e.target.value);
+                              setEditFormData({ ...editFormData, phone: formatted });
+                              if (validationErrors.phone) {
+                                setValidationErrors({ ...validationErrors, phone: undefined });
+                              }
+                            }}
+                            onBlur={() => {
+                              if (editFormData.phone) {
+                                const error = validatePhoneOnBlur(editFormData.phone);
+                                setValidationErrors({ ...validationErrors, phone: error || undefined });
+                              }
+                            }}
+                            maxLength={10}
+                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
+                              validationErrors.phone
+                                ? 'border-red-500 dark:border-red-500'
+                                : 'border-gray-300 dark:border-gray-600'
+                            }`}
+                            placeholder="Enter 10-digit phone number"
+                          />
+                          {validationErrors.phone && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                              {validationErrors.phone}
+                            </p>
+                          )}
+                        </div>
                       ) : (
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.phone || 'N/A'}</p>
@@ -1112,13 +1251,35 @@ export default function DairyDetails() {
                         Email
                       </label>
                       {isEditing ? (
-                        <input
-                          type="email"
-                          value={editFormData.email}
-                          onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                          placeholder="Enter email"
-                        />
+                        <div>
+                          <input
+                            type="email"
+                            value={editFormData.email}
+                            onChange={(e) => {
+                              setEditFormData({ ...editFormData, email: e.target.value });
+                              if (validationErrors.email) {
+                                setValidationErrors({ ...validationErrors, email: undefined });
+                              }
+                            }}
+                            onBlur={() => {
+                              if (editFormData.email) {
+                                const error = validateEmailQuick(editFormData.email);
+                                setValidationErrors({ ...validationErrors, email: error || undefined });
+                              }
+                            }}
+                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
+                              validationErrors.email
+                                ? 'border-red-500 dark:border-red-500'
+                                : 'border-gray-300 dark:border-gray-600'
+                            }`}
+                            placeholder="Enter email"
+                          />
+                          {validationErrors.email && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                              {validationErrors.email}
+                            </p>
+                          )}
+                        </div>
                       ) : (
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.email || 'N/A'}</p>
@@ -1458,6 +1619,21 @@ export default function DairyDetails() {
         onConfirm={handleConfirmDelete}
         itemName={dairyData?.dairy.name || 'this dairy'}
         itemType="Dairy"
+      />
+
+      {/* Transfer BMCs Modal */}
+      <TransferBMCsModal
+        isOpen={showTransferModal}
+        onClose={() => {
+          setShowTransferModal(false);
+          setBmcsForTransfer([]);
+        }}
+        onConfirm={handleTransferAndDelete}
+        bmcs={bmcsForTransfer}
+        dairies={allDairies}
+        dairyName={dairyData?.dairy.name || ''}
+        currentDairyId={dairyData?.dairy.id || 0}
+        adminEmail={user?.email || ''}
       />
 
       {/* BMCs Navigation Confirmation Modal */}

@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getModels } from '@/models';
 import { generateOTP, sendOTPEmail } from '@/lib/emailService';
-import { validateEmailAlive } from '@/lib/emailValidation';
 import { createErrorResponse, createSuccessResponse, validateRequiredFields } from '@/middleware/auth';
 import { connectDB } from '@/lib/database';
 import { UserRole, UserStatus } from '@/models/User';
@@ -23,24 +22,6 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       const missingFields = validation.missing?.join(', ') || 'Required fields missing';
       return createErrorResponse(`Missing required fields: ${missingFields}`, 400);
-    }
-
-    // Validate email alive (deliverable)
-    const emailValidation = await validateEmailAlive(email);
-    if (!emailValidation.isValid) {
-      return createErrorResponse(`Invalid email: ${emailValidation.error || 'Email format is invalid'}`, 400);
-    }
-    
-    if (!emailValidation.isDeliverable) {
-      if (emailValidation.suggestion) {
-        return createErrorResponse(`Email domain cannot receive emails. Did you mean: ${emailValidation.suggestion}?`, 400);
-      }
-      return createErrorResponse('Email domain cannot receive emails. Please use a valid email address.', 400);
-    }
-
-    // Optional: Warning for free email domains (but allow registration)
-    if (emailValidation.isFree) {
-      console.log(`⚠️ User registering with free email domain: ${email}`);
     }
 
     // Validate role hierarchy
