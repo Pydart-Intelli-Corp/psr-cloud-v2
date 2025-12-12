@@ -624,10 +624,11 @@ function MachineManagement() {
     }
   }, [societyFilter, machineFilter, machines]);
 
-  // Read URL parameters and initialize society filter on mount
+  // Read URL parameters and initialize filters on mount
   useEffect(() => {
     const societyId = searchParams.get('societyId');
     const societyName = searchParams.get('societyName');
+    const dairyFilterParam = searchParams.get('dairyFilter');
     
     if (societyId && !societyFilter.includes(societyId)) {
       setSocietyFilter([societyId]);
@@ -636,6 +637,11 @@ function MachineManagement() {
       if (societyName) {
         setSuccess(`Filter Applied: ${decodeURIComponent(societyName)}`);
       }
+    }
+    
+    if (dairyFilterParam && !dairyFilter.includes(dairyFilterParam)) {
+      setDairyFilter([dairyFilterParam]);
+      setSuccess('Filter Applied: Dairy');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount

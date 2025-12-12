@@ -16,15 +16,16 @@ import {
   Activity,
   Trash2,
   Building2,
-  Users,
   TrendingUp,
   BarChart3,
   AlertCircle,
-  CheckCircle,
-  Clock,
   X,
   RefreshCw,
-  Edit3
+  Edit3,
+  Eye,
+  Award,
+  Clock,
+  Users
 } from 'lucide-react';
 import { 
   FlowerSpinner,
@@ -211,12 +212,24 @@ export default function DairyDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'bmcs' | 'societies' | 'farmers' | 'machines' | 'collections' | 'analytics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'details'>('overview');
+  const [isEditing, setIsEditing] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    location: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    status: 'active' as 'active' | 'inactive' | 'maintenance'
+  });
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [showBmcsNavigateConfirm, setShowBmcsNavigateConfirm] = useState(false);
   const [showSocietiesNavigateConfirm, setShowSocietiesNavigateConfirm] = useState(false);
+  const [showMachinesNavigateConfirm, setShowMachinesNavigateConfirm] = useState(false);
+  const [showFarmersNavigateConfirm, setShowFarmersNavigateConfirm] = useState(false);
   const [formData, setFormData] = useState<DairyFormData>({
     name: '',
     dairyId: '',
@@ -266,26 +279,6 @@ export default function DairyDetails() {
       setLoading(false);
     }
   }, [dairyId, router]);
-
-  // Open edit modal
-  const handleEditClick = () => {
-    if (!dairyData?.dairy) return;
-    
-    const dairy = dairyData.dairy;
-    setFormData({
-      name: dairy.name,
-      dairyId: dairy.dairyId,
-      password: '', // Don't populate password for security
-      location: dairy.location || '',
-      contactPerson: dairy.contactPerson || '',
-      phone: dairy.phone || '',
-      email: dairy.email || '',
-      capacity: dairy.capacity?.toString() || '',
-      status: dairy.status || 'active',
-      monthlyTarget: dairy.monthlyTarget?.toString() || ''
-    });
-    setShowEditForm(true);
-  };
 
   // Update dairy
   const handleUpdateDairy = async (e: React.FormEvent) => {
@@ -441,6 +434,7 @@ export default function DairyDetails() {
   const analytics = dairyData.analytics;
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 lg:pb-8">
       {/* Header - Mobile Responsive */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -497,12 +491,7 @@ export default function DairyDetails() {
             <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-gray-700 min-w-max sm:min-w-0">
               {[
                 { id: 'overview' as const, label: t.dashboard.overview, icon: Building2 },
-                { id: 'bmcs' as const, label: 'BMCs', icon: Building2 },
-                { id: 'societies' as const, label: 'Societies', icon: Users },
-                { id: 'farmers' as const, label: 'Farmers', icon: User },
-                { id: 'machines' as const, label: 'Machines', icon: Activity },
-                { id: 'collections' as const, label: 'Collections', icon: Milk },
-                { id: 'analytics' as const, label: t.nav.analytics, icon: BarChart3 }
+                { id: 'details' as const, label: 'Details', icon: Activity }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -530,592 +519,677 @@ export default function DairyDetails() {
         </div>
 
         {/* Content - Responsive Padding */}
-        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-          {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-              {/* Main Content - 2/3 width on desktop */}
-              <div className="lg:col-span-2 space-y-4 sm:space-y-6">
-                {/* Statistics Grid - 4 gradient cards in 2x2 */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div 
-                    className={`bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white transition-all ${
-                      analytics.totalBmcs > 0 ? 'cursor-pointer hover:shadow-xl hover:scale-105 active:scale-95' : 'opacity-60 cursor-not-allowed'
-                    }`}
-                    onClick={() => analytics.totalBmcs > 0 && setShowBmcsNavigateConfirm(true)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-blue-100">Total Collections (30d)</p>
-                        <p className="text-2xl sm:text-3xl font-bold mt-1">{analytics.totalCollections?.toLocaleString() || 0}</p>
-                        <p className="text-xs sm:text-sm text-blue-100 mt-1">{analytics.totalBmcs > 0 ? '• Click to view BMCs' : 'No BMCs connected'}</p>
-                      </div>
-                      <Milk className="w-10 h-10 sm:w-12 sm:h-12 text-blue-100 flex-shrink-0" />
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-green-100">Total Volume (30d)</p>
-                        <p className="text-2xl sm:text-3xl font-bold mt-1">{analytics.totalQuantity?.toLocaleString() || 0}L</p>
-                        <p className="text-xs sm:text-sm text-green-100 mt-1">Milk collected</p>
-                      </div>
-                      <TrendingUp className="w-10 h-10 sm:w-12 sm:h-12 text-green-100 flex-shrink-0" />
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-orange-100">Total Revenue (30d)</p>
-                        <p className="text-2xl sm:text-3xl font-bold mt-1">₹{analytics.totalRevenue?.toLocaleString() || 0}</p>
-                        <p className="text-xs sm:text-sm text-orange-100 mt-1">Avg: ₹{analytics.avgRate?.toFixed(2) || 0}/L</p>
-                      </div>
-                      <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12 text-orange-100 flex-shrink-0" />
-                    </div>
-                  </div>
-
-                  <div 
-                    className={`bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 text-white transition-all ${
-                      analytics.totalSocieties > 0 ? 'cursor-pointer hover:shadow-xl hover:scale-105 active:scale-95' : 'opacity-60 cursor-not-allowed'
-                    }`}
-                    onClick={() => analytics.totalSocieties > 0 && setShowSocietiesNavigateConfirm(true)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-purple-100">Connected Societies</p>
-                        <p className="text-2xl sm:text-3xl font-bold mt-1">{analytics.totalSocieties || 0}</p>
-                        <p className="text-xs sm:text-sm text-purple-100 mt-1">{analytics.totalSocieties > 0 ? '• Click to view' : 'No societies'}</p>
-                      </div>
-                      <Users className="w-10 h-10 sm:w-12 sm:h-12 text-purple-100 flex-shrink-0" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dairy Information */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.dairyManagement.dairyDetails}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Column 1: Basic Info */}
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <Milk className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-600 dark:text-gray-400">Dairy ID</p>
-                          <p className="font-semibold text-sm text-gray-900 dark:text-white break-words">{dairy.dairyId}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="p-4 sm:p-6">
+            <AnimatePresence mode="wait">
+              {activeTab === 'overview' && (
+                <motion.div
+                  key="overview"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4 sm:space-y-6"
+                >
+                  {/* Comprehensive Statistics Grid - 30 Day Metrics */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {/* Total Collections */}
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <Milk className="w-8 h-8 text-white/80" />
+                        <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                          <span className="text-2xl font-bold text-white">{analytics.totalCollections || 0}</span>
                         </div>
                       </div>
-
-                      {dairy.capacity && (
-                        <div className="flex items-start gap-3">
-                          <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dashboard.capacity}</p>
-                            <p className="font-semibold text-sm text-gray-900 dark:text-white">{dairy.capacity.toLocaleString()} Liters</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {dairy.monthlyTarget && dairy.monthlyTarget > 0 && (
-                        <div className="flex items-start gap-3">
-                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">Monthly Target</p>
-                            <p className="font-semibold text-sm text-gray-900 dark:text-white">{dairy.monthlyTarget.toLocaleString()} Liters</p>
-                          </div>
-                        </div>
-                      )}
+                      <p className="text-white/90 font-medium text-sm">Collections</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
                     </div>
 
-                    {/* Column 2: Contact Info */}
-                    <div className="space-y-3">
-                      {dairy.location && (
-                        <div className="flex items-start gap-3">
-                          <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.location}</p>
-                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-words">{dairy.location}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {dairy.contactPerson && (
-                        <div className="flex items-start gap-3">
-                          <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.contactPerson}</p>
-                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-words">{dairy.contactPerson}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {dairy.phone && (
-                        <div className="flex items-start gap-3">
-                          <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.phone}</p>
-                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-all">{dairy.phone}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {dairy.email && (
-                        <div className="flex items-start gap-3">
-                          <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{t.dairyManagement.email}</p>
-                            <p className="font-semibold text-sm text-gray-900 dark:text-white break-all">{dairy.email}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quality Metrics */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Quality Metrics (30 Days)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                    <div className="text-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg FAT</p>
-                      <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-500">{analytics.avgFat?.toFixed(2) || '0.00'}%</p>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg SNF</p>
-                      <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-500">{analytics.avgSnf?.toFixed(2) || '0.00'}%</p>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total BMCs</p>
-                      <p className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-500">{analytics.totalBmcs || 0}</p>
-                    </div>
-                    <div className="text-center p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Farmers</p>
-                      <p className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-500">{analytics.totalFarmers || 0}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sidebar - 1/3 width on desktop */}
-              <div className="lg:col-span-1">
-                <div className="sticky top-4 space-y-4 sm:space-y-6">
-                  {/* Timeline */}
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Timeline</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-600 dark:text-gray-400">{t.common.createdAt}</p>
-                          <p className="font-medium text-sm text-gray-900 dark:text-white">{new Date(dairy.createdAt).toLocaleDateString()}</p>
+                    {/* Total Quantity */}
+                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <TrendingUp className="w-8 h-8 text-white/80" />
+                        <div className="flex-1 text-right">
+                          <span className="text-xl sm:text-2xl font-bold text-white block">{Number(analytics.totalQuantity || 0).toFixed(0)} L</span>
                         </div>
                       </div>
-                      {dairy.lastActivity && (
-                        <div className="flex items-start gap-3">
-                          <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 dark:text-gray-500 mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-600 dark:text-gray-400">Last Activity</p>
-                            <p className="font-medium text-sm text-gray-900 dark:text-white">{new Date(dairy.lastActivity).toLocaleString()}</p>
-                          </div>
+                      <p className="text-white/90 font-medium text-sm">Volume</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                    </div>
+
+                    {/* Total Revenue */}
+                    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <BarChart3 className="w-8 h-8 text-white/80" />
+                        <div className="flex-1 text-right">
+                          <span className="text-lg sm:text-xl font-bold text-white block">₹{((analytics.totalRevenue || 0) / 100000).toFixed(1)}L</span>
                         </div>
+                      </div>
+                      <p className="text-white/90 font-medium text-sm">Total Revenue</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                    </div>
+
+                    {/* Average Rate */}
+                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <Award className="w-8 h-8 text-white/80" />
+                        <div className="flex-1 text-right">
+                          <span className="text-xl sm:text-2xl font-bold text-white block">₹{Number(analytics.avgRate || 0).toFixed(2)}/L</span>
+                        </div>
+                      </div>
+                      <p className="text-white/90 font-medium text-sm">Avg Rate</p>
+                      <p className="text-white/70 text-xs mt-1">Last 30 days</p>
+                    </div>
+                  </div>
+
+                  {/* Hierarchy Stats - BMCs, Societies, Machines and Farmers */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* BMCs Section */}
+                    <div 
+                      onClick={() => (analytics.totalBmcs || 0) > 0 && setShowBmcsNavigateConfirm(true)}
+                      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 transition-all ${
+                        (analytics.totalBmcs || 0) > 0 ? 'cursor-pointer hover:shadow-md hover:border-purple-300 dark:hover:border-purple-600' : 'cursor-default'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                            <Building2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white">BMCs</h3>
+                        </div>
+                        <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">{analytics.totalBmcs || 0}</span>
+                      </div>
+                      {(analytics.totalBmcs || 0) > 0 && (
+                        <p className="text-xs text-purple-600 dark:text-purple-400">Click to view all BMCs →</p>
+                      )}
+                    </div>
+
+                    {/* Societies Section */}
+                    <div 
+                      onClick={() => (analytics.totalSocieties || 0) > 0 && setShowSocietiesNavigateConfirm(true)}
+                      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 transition-all ${
+                        (analytics.totalSocieties || 0) > 0 ? 'cursor-pointer hover:shadow-md hover:border-pink-300 dark:hover:border-pink-600' : 'cursor-default'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 bg-pink-100 dark:bg-pink-900/30 rounded-lg">
+                            <Building2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                          </div>
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Societies</h3>
+                        </div>
+                        <span className="text-2xl font-bold text-pink-600 dark:text-pink-400">{analytics.totalSocieties || 0}</span>
+                      </div>
+                      {(analytics.totalSocieties || 0) > 0 && (
+                        <p className="text-xs text-pink-600 dark:text-pink-400">Click to view all societies →</p>
+                      )}
+                    </div>
+
+                    {/* Machines Section */}
+                    <div 
+                      onClick={() => (analytics.totalMachines || 0) > 0 && setShowMachinesNavigateConfirm(true)}
+                      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 transition-all ${
+                        (analytics.totalMachines || 0) > 0 ? 'cursor-pointer hover:shadow-md hover:border-cyan-300 dark:hover:border-cyan-600' : 'cursor-default'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                            <Activity className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                          </div>
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Machines</h3>
+                        </div>
+                        <span className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{analytics.totalMachines || 0}</span>
+                      </div>
+                      {(analytics.totalMachines || 0) > 0 && (
+                        <p className="text-xs text-cyan-600 dark:text-cyan-400">Click to view all machines →</p>
+                      )}
+                    </div>
+
+                    {/* Farmers Section (new) */}
+                    <div 
+                      onClick={() => (analytics.totalFarmers || 0) > 0 && setShowFarmersNavigateConfirm(true)}
+                      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 transition-all ${
+                        (analytics.totalFarmers || 0) > 0 ? 'cursor-pointer hover:shadow-md hover:border-cyan-300 dark:hover:border-cyan-600' : 'cursor-default'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                            <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                          </div>
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Farmers</h3>
+                        </div>
+                        <span className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{analytics.totalFarmers || 0}</span>
+                      </div>
+                      {(analytics.totalFarmers || 0) > 0 && (
+                        <p className="text-xs text-cyan-600 dark:text-cyan-400">Click to view all farmers →</p>
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {activeTab === 'bmcs' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">BMCs ({dairyData.bmcs.length})</h3>
-              {dairyData.bmcs.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">BMC ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Societies</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Farmers</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collections (30d)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {dairyData.bmcs.map((bmc) => (
-                        <tr key={bmc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{bmc.bmcId}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{bmc.name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{bmc.location || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{bmc.societyCount}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{bmc.farmerCount}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{bmc.totalCollections?.toLocaleString()}L</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(bmc.status)}`}>
-                              {bmc.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Building2 className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400">No BMCs found</p>
-                </div>
-              )}
-            </div>
-          )}
+                  {/* Top & Bottom Performers - Societies */}
+                  {dairyData?.topPerformers?.societies && dairyData.topPerformers.societies.length > 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                        <Award className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                        Society Performance (Last 30 Days)
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Best Society */}
+                        {dairyData.topPerformers.societies[0] && (
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-green-500 rounded-lg">
+                                  <Award className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-green-700 dark:text-green-400">Best Society</p>
+                                  <p className="text-sm font-bold text-gray-900 dark:text-white">{dairyData.topPerformers.societies[0].name}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Collections</p>
+                                <p className="text-sm font-bold text-green-600 dark:text-green-400">{dairyData.topPerformers.societies[0].collections}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Volume</p>
+                                <p className="text-sm font-bold text-green-600 dark:text-green-400">{Number(dairyData.topPerformers.societies[0].totalQuantity || 0).toFixed(0)}L</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg Fat</p>
+                                <p className="text-sm font-bold text-green-600 dark:text-green-400">{Number(dairyData.topPerformers.societies[0].avgFat || 0).toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-          {activeTab === 'societies' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Societies ({dairyData.societies.length})</h3>
-              {dairyData.societies.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Society ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">BMC</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Farmers</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collections (30d)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {dairyData.societies.map((society) => (
-                        <tr key={society.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{society.societyId}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{society.name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{society.bmcName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{society.contactPerson || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{society.farmerCount}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{society.totalCollections?.toLocaleString()}L</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(society.status)}`}>
-                              {society.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400">No societies found</p>
-                </div>
-              )}
-            </div>
-          )}
+                        {/* Worst Society */}
+                        {dairyData.topPerformers.societies.length > 1 && dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1] && (
+                          <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-red-500 rounded-lg">
+                                  <TrendingUp className="w-4 h-4 text-white rotate-180" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-red-700 dark:text-red-400">Needs Attention</p>
+                                  <p className="text-sm font-bold text-gray-900 dark:text-white">{dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1].name}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Collections</p>
+                                <p className="text-sm font-bold text-red-600 dark:text-red-400">{dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1].collections}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Volume</p>
+                                <p className="text-sm font-bold text-red-600 dark:text-red-400">{Number(dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1].totalQuantity || 0).toFixed(0)}L</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg Fat</p>
+                                <p className="text-sm font-bold text-red-600 dark:text-red-400">{Number(dairyData.topPerformers.societies[dairyData.topPerformers.societies.length - 1].avgFat || 0).toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-          {activeTab === 'farmers' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top Farmers ({dairyData.farmers.length})</h3>
-              {dairyData.farmers.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Farmer ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Society</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">BMC</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collections</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Qty</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg FAT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg SNF</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {dairyData.farmers.map((farmer) => (
-                        <tr key={farmer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{farmer.farmerId}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{farmer.name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{farmer.societyName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{farmer.bmcName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{farmer.totalCollections}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{farmer.totalQuantity?.toLocaleString()}L</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{farmer.avgFat?.toFixed(2)}%</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{farmer.avgSnf?.toFixed(2)}%</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(farmer.status)}`}>
-                              {farmer.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <User className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400">No farmers found</p>
-                </div>
-              )}
-            </div>
-          )}
+                  {/* Main Content Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                    {/* Left Column - Dairy Info & Quality Metrics */}
+                    <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+                      {/* Dairy Information Card */}
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                          <Milk className="w-5 h-5 text-green-600 dark:text-green-400" />
+                          Dairy Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Basic Information */}
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                              <Milk className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Dairy ID</p>
+                                <p className="font-medium text-sm text-gray-900 dark:text-white font-mono break-words">{dairy.dairyId}</p>
+                              </div>
+                            </div>
 
-          {activeTab === 'machines' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Machines ({dairyData.machines.length})</h3>
-              {dairyData.machines.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Machine ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Society</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">BMC</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Master</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collections (30d)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Collection</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {dairyData.machines.map((machine) => (
-                        <tr key={machine.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{machine.machineId}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{machine.machineType}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{machine.societyName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{machine.bmcName}</td>
-                          <td className="px-4 py-3">
-                            {machine.isMasterMachine ? (
-                              <CheckCircle className="w-5 h-5 text-green-500" />
-                            ) : (
-                              <X className="w-5 h-5 text-gray-400" />
+                            {dairy.capacity && (
+                              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <Activity className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">Capacity</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white">{dairy.capacity.toLocaleString()} L</p>
+                                </div>
+                              </div>
                             )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{machine.totalCollections}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {machine.lastCollection ? new Date(machine.lastCollection).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(machine.status)}`}>
-                              {machine.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Activity className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400">No machines found</p>
-                </div>
-              )}
-            </div>
-          )}
 
-          {activeTab === 'collections' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Collections ({dairyData.collections.length})</h3>
-              {dairyData.collections.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Shift</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Farmer</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Society</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">FAT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">SNF</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rate</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {dairyData.collections.map((collection) => (
-                        <tr key={collection.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                            {new Date(collection.collectionDate).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{collection.shift}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            {collection.farmerName}
-                            <div className="text-xs text-gray-500">{collection.farmerId}</div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{collection.societyName}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{collection.quantity}L</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{collection.fat?.toFixed(2)}%</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{collection.snf?.toFixed(2)}%</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">₹{collection.rate?.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">₹{collection.totalAmount?.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Milk className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-600 dark:text-gray-400">No collections found</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'analytics' && (
-            <div className="space-y-4 sm:space-y-6">
-              {/* Quality Metrics */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Quality Metrics (30 Days)</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Average FAT</p>
-                    <p className="text-3xl font-bold text-green-600 dark:text-green-500 mt-2">{analytics.avgFat?.toFixed(2) || '0.00'}%</p>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Average SNF</p>
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-500 mt-2">{analytics.avgSnf?.toFixed(2) || '0.00'}%</p>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Average Rate</p>
-                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-500 mt-2">₹{analytics.avgRate?.toFixed(2) || '0.00'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Daily Trends */}
-              {dairyData.trends.daily.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Daily Collection Trends (Last 7 Days)</h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-700">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collections</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity (L)</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Revenue</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg FAT</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Avg SNF</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        {dairyData.trends.daily.map((trend, index) => (
-                          <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{new Date(trend.date).toLocaleDateString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{trend.collections}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{trend.quantity?.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">₹{trend.revenue?.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{trend.avgFat?.toFixed(2)}%</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{trend.avgSnf?.toFixed(2)}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Shift Analysis */}
-              {dairyData.trends.byShift.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Shift-wise Analysis (30 Days)</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {dairyData.trends.byShift.map((shift, index) => (
-                      <div key={index} className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-gray-900 dark:text-gray-100">{shift.shift}</span>
-                          <Clock className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                        </div>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Collections:</span>
-                            <span className="font-semibold text-gray-900 dark:text-gray-100">{shift.collections}</span>
+                            {dairy.monthlyTarget && dairy.monthlyTarget > 0 && (
+                              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <TrendingUp className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">Monthly Target</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white">{dairy.monthlyTarget.toLocaleString()} L</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Quantity:</span>
-                            <span className="font-semibold text-gray-900 dark:text-gray-100">{shift.quantity?.toLocaleString()}L</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Avg FAT:</span>
-                            <span className="font-semibold text-gray-900 dark:text-gray-100">{shift.avgFat?.toFixed(2)}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Avg SNF:</span>
-                            <span className="font-semibold text-gray-900 dark:text-gray-100">{shift.avgSnf?.toFixed(2)}%</span>
+
+                          {/* Contact & Location */}
+                          <div className="space-y-3">
+                            {dairy.location && (
+                              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <MapPin className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">Location</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white break-words">{dairy.location}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {dairy.contactPerson && (
+                              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <User className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">Contact Person</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white break-words">{dairy.contactPerson}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {dairy.phone && (
+                              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <Phone className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">Contact Phone</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white break-words">{dairy.phone}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {dairy.email && (
+                              <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <Mail className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">Email</p>
+                                  <p className="font-medium text-sm text-gray-900 dark:text-white break-words">{dairy.email}</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    ))}
+
+                      {/* Quality Metrics - 30 Days */}
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                          <Award className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                          Quality Metrics (Last 30 Days)
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                          {/* Fat */}
+                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                                <Eye className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg Fat %</p>
+                                <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(analytics.avgFat || 0).toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* SNF */}
+                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                                <Award className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Avg SNF %</p>
+                                <p className="text-lg font-bold text-gray-900 dark:text-white">{Number(analytics.avgSnf || 0).toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column - Timeline & Status */}
+                    <div className="space-y-4 sm:space-y-6">
+                      {/* Timeline */}
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                          Timeline
+                        </h3>
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <Calendar className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-gray-600 dark:text-gray-400">Created At</p>
+                              <p className="font-medium text-sm text-gray-900 dark:text-white">{new Date(dairy.createdAt).toLocaleString()}</p>
+                            </div>
+                          </div>
+
+                          {dairy.lastActivity && (
+                            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                              <Activity className="w-5 h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-600 dark:text-gray-400">Last Activity</p>
+                                <p className="font-medium text-sm text-gray-900 dark:text-white">{new Date(dairy.lastActivity).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
-              {/* Top Performers */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                {/* Top Farmers */}
-                {dairyData.topPerformers.farmers.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top 10 Farmers (30 Days)</h3>
-                    <div className="space-y-3">
-                      {dairyData.topPerformers.farmers.slice(0, 10).map((farmer, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-full font-bold text-sm">
-                              {index + 1}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{farmer.name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{farmer.farmerId} • {farmer.societyName}</p>
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0 ml-4">
-                            <p className="font-bold text-gray-900 dark:text-gray-100">{farmer.totalQuantity?.toLocaleString()}L</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{farmer.collections} collections</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              {activeTab === 'details' && (
+                <motion.div
+                  key="details"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+                <div className="space-y-6">
+                  {/* Header with Edit/Save buttons */}
+                  <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                      Dairy Details
+                    </h3>
+                    <div className="flex gap-2">
+                      {isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditing(false);
+                              setEditFormData({
+                                name: dairyData.dairy.name,
+                                location: dairyData.dairy.location || '',
+                                contactPerson: dairyData.dairy.contactPerson || '',
+                                phone: dairyData.dairy.phone || '',
+                                email: dairyData.dairy.email || '',
+                                status: dairyData.dairy.status
+                              });
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                setSaveLoading(true);
+                                setError('');
+                                const token = localStorage.getItem('authToken');
+                                if (!token) {
+                                  router.push('/login');
+                                  return;
+                                }
 
-                {/* Top Societies */}
-                {dairyData.topPerformers.societies.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top 10 Societies (30 Days)</h3>
-                    <div className="space-y-3">
-                      {dairyData.topPerformers.societies.slice(0, 10).map((society, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full font-bold text-sm">
-                              {index + 1}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{society.name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{society.societyId} • {society.bmcName}</p>
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0 ml-4">
-                            <p className="font-bold text-gray-900 dark:text-gray-100">{society.totalQuantity?.toLocaleString()}L</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{society.farmerCount} farmers</p>
-                          </div>
-                        </div>
-                      ))}
+                                const updateData = {
+                                  id: dairyData.dairy.id,
+                                  name: editFormData.name,
+                                  location: editFormData.location,
+                                  contactPerson: editFormData.contactPerson,
+                                  phone: editFormData.phone,
+                                  email: editFormData.email,
+                                  status: editFormData.status
+                                };
+
+                                const response = await fetch('/api/user/dairy', {
+                                  method: 'PUT',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                  body: JSON.stringify(updateData),
+                                });
+
+                                const data = await response.json();
+
+                                if (response.ok) {
+                                  setSuccess('Dairy details updated successfully!');
+                                  setIsEditing(false);
+                                  fetchDairyDetails();
+                                  setTimeout(() => setSuccess(''), 3000);
+                                } else {
+                                  setError(data.message || 'Failed to update dairy details');
+                                  setTimeout(() => setError(''), 5000);
+                                }
+                              } catch (err) {
+                                console.error('Error updating dairy:', err);
+                                setError('Failed to update dairy details. Please try again.');
+                                setTimeout(() => setError(''), 5000);
+                              } finally {
+                                setSaveLoading(false);
+                              }
+                            }}
+                            disabled={saveLoading}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            {saveLoading ? 'Saving...' : 'Save Changes'}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditFormData({
+                              name: dairyData.dairy.name,
+                              location: dairyData.dairy.location || '',
+                              contactPerson: dairyData.dairy.contactPerson || '',
+                              phone: dairyData.dairy.phone || '',
+                              email: dairyData.dairy.email || '',
+                              status: dairyData.dairy.status
+                            });
+                            setIsEditing(true);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          Edit Details
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Dairy Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Dairy Name <span className="text-red-500">*</span>
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editFormData.name}
+                          onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                          placeholder="Enter dairy name"
+                          required
+                        />
+                      ) : (
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <p className="text-gray-900 dark:text-white">{dairyData.dairy.name}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dairy ID (Read-only) */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Dairy ID
+                      </label>
+                      <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-gray-600 dark:text-gray-400 font-mono">{dairyData.dairy.dairyId}</p>
+                      </div>
+                    </div>
+
+                    {/* Contact Person */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Contact Person
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editFormData.contactPerson}
+                          onChange={(e) => setEditFormData({ ...editFormData, contactPerson: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                          placeholder="Enter contact person"
+                        />
+                      ) : (
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <p className="text-gray-900 dark:text-white">{dairyData.dairy.contactPerson || 'N/A'}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Location
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editFormData.location}
+                          onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                          placeholder="Enter location"
+                        />
+                      ) : (
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <p className="text-gray-900 dark:text-white">{dairyData.dairy.location || 'N/A'}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Phone Number
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="tel"
+                          value={editFormData.phone}
+                          onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                          placeholder="Enter phone number"
+                        />
+                      ) : (
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <p className="text-gray-900 dark:text-white">{dairyData.dairy.phone || 'N/A'}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Email
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="email"
+                          value={editFormData.email}
+                          onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                          placeholder="Enter email"
+                        />
+                      ) : (
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <p className="text-gray-900 dark:text-white">{dairyData.dairy.email || 'N/A'}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Status
+                      </label>
+                      {isEditing ? (
+                        <select
+                          value={editFormData.status}
+                          onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as 'active' | 'inactive' | 'maintenance' })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                        >
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="maintenance">Maintenance</option>
+                        </select>
+                      ) : (
+                        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(dairyData.dairy.status)}`}>
+                            {dairyData.dairy.status}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Capacity */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Capacity (Liters)
+                      </label>
+                      <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-gray-600 dark:text-gray-400">{dairyData.dairy.capacity?.toLocaleString() || 'N/A'} L</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Additional Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Created</span>
+                        <span className="text-sm text-gray-900 dark:text-gray-100">{new Date(dairyData.dairy.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      {dairyData.dairy.monthlyTarget && (
+                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Monthly Target</span>
+                          <span className="text-sm text-gray-900 dark:text-gray-100">{dairyData.dairy.monthlyTarget.toLocaleString()} L</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Total BMCs</span>
+                        <span className="text-sm text-gray-900 dark:text-gray-100">{dairyData.bmcs.length}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
+      </div>
+
 
       {/* Status Messages */}
       <StatusMessage success={success} error={error} />
@@ -1413,6 +1487,34 @@ export default function DairyDetails() {
         title="Navigate to Societies"
         message={`You will be redirected to view all societies under ${dairyData?.dairy.name || 'this dairy'}. Any unsaved changes will be lost. Continue?`}
       />
-    </div>
+
+      {/* Machines Navigation Confirmation Modal */}
+      <NavigationConfirmModal
+        isOpen={showMachinesNavigateConfirm}
+        onClose={() => setShowMachinesNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowMachinesNavigateConfirm(false);
+          if (dairyData?.dairy.id) {
+            router.push(`/admin/machine?dairyFilter=${dairyData.dairy.id}`);
+          }
+        }}
+        title="Navigate to Machines"
+        message={`You will be redirected to view all machines under ${dairyData?.dairy.name || 'this dairy'}. Any unsaved changes will be lost. Continue?`}
+      />
+
+      {/* Farmers Navigation Confirmation Modal */}
+      <NavigationConfirmModal
+        isOpen={showFarmersNavigateConfirm}
+        onClose={() => setShowFarmersNavigateConfirm(false)}
+        onConfirm={() => {
+          setShowFarmersNavigateConfirm(false);
+          if (dairyData?.dairy.id) {
+            router.push(`/admin/farmer?dairyFilter=${dairyData.dairy.id}`);
+          }
+        }}
+        title="Navigate to Farmers"
+        message={`You will be redirected to view all farmers under ${dairyData?.dairy.name || 'this dairy'}. Any unsaved changes will be lost. Continue?`}
+      />
+    </>
   );
 }

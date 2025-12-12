@@ -165,8 +165,20 @@ export async function GET(
           b.name as bmcName,
           COUNT(DISTINCT mc.id) as totalCollections,
           COALESCE(SUM(mc.quantity), 0) as totalQuantity,
-          COALESCE(AVG(mc.fat), 0) as avgFat,
-          COALESCE(AVG(mc.snf), 0) as avgSnf
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgFat,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgSnf
         FROM \`${schemaName}\`.\`farmers\` f
         LEFT JOIN \`${schemaName}\`.\`societies\` s ON f.society_id = s.id
         LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
@@ -218,8 +230,8 @@ export async function GET(
           mc.collection_date as collectionDate,
           mc.shift,
           mc.quantity,
-          mc.fat,
-          mc.snf,
+          mc.fat_percentage as fat,
+          mc.snf_percentage as snf,
           mc.rate,
           mc.total_amount as totalAmount,
           f.name as farmerName,
@@ -240,37 +252,77 @@ export async function GET(
       console.error('[Dairy Details API] Error fetching collections:', error);
     }
 
-    // Get analytics data
+    // Get analytics data (using same structure as list API - WITHOUT farmers/machines joins)
     try {
       const [analyticsResult] = await sequelize.query(`
         SELECT 
           COUNT(DISTINCT b.id) as totalBmcs,
           COUNT(DISTINCT s.id) as totalSocieties,
-          COUNT(DISTINCT f.id) as totalFarmers,
-          COUNT(DISTINCT m.id) as totalMachines,
-          COUNT(DISTINCT mc.id) as totalCollections,
+          COALESCE(COUNT(DISTINCT mc.id), 0) as totalCollections,
           COALESCE(SUM(mc.quantity), 0) as totalQuantity,
           COALESCE(SUM(mc.total_amount), 0) as totalRevenue,
-          COALESCE(AVG(mc.fat), 0) as avgFat,
-          COALESCE(AVG(mc.snf), 0) as avgSnf,
-          COALESCE(AVG(mc.rate), 0) as avgRate
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgFat,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgSnf,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.total_amount) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgRate
         FROM \`${schemaName}\`.\`dairy_farms\` d
         LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON b.dairy_farm_id = d.id
         LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
-        LEFT JOIN \`${schemaName}\`.\`farmers\` f ON f.society_id = s.id
-        LEFT JOIN \`${schemaName}\`.\`machines\` m ON m.society_id = s.id
         LEFT JOIN \`${schemaName}\`.\`milk_collections\` mc ON mc.society_id = s.id
           AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         WHERE d.id = ?
       `, { replacements: [dairyId] });
 
+      console.log('[Dairy Details API] Raw analytics result:', JSON.stringify(analyticsResult, null, 2));
       analytics = (analyticsResult as Array<Record<string, unknown>>)[0] as typeof analytics;
-      console.log(`[Dairy Details API] Analytics: ${analytics.totalCollections} collections`);
+      
+      // Get farmer count separately to avoid JOIN issues
+      const [farmerCountResult] = await sequelize.query(`
+        SELECT COUNT(DISTINCT f.id) as totalFarmers
+        FROM \`${schemaName}\`.\`dairy_farms\` d
+        LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON b.dairy_farm_id = d.id
+        LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
+        LEFT JOIN \`${schemaName}\`.\`farmers\` f ON f.society_id = s.id
+        WHERE d.id = ?
+      `, { replacements: [dairyId] });
+      
+      // Get machine count separately
+      const [machineCountResult] = await sequelize.query(`
+        SELECT COUNT(DISTINCT m.id) as totalMachines
+        FROM \`${schemaName}\`.\`dairy_farms\` d
+        LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON b.dairy_farm_id = d.id
+        LEFT JOIN \`${schemaName}\`.\`societies\` s ON s.bmc_id = b.id
+        LEFT JOIN \`${schemaName}\`.\`machines\` m ON m.society_id = s.id
+        WHERE d.id = ?
+      `, { replacements: [dairyId] });
+      
+      analytics.totalFarmers = ((farmerCountResult as Array<Record<string, unknown>>)[0] as { totalFarmers: number }).totalFarmers || 0;
+      analytics.totalMachines = ((machineCountResult as Array<Record<string, unknown>>)[0] as { totalMachines: number }).totalMachines || 0;
+      
+      console.log('[Dairy Details API] Parsed analytics:', JSON.stringify(analytics, null, 2));
+      console.log(`[Dairy Details API] Analytics: ${analytics.totalCollections} collections, ${analytics.totalQuantity} L`);
     } catch (error) {
       console.error('[Dairy Details API] Error fetching analytics:', error);
     }
 
-    // Get daily collection trends (last 7 days)
+    // Get daily collection trends (last 7 days) - with weighted averages
     try {
       [dailyTrends] = await sequelize.query(`
         SELECT 
@@ -278,8 +330,20 @@ export async function GET(
           COUNT(DISTINCT mc.id) as collections,
           COALESCE(SUM(mc.quantity), 0) as quantity,
           COALESCE(SUM(mc.total_amount), 0) as revenue,
-          COALESCE(AVG(mc.fat), 0) as avgFat,
-          COALESCE(AVG(mc.snf), 0) as avgSnf
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgFat,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgSnf
         FROM \`${schemaName}\`.\`milk_collections\` mc
         LEFT JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
         LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
@@ -293,15 +357,27 @@ export async function GET(
       console.error('[Dairy Details API] Error fetching daily trends:', error);
     }
 
-    // Get shift-wise analysis
+    // Get shift-wise analysis (with weighted averages)
     try {
       [shiftAnalysis] = await sequelize.query(`
         SELECT 
           mc.shift,
           COUNT(DISTINCT mc.id) as collections,
           COALESCE(SUM(mc.quantity), 0) as quantity,
-          COALESCE(AVG(mc.fat), 0) as avgFat,
-          COALESCE(AVG(mc.snf), 0) as avgSnf
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgFat,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgSnf
         FROM \`${schemaName}\`.\`milk_collections\` mc
         LEFT JOIN \`${schemaName}\`.\`societies\` s ON mc.society_id = s.id
         LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
@@ -315,7 +391,7 @@ export async function GET(
       console.error('[Dairy Details API] Error fetching shift analysis:', error);
     }
 
-    // Get top performing farmers
+    // Get top performing farmers (with weighted averages)
     try {
       [topFarmers] = await sequelize.query(`
         SELECT 
@@ -325,8 +401,20 @@ export async function GET(
           COUNT(DISTINCT mc.id) as collections,
           COALESCE(SUM(mc.quantity), 0) as totalQuantity,
           COALESCE(SUM(mc.total_amount), 0) as totalRevenue,
-          COALESCE(AVG(mc.fat), 0) as avgFat,
-          COALESCE(AVG(mc.snf), 0) as avgSnf
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.fat_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgFat,
+          COALESCE(
+            CASE 
+              WHEN SUM(mc.quantity) > 0 
+              THEN ROUND(SUM(mc.snf_percentage * mc.quantity) / SUM(mc.quantity), 2)
+              ELSE 0 
+            END, 0
+          ) as avgSnf
         FROM \`${schemaName}\`.\`farmers\` f
         LEFT JOIN \`${schemaName}\`.\`societies\` s ON f.society_id = s.id
         LEFT JOIN \`${schemaName}\`.\`bmcs\` b ON s.bmc_id = b.id
