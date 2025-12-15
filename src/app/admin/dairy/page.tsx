@@ -454,12 +454,16 @@ export default function DairyManagement() {
     try {
       setIsDeleting(true);
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/dairy?id=${selectedDairy.id}&otp=${otp}`, {
+      const response = await fetch('/api/user/dairy', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          id: selectedDairy.id,
+          otp
+        })
       });
 
       if (response.ok) {

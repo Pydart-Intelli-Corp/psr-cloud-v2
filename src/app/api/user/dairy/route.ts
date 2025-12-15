@@ -377,6 +377,18 @@ export async function DELETE(request: NextRequest) {
           return createErrorResponse('New dairy ID is required for transfer', 400);
         }
 
+        // Verify OTP for transfer
+        if (!otp) {
+          return createErrorResponse('OTP is required for transfer operation', 400);
+        }
+
+        const { verifyDeleteOTP } = await import('./send-delete-otp/route');
+        const isValidOTP = verifyDeleteOTP(payload.id, id, otp);
+
+        if (!isValidOTP) {
+          return createErrorResponse('Invalid or expired OTP', 400);
+        }
+
         // Verify new dairy exists
         const [newDairy] = await sequelize.query(`
           SELECT id FROM \`${schemaName}\`.\`dairy_farms\` WHERE id = ?
