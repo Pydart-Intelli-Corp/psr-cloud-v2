@@ -97,6 +97,26 @@ const initialFormData: SocietyFormData = {
   status: 'active'
 };
 
+// Helper function to highlight matching text in search results
+const highlightText = (text: string | number | null | undefined, searchQuery: string) => {
+  if (!text && text !== 0) return text || '';
+  if (!searchQuery) return text;
+  
+  const textStr = text.toString();
+  const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = textStr.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+};
+
 export default function SocietyManagement() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -116,7 +136,7 @@ export default function SocietyManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<SocietyFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
-  const [searchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance' | 'suspended'>('all');
   const [dairyFilter, setDairyFilter] = useState<string[]>([]);
   const [bmcFilter, setBmcFilter] = useState<string[]>([]);
@@ -715,10 +735,13 @@ export default function SocietyManagement() {
 
   // Filter societies based on search term and status
   const filteredSocieties = societies.filter(society => {
-    const matchesSearch = society.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         society.societyId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         society.presidentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         society.location?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = searchQuery === '' ||
+                         society.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         society.societyId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         society.presidentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         society.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         society.contactPhone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         society.bmcName?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || society.status === statusFilter;
     
@@ -760,6 +783,17 @@ export default function SocietyManagement() {
     
     return () => clearInterval(pulseInterval);
   }, [fetchSocieties, fetchDairies, fetchBmcs, fetchPulseData, searchParams]);
+
+  // Listen for global search events from header
+  useEffect(() => {
+    const handleGlobalSearch = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const query = customEvent.detail?.query || '';
+      setSearchQuery(query);
+    };
+    window.addEventListener('globalSearch', handleGlobalSearch);
+    return () => window.removeEventListener('globalSearch', handleGlobalSearch);
+  }, []);
 
   // Don't render until user is loaded from context
   if (!user) {
@@ -941,7 +975,7 @@ export default function SocietyManagement() {
         machines={[]}
         filteredCount={filteredSocieties.length}
         totalCount={societies.length}
-        searchQuery={searchTerm}
+        searchQuery={searchQuery}
         hideMainFilterButton={true}
         hideSocietyFilter={true}
       />
@@ -982,8 +1016,8 @@ export default function SocietyManagement() {
                       <Building2 className="w-5 h-5 text-green-600 dark:text-green-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{society.name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{society.societyId}</p>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{highlightText(society.name, searchQuery)}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{highlightText(society.societyId, searchQuery)}</p>
                     </div>
                   </div>
                   <StatusDropdown
@@ -1026,11 +1060,11 @@ export default function SocietyManagement() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{society.presidentName || 'No President'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(society.presidentName || 'No President', searchQuery)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{society.contactPhone || 'No Phone'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(society.contactPhone || 'No Phone', searchQuery)}</span>
                   </div>
                 </div>
 
@@ -1038,11 +1072,11 @@ export default function SocietyManagement() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{society.location || 'No Location'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(society.location || 'No Location', searchQuery)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    <span className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">{society.bmcName || 'No BMC'}</span>
+                    <span className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">{highlightText(society.bmcName || 'No BMC', searchQuery)}</span>
                   </div>
                 </div>
 

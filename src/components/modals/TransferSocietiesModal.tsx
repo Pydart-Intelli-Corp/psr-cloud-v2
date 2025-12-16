@@ -120,36 +120,27 @@ export default function TransferSocietiesModal({
   const handleTransfer = async () => {
     if (!deleteAll && !selectedBmcId) return;
     
-    // If deleteAll is checked, require OTP
-    if (deleteAll) {
-      if (!otpSent) {
-        await sendOTP();
-        return;
-      }
-      
-      const otpCode = otp.join('');
-      if (otpCode.length !== 6) {
-        setOtpError('Please enter the 6-digit OTP');
-        return;
-      }
+    // Always require OTP for both transfer and delete-all
+    if (!otpSent) {
+      await sendOTP();
+      return;
+    }
+    
+    const otpCode = otp.join('');
+    if (otpCode.length !== 6) {
+      setOtpError('Please enter the 6-digit OTP');
+      return;
+    }
 
-      setIsTransferring(true);
-      try {
-        await onConfirm(selectedBmcId, deleteAll, otpCode);
-      } catch {
-        setOtpError('Invalid OTP. Please try again.');
-        setOtp(['', '', '', '', '', '']);
-        inputRefs.current[0]?.focus();
-      } finally {
-        setIsTransferring(false);
-      }
-    } else {
-      setIsTransferring(true);
-      try {
-        await onConfirm(selectedBmcId, deleteAll);
-      } finally {
-        setIsTransferring(false);
-      }
+    setIsTransferring(true);
+    try {
+      await onConfirm(selectedBmcId, deleteAll, otpCode);
+    } catch {
+      setOtpError('Invalid OTP. Please try again.');
+      setOtp(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -381,7 +372,7 @@ export default function TransferSocietiesModal({
               )}
 
               {/* OTP Input Section */}
-              {deleteAll && otpSent && showOtpInput && (
+              {otpSent && showOtpInput && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -393,7 +384,7 @@ export default function TransferSocietiesModal({
                       OTP Verification Required
                     </h4>
                     <p className="text-sm text-orange-800 dark:text-orange-200 mb-4">
-                      We&apos;ve sent a 6-digit OTP to your registered email. Please enter it below to confirm deletion.
+                      We&apos;ve sent a 6-digit OTP to your registered email. Please enter it below to confirm {deleteAll ? 'deletion' : 'transfer'}.
                     </p>
                     
                     {/* OTP Input Boxes */}
@@ -444,7 +435,7 @@ export default function TransferSocietiesModal({
                 </button>
                 <button
                   onClick={handleTransfer}
-                  disabled={(!selectedBmcId && !deleteAll) || isTransferring || (deleteAll && otpSent && otp.join('').length !== 6)}
+                  disabled={(!selectedBmcId && !deleteAll) || isTransferring || (otpSent && otp.join('').length !== 6)}
                   className={`flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                     deleteAll 
                       ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' 
@@ -456,24 +447,15 @@ export default function TransferSocietiesModal({
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       {deleteAll ? 'Deleting All...' : 'Transferring...'}
                     </>
-                  ) : deleteAll ? (
+                  ) : !otpSent ? (
                     <>
-                      {!otpSent ? (
-                        <>
-                          <Mail className="w-4 h-4" />
-                          Send OTP & Confirm Delete
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle className="w-4 h-4" />
-                          Verify OTP & Delete All
-                        </>
-                      )}
+                      <Mail className="w-4 h-4" />
+                      Send OTP to Confirm
                     </>
                   ) : (
                     <>
-                      <ArrowRight className="w-4 h-4" />
-                      Transfer & Delete BMC
+                      {deleteAll ? <AlertTriangle className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                      Verify OTP & {deleteAll ? 'Delete All' : 'Transfer'}
                     </>
                   )}
                 </button>

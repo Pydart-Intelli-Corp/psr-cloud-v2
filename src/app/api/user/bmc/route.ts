@@ -274,9 +274,9 @@ export async function DELETE(request: NextRequest) {
       return createErrorResponse('BMC ID is required', 400);
     }
 
-    // If deleteAll is true, OTP verification is required
-    if (deleteAll && !otp) {
-      return createErrorResponse('OTP verification required for complete deletion', 400, {
+    // OTP verification required for all BMC deletion operations (transfer or delete-all)
+    if (!otp) {
+      return createErrorResponse('OTP verification required for BMC deletion', 400, {
         requiresOTP: true
       });
     }
@@ -434,6 +434,16 @@ export async function DELETE(request: NextRequest) {
 
     // If newBmcId provided, transfer all societies
     if (newBmcId && societyCount > 0 && !deleteAll) {
+      // Verify OTP before transfer
+      const { verifyDeleteOTP } = await import('./send-delete-otp/route');
+      const isOtpValid = verifyDeleteOTP(payload.id, id, otp);
+      
+      if (!isOtpValid) {
+        return createErrorResponse('Invalid or expired OTP. Please request a new one.', 400);
+      }
+
+      console.log(`✅ OTP verified for BMC ${id} transfer operation`);
+
       // Verify new BMC exists
       const [newBMC] = await sequelize.query(`
         SELECT id, name FROM \`${schemaName}\`.\`bmcs\` WHERE id = ?
@@ -449,6 +459,18 @@ export async function DELETE(request: NextRequest) {
       `, { replacements: [newBmcId, id] });
 
       console.log(`✅ Transferred ${societyCount} societies from BMC ${id} to BMC ${newBmcId}`);
+    }
+
+    // Verify OTP before deleting BMC (for direct deletion without societies)
+    if (!deleteAll && !newBmcId && otp) {
+      const { verifyDeleteOTP } = await import('./send-delete-otp/route');
+      const isOtpValid = verifyDeleteOTP(payload.id, id, otp);
+      
+      if (!isOtpValid) {
+        return createErrorResponse('Invalid or expired OTP. Please request a new one.', 400);
+      }
+
+      console.log(`✅ OTP verified for BMC ${id} deletion`);
     }
 
     // Delete BMC from admin's schema

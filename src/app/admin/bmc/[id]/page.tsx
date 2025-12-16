@@ -33,11 +33,11 @@ import {
 import { 
   LoadingSpinner, 
   EmptyState, 
-  StatusMessage, 
-  ConfirmDeleteModal 
+  StatusMessage
 } from '@/components';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 import TransferSocietiesModal from '@/components/modals/TransferSocietiesModal';
+import DeleteBMCModal from '@/components/modals/DeleteBMCModal';
 import { validateIndianPhone, formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { validateEmailQuick } from '@/lib/emailValidation';
 
@@ -85,6 +85,7 @@ export default function BMCDetails() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'details'>('overview');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [societies, setSocieties] = useState<any[]>([]);
   const [availableBMCs, setAvailableBMCs] = useState<any[]>([]);
@@ -169,7 +170,7 @@ export default function BMCDetails() {
 
   // Fetch societies under this BMC
   const fetchSocieties = async () => {
-    if (!bmc) return;
+    if (!bmc) return [];
 
     try {
       const token = localStorage.getItem('authToken');
@@ -182,7 +183,7 @@ export default function BMCDetails() {
 
       if (response.ok) {
         const result = await response.json();
-        const bmcSocieties = result.data?.filter((s: any) => s.bmcId === bmc.id) || [];
+        const bmcSocieties = result.data?.filter((s: any) => s.bmc_id === bmc.id) || [];
         setSocieties(bmcSocieties);
         return bmcSocieties;
       }
@@ -215,45 +216,61 @@ export default function BMCDetails() {
     }
   };
 
-  // Initiate delete - check for societies first
+  // Open delete confirmation modal - check for societies first
   const handleDeleteBMC = async () => {
     if (!bmc) return;
-    setShowDeleteModal(false);
+
+    // Fetch societies for this BMC
+    const bmcSocieties = await fetchSocieties();
+    
+    if (bmcSocieties.length > 0) {
+      // Has societies - show transfer modal
+      await fetchAvailableBMCs();
+      setShowTransferModal(true);
+    } else {
+      // No societies - store BMC ID for OTP modal and show delete modal
+      (window as any).selectedBmcIdForDelete = bmc.id;
+      setShowDeleteModal(true);
+    }
+  };
+
+  // Delete BMC (no societies) with OTP verification
+  const handleConfirmDelete = async (otp: string) => {
+    if (!bmc) return;
 
     try {
+      setIsDeleting(true);
       const token = localStorage.getItem('authToken');
-      
-      // Try to delete without transfer first
       const response = await fetch('/api/user/bmc', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: bmc.id })
+        body: JSON.stringify({
+          id: bmc.id,
+          otp
+        })
       });
-
-      const result = await response.json();
 
       if (response.ok) {
         setSuccess('BMC deleted successfully! Redirecting...');
+        setShowDeleteModal(false);
         setTimeout(() => router.push('/admin/bmc'), 2000);
-      } else if (result.data?.hasSocieties) {
-        // Has societies - show transfer modal
-        const bmcSocieties = await fetchSocieties();
-        await fetchAvailableBMCs();
-        setShowTransferModal(true);
       } else {
-        setError(result.error || 'Failed to delete BMC');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete BMC');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting BMC:', error);
-      setError('Failed to delete BMC');
+      throw error;
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  // Handle transfer and delete
-  const handleTransferAndDelete = async (newBmcId: number | null, deleteAll: boolean) => {
+  // Handle transfer and delete with OTP
+  const handleTransferAndDelete = async (newBmcId: number | null, deleteAll: boolean, otp?: string) => {
     if (!bmc) return;
 
     try {
@@ -267,7 +284,8 @@ export default function BMCDetails() {
         body: JSON.stringify({ 
           id: bmc.id,
           newBmcId,
-          deleteAll
+          deleteAll,
+          otp
         })
       });
 
@@ -483,7 +501,7 @@ export default function BMCDetails() {
                     <span className="hidden sm:inline">{t.common.refresh}</span>
                   </button>
                   <button 
-                    onClick={() => setShowDeleteModal(true)}
+                    onClick={handleDeleteBMC}
                     className="flex items-center px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-red-600 dark:text-red-500 border border-red-600 dark:border-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors min-h-[44px]"
                   >
                     <Trash2 className="w-4 h-4 sm:mr-2" />
@@ -1168,13 +1186,15 @@ export default function BMCDetails() {
       </div>
 
       {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteBMC}
-        title={t.bmcManagement.deleteBMC}
-        itemName={bmc?.name || ''}
-        message={`${t.bmcManagement.confirmDelete} ${bmc?.name}? ${t.bmcManagement.deleteWarning}`}
+      <DeleteBMCModal
+        isOpen={showDeleteModal && !!bmc}
+        onClose={() => {
+          setShowDeleteModal(false);
+        }}
+        onConfirm={handleConfirmDelete}
+        bmcName={bmc?.name || ''}
+        loading={isDeleting}
+        societyCount={bmc?.societyCount || 0}
       />
 
       {/* Transfer Societies Modal */}

@@ -51,12 +51,12 @@ import {
   StatsCard,
   FilterControls,
   EmptyState,
-  ConfirmDeleteModal,
   StatusDropdown
 } from '@/components';
 import FloatingActionButton from '@/components/management/FloatingActionButton';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 import TransferSocietiesModal from '@/components/modals/TransferSocietiesModal';
+import DeleteBMCModal from '@/components/modals/DeleteBMCModal';
 
 interface BMC {
   id: number;
@@ -117,6 +117,26 @@ interface Dairy {
   dairyId: string;
 }
 
+// Helper function to highlight matching text in search results
+const highlightText = (text: string | number | null | undefined, searchQuery: string) => {
+  if (!text && text !== 0) return text || '';
+  if (!searchQuery) return text;
+  
+  const textStr = text.toString();
+  const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = textStr.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+};
+
 export default function BMCManagement() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -131,13 +151,14 @@ export default function BMCManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [societies, setSocieties] = useState<any[]>([]);
   const [availableBMCs, setAvailableBMCs] = useState<BMC[]>([]);
   const [selectedBMC, setSelectedBMC] = useState<BMC | null>(null);
   const [formData, setFormData] = useState<BMCFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
-  const [searchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
   const [dairyFilter, setDairyFilter] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -407,9 +428,23 @@ export default function BMCManagement() {
   };
 
   // Open delete confirmation modal
-  const handleDeleteClick = (bmc: BMC) => {
+  const handleDeleteClick = async (bmc: BMC) => {
     setSelectedBMC(bmc);
-    setShowDeleteModal(true);
+    
+    // Fetch societies for this BMC
+    const bmcSocieties = await fetchSocietiesForBMC(bmc.id);
+    
+    if (bmcSocieties.length > 0) {
+      // Has societies - show transfer modal
+      setSocieties(bmcSocieties);
+      const otherBMCs = bmcs.filter(b => b.id !== bmc.id);
+      setAvailableBMCs(otherBMCs);
+      setShowTransferModal(true);
+    } else {
+      // No societies - store BMC ID for OTP modal and show delete modal
+      (window as any).selectedBmcIdForDelete = bmc.id;
+      setShowDeleteModal(true);
+    }
   };
 
   // Fetch societies under a specific BMC
@@ -434,49 +469,40 @@ export default function BMCManagement() {
     return [];
   };
 
-  // Initiate delete - check for societies first
-  const handleConfirmDelete = async () => {
+  // Delete BMC (no societies) with OTP verification
+  const handleConfirmDelete = async (otp: string) => {
     if (!selectedBMC) return;
-    setShowDeleteModal(false);
 
     try {
+      setIsDeleting(true);
       const token = localStorage.getItem('authToken');
-      
-      // Try to delete without transfer first
       const response = await fetch('/api/user/bmc', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: selectedBMC.id })
+        body: JSON.stringify({
+          id: selectedBMC.id,
+          otp
+        })
       });
-
-      const result = await response.json();
 
       if (response.ok) {
         setSuccess('BMC deleted successfully!');
+        setShowDeleteModal(false);
         setSelectedBMC(null);
         await fetchBMCs();
         setTimeout(() => setSuccess(''), 3000);
-      } else if (result.data?.hasSocieties) {
-        // Has societies - fetch data and show transfer modal
-        const bmcSocieties = await fetchSocietiesForBMC(selectedBMC.id);
-        setSocieties(bmcSocieties);
-        
-        // Get other BMCs for transfer
-        const otherBMCs = bmcs.filter(b => b.id !== selectedBMC.id);
-        setAvailableBMCs(otherBMCs);
-        
-        setShowTransferModal(true);
       } else {
-        setError(result.error || 'Failed to delete BMC');
-        setSelectedBMC(null);
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete BMC');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting BMC:', error);
-      setError('Failed to delete BMC');
-      setSelectedBMC(null);
+      throw error;
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -541,10 +567,14 @@ export default function BMCManagement() {
 
   // Filter BMCs
   const filteredBMCs = bmcs.filter(bmc => {
-    const matchesSearch = bmc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         bmc.bmcId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         bmc.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         bmc.contactPerson?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = searchQuery === '' ||
+                         bmc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         bmc.bmcId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         bmc.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         bmc.contactPerson?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         bmc.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         bmc.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         bmc.dairyFarmName?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || bmc.status === statusFilter;
     
@@ -557,6 +587,17 @@ export default function BMCManagement() {
     fetchBMCs();
     fetchDairies();
   }, [fetchBMCs, fetchDairies]);
+
+  // Listen for global search events from header
+  useEffect(() => {
+    const handleGlobalSearch = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const query = customEvent.detail?.query || '';
+      setSearchQuery(query);
+    };
+    window.addEventListener('globalSearch', handleGlobalSearch);
+    return () => window.removeEventListener('globalSearch', handleGlobalSearch);
+  }, []);
 
   // Handle URL parameters for dairy filter
   useEffect(() => {
@@ -767,8 +808,8 @@ export default function BMCManagement() {
                         <Factory className="w-5 h-5 text-green-600 dark:text-green-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{bmc.name}</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{bmc.bmcId}</p>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{highlightText(bmc.name, searchQuery)}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{highlightText(bmc.bmcId, searchQuery)}</p>
                       </div>
                     </div>
                     <StatusDropdown
@@ -805,11 +846,11 @@ export default function BMCManagement() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{bmc.contactPerson || 'No Contact'}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(bmc.contactPerson || 'No Contact', searchQuery)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{bmc.phone || 'No Phone'}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(bmc.phone || 'No Phone', searchQuery)}</span>
                     </div>
                   </div>
 
@@ -817,11 +858,11 @@ export default function BMCManagement() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{bmc.location || 'No Location'}</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(bmc.location || 'No Location', searchQuery)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Milk className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                      <span className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">{bmc.dairyFarmName || 'No Dairy'}</span>
+                      <span className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">{highlightText(bmc.dairyFarmName || 'No Dairy', searchQuery)}</span>
                     </div>
                   </div>
 
@@ -1250,16 +1291,16 @@ export default function BMCManagement() {
       </FormModal>
 
       {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
+      <DeleteBMCModal
         isOpen={showDeleteModal && !!selectedBMC}
         onClose={() => {
           setShowDeleteModal(false);
           setSelectedBMC(null);
         }}
         onConfirm={handleConfirmDelete}
-        title="Delete BMC"
-        itemName={selectedBMC?.name || ''}
-        message="Are you sure you want to delete this BMC? This action cannot be undone."
+        bmcName={selectedBMC?.name || ''}
+        loading={isDeleting}
+        societyCount={selectedBMC?.societyCount || 0}
       />
 
       {/* Transfer Societies Modal */}

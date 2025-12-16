@@ -106,6 +106,26 @@ const initialFormData: DairyFormData = {
   monthlyTarget: ''
 };
 
+// Helper function to highlight matching text in search results
+const highlightText = (text: string | number | null | undefined, searchQuery: string) => {
+  if (!text && text !== 0) return text || '';
+  if (!searchQuery) return text;
+  
+  const textStr = text.toString();
+  const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = textStr.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+};
+
 export default function DairyManagement() {
   const router = useRouter();
   const { user } = useUser();
@@ -122,6 +142,7 @@ export default function DairyManagement() {
   const [formData, setFormData] = useState<DairyFormData>(initialFormData);
   const [formLoading, setFormLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'maintenance'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
@@ -506,7 +527,17 @@ export default function DairyManagement() {
   // Filter dairies based on status
   const filteredDairies = dairies.filter(dairy => {
     const matchesStatus = statusFilter === 'all' || dairy.status === statusFilter;
-    return matchesStatus;
+    
+    // Search across multiple fields
+    const searchMatch = searchQuery === '' || 
+      dairy.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dairy.dairyId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dairy.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dairy.contactPerson?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dairy.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dairy.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesStatus && searchMatch;
   });
 
 
@@ -514,6 +545,17 @@ export default function DairyManagement() {
   useEffect(() => {
     fetchDairies();
   }, [fetchDairies]);
+
+  // Listen for global search events from header
+  useEffect(() => {
+    const handleGlobalSearch = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const query = customEvent.detail?.query || '';
+      setSearchQuery(query);
+    };
+    window.addEventListener('globalSearch', handleGlobalSearch);
+    return () => window.removeEventListener('globalSearch', handleGlobalSearch);
+  }, []);
 
   // Don't render until user is loaded from context
   if (!user) {
@@ -707,8 +749,8 @@ export default function DairyManagement() {
                       <Milk className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{dairy.name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{dairy.dairyId}</p>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">{highlightText(dairy.name, searchQuery)}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{highlightText(dairy.dairyId, searchQuery)}</p>
                     </div>
                   </div>
                   <StatusDropdown
@@ -745,11 +787,11 @@ export default function DairyManagement() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{dairy.contactPerson || 'No Contact'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(dairy.contactPerson || 'No Contact', searchQuery)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{dairy.phone || 'No Phone'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(dairy.phone || 'No Phone', searchQuery)}</span>
                   </div>
                 </div>
 
@@ -757,11 +799,11 @@ export default function DairyManagement() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{dairy.location || 'No Location'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(dairy.location || 'No Location', searchQuery)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{dairy.email || 'No Email'}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{highlightText(dairy.email || 'No Email', searchQuery)}</span>
                   </div>
                 </div>
 
