@@ -15,6 +15,44 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '21.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Create deployment archive
+        run: |
+          mkdir -p deploy
+          cp -r .next deploy/
+          cp -r src deploy/
+          cp -r public deploy/
+          cp -r database deploy/
+          cp -r config deploy/
+          cp package*.json deploy/
+          cp next.config.ts tsconfig.json postcss.config.mjs tailwind.config.js instrumentation.ts ecosystem.config.js deploy/ 2>/dev/null || true
+          tar -czf deploy.tar.gz -C deploy .
+          ls -lh deploy.tar.gz
+
+      - name: Upload to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          source: "deploy.tar.gz"
+          target: "/tmp/"
+          overwrite: true
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
         env:
@@ -41,37 +79,17 @@ jobs:
           envs: GITHUB_TOKEN,REPO_URL,VPS_HOST,EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
           script: |
             set -e
-            
             cd /var/www/psr-v4
             
-            # Backup .env.production if it exists
-            if [ -f ".env.production" ]; then
-              echo "💾 Backing up .env.production..."
-              cp .env.production /tmp/.env.production.backup
-            fi
+            echo "🛑 Stopping PM2..."
+            pm2 stop psr-v4 || true
             
-            # Update git remote and pull latest changes
-            if [ -d ".git" ]; then
-              git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_URL}.git
-            else
-              git init
-              git config credential.helper store
-              echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
-              git remote add origin https://github.com/${REPO_URL}.git
-            fi
+            echo "📦 Extracting deployment archive..."
+            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
+            rm /tmp/deploy.tar.gz
             
-            echo "📥 Pulling latest changes from GitHub..."
-            git fetch origin
-            git reset --hard origin/master
-            
-            # Restore or create .env.production
-            if [ -f "/tmp/.env.production.backup" ]; then
-              echo "♻️  Restoring .env.production..."
-              cp /tmp/.env.production.backup .env.production
-            else
-              echo "📝 Creating .env.production..."
-              cat > .env.production << ENV_EOF
-            # Database Configuration
+            echo "📝 Creating .env.production..."
+            cat > .env.production << ENV_EOF
             DB_HOST=${DB_HOST}
             DB_PORT=${DB_PORT}
             DB_USER=${DB_USER}
@@ -79,24 +97,16 @@ jobs:
             DB_NAME=${DB_NAME}
             DB_SSL_CA=
             DB_REJECT_UNAUTHORIZED=false
-            
-            # Application
             NODE_ENV=production
             PORT=3000
             NEXT_TELEMETRY_DISABLED=1
-            
-            # JWT Secrets
             JWT_SECRET=${JWT_SECRET}
             JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
             JWT_EXPIRES_IN=1h
             JWT_REFRESH_EXPIRES_IN=7d
-            
-            # Super Admin Credentials
             SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
             SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
             SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
-            
-            # Email Configuration
             SMTP_HOST=smtp.gmail.com
             SMTP_PORT=587
             SMTP_SECURE=false
@@ -108,39 +118,20 @@ jobs:
             EMAIL_USER=${EMAIL_USER}
             EMAIL_PASSWORD=${EMAIL_PASSWORD}
             EMAIL_FROM=noreply@poornasreeequipments.com
-            
-            # Application URLs
             NEXT_PUBLIC_API_URL=http://${VPS_HOST}
             NEXT_PUBLIC_APP_URL=http://${VPS_HOST}
             ENV_EOF
-            fi
             
-            # Stop PM2 to release file locks
-            echo "🛑 Stopping PM2..."
-            pm2 stop psr-v4 || true
+            echo "📦 Installing production dependencies only..."
+            npm install --production --no-save
             
-            # Clean old node_modules to free memory
-            echo "🧹 Cleaning old modules..."
-            rm -rf node_modules
-            
-            # Install dependencies (npm ci is more memory efficient)
-            echo "📦 Installing dependencies..."
-            npm ci --production
-            
-            # Build application on VPS where .env.production exists
-            echo "🏗️ Building application..."
-            NODE_OPTIONS="--max-old-space-size=2048" npm run build
-            
-            # Run database migrations
             echo "🗄️ Running database migrations..."
             npx sequelize-cli db:migrate --env production || true
             npx sequelize-cli db:seed:all --env production || true
             
-            # Fix file ownership
             echo "🔐 Fixing file ownership..."
             chown -R root:root /var/www/psr-v4
             
-            # Restart PM2
             echo "🚀 Starting PM2..."
             pm2 delete psr-v4 || true
             pm2 start npm --name psr-v4 -- start
@@ -149,4 +140,4 @@ jobs:
             echo "📊 PM2 Status:"
             pm2 status
             
-            echo "✅ Deployment completed successfully!"
+            echo "✅ Deployment completed!"
