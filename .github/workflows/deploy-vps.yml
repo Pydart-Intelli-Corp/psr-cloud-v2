@@ -119,14 +119,17 @@ jobs:
             echo "🛑 Stopping PM2..."
             pm2 stop psr-v4 || true
             
-            # Clean and install dependencies
+            # Clean old node_modules to free memory
+            echo "🧹 Cleaning old modules..."
+            rm -rf node_modules
+            
+            # Install dependencies (npm ci is more memory efficient)
             echo "📦 Installing dependencies..."
-            rm -rf node_modules package-lock.json
-            npm install
+            npm ci --production
             
             # Build application on VPS where .env.production exists
             echo "🏗️ Building application..."
-            npm run build
+            NODE_OPTIONS="--max-old-space-size=2048" npm run build
             
             # Run database migrations
             echo "🗄️ Running database migrations..."
