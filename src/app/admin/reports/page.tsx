@@ -9,7 +9,6 @@ import DispatchReports from '@/components/reports/DispatchReports';
 import SalesReports from '@/components/reports/SalesReports';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 type ReportType = 'collection' | 'dispatch' | 'sales';
 
