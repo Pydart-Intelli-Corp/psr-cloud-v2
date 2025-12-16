@@ -149,6 +149,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
+  const [machinesData, setMachinesData] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number; collectionCount?: number }>>([]);
 
   // Delete functionality
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -250,8 +251,17 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
           const societyData = await societyRes.json();
           setSocietiesData(societyData.data || []);
         }
+
+        // Fetch Machines
+        const machineRes = await fetch('/api/user/machine', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (machineRes.ok) {
+          const machineData = await machineRes.json();
+          setMachinesData(machineData.data || []);
+        }
       } catch (error) {
-        console.error('Error fetching dairies/BMCs/societies:', error);
+        console.error('Error fetching dairies/BMCs/societies/machines:', error);
       }
     };
 
@@ -321,23 +331,22 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
   }, [records, societiesData]);
   
   const machines = useMemo(() => {
-    const uniqueMachines = new Map<string, { machine_id: string; machine_type: string; society_id: string }>();
-    records.forEach(r => {
-      if (r.machine_id && !uniqueMachines.has(r.machine_id)) {
-        uniqueMachines.set(r.machine_id, {
-          machine_id: r.machine_id,
-          machine_type: r.machine_type || r.machine_id,
-          society_id: r.society_id
-        });
-      }
-    });
-    return Array.from(uniqueMachines.values()).map((machine, index) => ({
-      id: index + 1,
-      machineId: machine.machine_id,
-      machineType: machine.machine_type,
-      societyId: societies.findIndex(s => s.society_id === machine.society_id) + 1 || undefined
+    if (!machinesData.length || !records.length) return machinesData;
+    
+    const machineIdsInCollections = new Set(
+      records
+        .filter(r => r.machine_id)
+        .map(r => r.machine_id)
+    );
+    
+    const filteredMachines = machinesData.filter(machine => machineIdsInCollections.has(machine.machineId));
+    
+    // Add collection counts to machines
+    return filteredMachines.map(machine => ({
+      ...machine,
+      collectionCount: records.filter(r => r.machine_id === machine.machineId).length
     }));
-  }, [records, societies]);
+  }, [machinesData, records]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -1001,6 +1010,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
             showDateFilter
             showChannelFilter
             showShiftFilter
+            showMachineFilter
             hideMainFilterButton={true}
           />
         </div>

@@ -375,7 +375,13 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         .map(r => r.machine_id)
     );
     
-    return machinesData.filter(machine => machineIdsInSales.has(machine.machineId));
+    const filteredMachines = machinesData.filter(machine => machineIdsInSales.has(machine.machineId));
+    
+    // Add sales counts to machines
+    return filteredMachines.map(machine => ({
+      ...machine,
+      collectionCount: records.filter(r => r.machine_id === machine.machineId).length
+    }));
   }, [machinesData, records]);
 
   // Calculate statistics
@@ -806,6 +812,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
             showDateFilter
             showChannelFilter
             showShiftFilter
+            showMachineFilter
             hideMainFilterButton={true}
           />
         </div>

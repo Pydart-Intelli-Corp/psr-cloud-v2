@@ -17,7 +17,7 @@ interface FilterDropdownProps {
   dairies?: Array<{ id: number; name: string; dairyId: string }>;
   bmcs?: Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>;
   societies: Array<{ id: number; name: string; society_id: string; bmc_id?: number }>;
-  machines: Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string }>;
+  machines: Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string; collectionCount?: number }>;
   filteredCount: number;
   totalCount: number;
   searchQuery?: string;
@@ -35,6 +35,7 @@ interface FilterDropdownProps {
   showDateFilter?: boolean;
   showChannelFilter?: boolean;
   showShiftFilter?: boolean;
+  showMachineFilter?: boolean;
   hideMainFilterButton?: boolean;
   hideSocietyFilter?: boolean;
 }
@@ -74,6 +75,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   showDateFilter = false,
   showChannelFilter = false,
   showShiftFilter = false,
+  showMachineFilter = false,
   hideMainFilterButton = false,
   hideSocietyFilter = false
 }) => {
@@ -683,7 +685,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         )}
 
         {/* Machine Filter Button */}
-        {uniqueMachines && uniqueMachines.length > 0 && (
+        {showMachineFilter && (
         <div className="relative" ref={machineDropdownRef}>
           <button
             onClick={() => setMachineDropdownOpen(!machineDropdownOpen)}
@@ -784,9 +786,16 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                                   <span className="text-sm text-gray-900 dark:text-gray-100 flex-1">
                                     {machine.machineType}
                                   </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    ({machine.machineId})
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {machine.collectionCount !== undefined && (
+                                      <span className="px-2 py-0.5 text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">
+                                        {machine.collectionCount}
+                                      </span>
+                                    )}
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      ({machine.machineId})
+                                    </span>
+                                  </div>
                                 </label>
                               ))}
                             </div>

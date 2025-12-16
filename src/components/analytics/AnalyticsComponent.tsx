@@ -153,16 +153,29 @@ export default function AnalyticsComponent() {
         }
 
         // Fetch Machines
-        const machineRes = await fetch('/api/user/machines', {
+        const machineRes = await fetch('/api/user/machine', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (machineRes.ok) {
           const machineData = await machineRes.json();
-          const machineList = machineData.machines || [];
-          setMachines(machineList.map((m: { machineId: string; machineType?: string; id?: number }) => ({ 
+          const machineList = machineData.data || [];
+          console.log('🔧 Fetched machines:', machineList.length, machineList.slice(0, 2));
+          
+          setMachines(machineList.map((m: { 
+            machineId: string; 
+            machineType?: string; 
+            id?: number;
+            societyId?: number;
+            societyName?: string;
+            societyIdentifier?: string;
+          }) => ({ 
             id: m.id || 0, 
             machineId: m.machineId, 
-            machineType: m.machineType || 'Unknown' 
+            machineType: m.machineType || 'Unknown',
+            societyId: m.societyId,
+            societyName: m.societyName,
+            societyIdentifier: m.societyIdentifier,
+            collectionCount: 0 // Will be updated after analytics fetch
           })));
         }
       } catch (error) {
@@ -193,7 +206,15 @@ export default function AnalyticsComponent() {
       if (dairyFilter.length > 0) filterParams.append('dairy', dairyFilter.join(','));
       if (bmcFilter.length > 0) filterParams.append('bmc', bmcFilter.join(','));
       if (societyFilter.length > 0) filterParams.append('society', societyFilter.join(','));
-      if (machineFilter.length > 0) filterParams.append('machine', machineFilter.join(','));
+      if (machineFilter.length > 0) {
+        // Convert machine database IDs to machine_id strings
+        const machineIds = machineFilter
+          .map(id => machines.find(m => m.id.toString() === id)?.machineId)
+          .filter(Boolean);
+        if (machineIds.length > 0) {
+          filterParams.append('machine', machineIds.join(','));
+        }
+      }
       if (channelFilter !== 'all') filterParams.append('channel', channelFilter);
 
       const queryString = filterParams.toString() ? `${dateParams}&${filterParams}` : dateParams;
@@ -227,6 +248,21 @@ export default function AnalyticsComponent() {
       }
       
       setData(result);
+
+      // Update machine collection counts from analytics data
+      if (result.machineBreakdown && result.machineBreakdown.length > 0) {
+        setMachines(prevMachines => 
+          prevMachines.map(machine => {
+            const machineStats = result.machineBreakdown.find(
+              (m: { machine_id: string }) => m.machine_id === machine.machineId
+            );
+            return {
+              ...machine,
+              collectionCount: machineStats?.total_collections || 0
+            };
+          })
+        );
+      }
 
       setLoading(false);
     } catch (error) {
@@ -647,6 +683,7 @@ export default function AnalyticsComponent() {
           channelFilter={channelFilter}
           onChannelChange={setChannelFilter}
           showChannelFilter
+          showMachineFilter
           hideMainFilterButton={true}
         />
       </div>

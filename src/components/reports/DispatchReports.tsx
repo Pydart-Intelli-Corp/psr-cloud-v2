@@ -384,7 +384,13 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
         .map(r => r.machine_id)
     );
     
-    return machinesData.filter(machine => machineIdsInDispatches.has(machine.machineId));
+    const filteredMachines = machinesData.filter(machine => machineIdsInDispatches.has(machine.machineId));
+    
+    // Add dispatch counts to machines
+    return filteredMachines.map(machine => ({
+      ...machine,
+      collectionCount: records.filter(r => r.machine_id === machine.machineId).length
+    }));
   }, [machinesData, records]);
 
   // Calculate statistics
@@ -880,6 +886,7 @@ export default function DispatchReports({ globalSearch = '' }: DispatchReportsPr
             showDateFilter
             showChannelFilter
             showShiftFilter
+            showMachineFilter
             hideMainFilterButton={true}
           />
         </div>

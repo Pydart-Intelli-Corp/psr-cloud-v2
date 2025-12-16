@@ -265,17 +265,158 @@ export default function MachineDetails() {
       
       if (result.success && result.data && result.data.length > 0) {
         const machineData = result.data[0];
+        const actualMachineId = machineData.machineId; // Get the actual machine_id string like "m103"
         
-        // Add additional calculated/default fields
+        // Fetch statistics to calculate real values
+        const statsResponse = await fetch(`/api/user/machine/statistics?machineId=${machineId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        let calculatedStats = {
+          totalOperations: 0,
+          operationHours: 0,
+          averageEfficiency: 0,
+          maintenanceCount: 0,
+          lastActivity: machineData.createdAt
+        };
+
+        if (statsResponse.ok) {
+          const statsResult = await statsResponse.json();
+          if (statsResult.success && Array.isArray(statsResult.data) && statsResult.data.length > 0) {
+            const stats = statsResult.data as MachineStatistic[];
+            
+            // Calculate total operations (sum of all total_test)
+            calculatedStats.totalOperations = stats.reduce((sum, stat) => sum + (stat.total_test || 0), 0);
+            
+            // Calculate operation hours (estimate based on statistics count and average operation time)
+            // Assuming each test takes approximately 5 minutes
+            calculatedStats.operationHours = Math.round((calculatedStats.totalOperations * 5) / 60);
+            
+            // Calculate maintenance count (sum of daily + weekly cleanings)
+            calculatedStats.maintenanceCount = stats.reduce((sum, stat) => 
+              sum + (stat.daily_cleaning || 0) + (stat.weekly_cleaning || 0), 0
+            );
+            
+            // Calculate average efficiency (100% - average cleaning skip percentage)
+            const totalSkips = stats.reduce((sum, stat) => sum + (stat.cleaning_skip || 0), 0);
+            const avgSkipRate = stats.length > 0 ? totalSkips / stats.length : 0;
+            calculatedStats.averageEfficiency = Math.round(Math.max(0, 100 - avgSkipRate));
+            
+            // Get last activity from most recent statistic
+            if (stats.length > 0) {
+              const sortedStats = [...stats].sort((a, b) => {
+                const dateA = new Date(a.statistics_date + ' ' + a.statistics_time).getTime();
+                const dateB = new Date(b.statistics_date + ' ' + b.statistics_time).getTime();
+                return dateB - dateA;
+              });
+              const lastStat = sortedStats[0];
+              calculatedStats.lastActivity = lastStat.statistics_date + ' ' + lastStat.statistics_time;
+            }
+          }
+        }
+
+        // Fetch collections, dispatches, and sales data for comprehensive operation metrics
+        let collectionCount = 0;
+        let dispatchCount = 0;
+        let salesCount = 0;
+        let lastCollectionDate = new Date(calculatedStats.lastActivity);
+
+        // Fetch Collections (used for last activity) - Use actual machine_id string for filtering
+        try {
+          const collectionsResponse = await fetch(`/api/user/reports/collections`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (collectionsResponse.ok) {
+            const collectionsResult = await collectionsResponse.json();
+            if (collectionsResult.success && Array.isArray(collectionsResult.data)) {
+              // Filter collections by this machine's machineId string
+              const machineCollections = collectionsResult.data.filter(
+                (col: any) => col.machine_id === actualMachineId
+              );
+              collectionCount = machineCollections.length;
+              
+              // Get latest collection date/time for last activity
+              if (machineCollections.length > 0) {
+                const sortedCollections = [...machineCollections].sort((a: any, b: any) => {
+                  const dateA = new Date(a.collection_date + ' ' + (a.collection_time || '00:00:00')).getTime();
+                  const dateB = new Date(b.collection_date + ' ' + (b.collection_time || '00:00:00')).getTime();
+                  return dateB - dateA;
+                });
+                
+                const lastCollection = sortedCollections[0];
+                lastCollectionDate = new Date(lastCollection.collection_date + ' ' + (lastCollection.collection_time || '00:00:00'));
+                // Update calculatedStats with the latest collection time
+                calculatedStats.lastActivity = lastCollectionDate.toISOString();
+              }
+            }
+          }
+        } catch (collectionError) {
+          console.log('Collections data not available:', collectionError);
+        }
+
+        // Fetch Dispatches (for operation count only)
+        try {
+          const dispatchesResponse = await fetch(`/api/user/reports/dispatches?machineId=${machineId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (dispatchesResponse.ok) {
+            const dispatchesResult = await dispatchesResponse.json();
+            if (dispatchesResult.success && Array.isArray(dispatchesResult.data)) {
+              dispatchCount = dispatchesResult.data.length;
+            }
+          }
+        } catch (dispatchError) {
+          console.log('Dispatches data not available:', dispatchError);
+        }
+
+        // Fetch Sales (for operation count only)
+        try {
+          const salesResponse = await fetch(`/api/user/reports/sales?machineId=${machineId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (salesResponse.ok) {
+            const salesResult = await salesResponse.json();
+            if (salesResult.success && Array.isArray(salesResult.data)) {
+              salesCount = salesResult.data.length;
+            }
+          }
+        } catch (salesError) {
+          console.log('Sales data not available:', salesError);
+        }
+
+        // Update calculated stats with real operational data
+        const totalRealOperations = collectionCount + dispatchCount + salesCount;
+        if (totalRealOperations > 0) {
+          calculatedStats.totalOperations = Math.max(calculatedStats.totalOperations, totalRealOperations);
+          calculatedStats.operationHours = Math.round((calculatedStats.totalOperations * 5) / 60);
+        }
+        
+        // Last activity is always from the latest collection
+        if (collectionCount > 0) {
+          calculatedStats.lastActivity = lastCollectionDate.toISOString();
+        }
+        
+        // Add calculated fields to machine data
         const enrichedMachine: MachineDetails = {
           ...machineData,
-          // Set defaults for fields that might not be in the database yet
-          operationHours: machineData.operationHours || 0,
-          maintenanceCount: machineData.maintenanceCount || 0,
-          efficiency: machineData.efficiency || 85,
-          totalOperations: machineData.totalOperations || 0,
-          averageEfficiency: machineData.averageEfficiency || 85,
-          lastActivity: machineData.lastActivity || machineData.createdAt
+          operationHours: calculatedStats.operationHours,
+          maintenanceCount: calculatedStats.maintenanceCount,
+          efficiency: calculatedStats.averageEfficiency,
+          totalOperations: calculatedStats.totalOperations,
+          averageEfficiency: calculatedStats.averageEfficiency,
+          lastActivity: calculatedStats.lastActivity,
+          lastOperationDate: calculatedStats.lastActivity
         };
 
         setMachine(enrichedMachine);
@@ -1280,69 +1421,128 @@ export default function MachineDetails() {
                       <p className="text-sm sm:text-base text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{machine.notes}</p>
                     </div>
                   )}
-
-                  {/* Master Machine Controls */}
-                  {!machine.isMasterMachine && (
-                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Master Machine Settings</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Set this machine as the master for its society</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleSetMasterClick}
-                        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 rounded-lg transition-all shadow-sm hover:shadow-md"
-                      >
-                        Set as Master Machine
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Statistics Cards - Mobile: 1 column, Tablet: 2 columns */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                  {/* Operation Hours Card */}
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg sm:rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Operation Hours</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{machine.operationHours || 0}h</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Total hours</p>
+                        <p className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-400">Operation Hours</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100 mt-1">
+                          {machine.operationHours || 0}
+                          <span className="text-lg sm:text-xl ml-1">hrs</span>
+                        </p>
+                        <p className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 mt-1">
+                          {machine.operationHours 
+                            ? `${Math.round(machine.operationHours / 24)} days of operation`
+                            : 'No operation data yet'}
+                        </p>
                       </div>
-                      <Timer className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-500 flex-shrink-0" />
+                      <div className="bg-blue-100 dark:bg-blue-800/50 p-3 rounded-xl">
+                        <Timer className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                  {/* Maintenance Count Card */}
+                  <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-lg sm:rounded-xl border border-yellow-200 dark:border-yellow-800 shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Maintenance Count</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{machine.maintenanceCount || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Total services</p>
+                        <p className="text-xs sm:text-sm font-medium text-yellow-700 dark:text-yellow-400">Maintenance Count</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-yellow-900 dark:text-yellow-100 mt-1">
+                          {machine.maintenanceCount || 0}
+                        </p>
+                        <p className="text-xs sm:text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+                          {machine.maintenanceCount 
+                            ? 'Cleaning cycles completed'
+                            : 'No maintenance data'}
+                        </p>
                       </div>
-                      <Wrench className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-600 dark:text-yellow-500 flex-shrink-0" />
+                      <div className="bg-yellow-100 dark:bg-yellow-800/50 p-3 rounded-xl">
+                        <Wrench className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                  {/* Efficiency Card */}
+                  <div className={`bg-gradient-to-br rounded-lg sm:rounded-xl border shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow ${
+                    machine.efficiency >= 90 
+                      ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800'
+                      : machine.efficiency >= 75
+                      ? 'from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-800'
+                      : 'from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-200 dark:border-red-800'
+                  }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Efficiency</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{machine.efficiency || 0}%</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Current performance</p>
+                        <p className={`text-xs sm:text-sm font-medium ${
+                          machine.efficiency >= 90 
+                            ? 'text-green-700 dark:text-green-400'
+                            : machine.efficiency >= 75
+                            ? 'text-yellow-700 dark:text-yellow-400'
+                            : 'text-red-700 dark:text-red-400'
+                        }`}>Performance Efficiency</p>
+                        <p className={`text-2xl sm:text-3xl font-bold mt-1 ${
+                          machine.efficiency >= 90 
+                            ? 'text-green-900 dark:text-green-100'
+                            : machine.efficiency >= 75
+                            ? 'text-yellow-900 dark:text-yellow-100'
+                            : 'text-red-900 dark:text-red-100'
+                        }`}>
+                          {machine.efficiency || 0}%
+                        </p>
+                        <p className={`text-xs sm:text-sm mt-1 ${
+                          machine.efficiency >= 90 
+                            ? 'text-green-600 dark:text-green-400'
+                            : machine.efficiency >= 75
+                            ? 'text-yellow-600 dark:text-yellow-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {machine.efficiency >= 90 
+                            ? 'Excellent performance'
+                            : machine.efficiency >= 75
+                            ? 'Good performance'
+                            : machine.efficiency > 0
+                            ? 'Needs attention'
+                            : 'No efficiency data'}
+                        </p>
                       </div>
-                      <Zap className="w-7 h-7 sm:w-8 sm:h-8 text-green-600 dark:text-green-500 flex-shrink-0" />
+                      <div className={`p-3 rounded-xl ${
+                        machine.efficiency >= 90 
+                          ? 'bg-green-100 dark:bg-green-800/50'
+                          : machine.efficiency >= 75
+                          ? 'bg-yellow-100 dark:bg-yellow-800/50'
+                          : 'bg-red-100 dark:bg-red-800/50'
+                      }`}>
+                        <Zap className={`w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 ${
+                          machine.efficiency >= 90 
+                            ? 'text-green-600 dark:text-green-400'
+                            : machine.efficiency >= 75
+                            ? 'text-yellow-600 dark:text-yellow-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`} />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
+                  {/* Total Operations Card */}
+                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 rounded-lg sm:rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Total Operations</p>
-                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">{machine.totalOperations || 0}</p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Completed cycles</p>
+                        <p className="text-xs sm:text-sm font-medium text-purple-700 dark:text-purple-400">Total Operations</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1">
+                          {machine.totalOperations?.toLocaleString() || 0}
+                        </p>
+                        <p className="text-xs sm:text-sm text-purple-600 dark:text-purple-400 mt-1">
+                          {machine.totalOperations 
+                            ? 'Tests & collections processed'
+                            : 'No operations recorded'}
+                        </p>
                       </div>
-                      <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-500 flex-shrink-0" />
+                      <div className="bg-purple-100 dark:bg-purple-800/50 p-3 rounded-xl">
+                        <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1382,15 +1582,83 @@ export default function MachineDetails() {
                     </div>
                   </div>
 
-                  {/* Last Activity */}
+                  {/* Last Activity & Machine Health */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Last Activity</h3>
-                    {machine.lastActivity && (
-                      <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                        <Activity className="w-4 h-4 flex-shrink-0" />
-                        <span className="break-words">Last seen: {new Date(machine.lastActivity).toLocaleString()}</span>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Machine Health</h3>
+                    <div className="space-y-3">
+                      {/* Last Activity */}
+                      {machine.lastActivity && (
+                        <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                          <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Last Activity</p>
+                            <p className="text-sm text-gray-900 dark:text-gray-100 break-words">
+                              {new Date(machine.lastActivity).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {(() => {
+                                const lastActivityDate = new Date(machine.lastActivity);
+                                const now = new Date();
+                                const diffMs = now.getTime() - lastActivityDate.getTime();
+                                const diffMins = Math.round(diffMs / 60000);
+                                const diffHours = Math.round(diffMs / 3600000);
+                                const diffDays = Math.round(diffMs / 86400000);
+                                
+                                if (diffMins < 60) return `${diffMins} minutes ago`;
+                                if (diffHours < 24) return `${diffHours} hours ago`;
+                                return `${diffDays} days ago`;
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Health Status Indicator */}
+                      <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div className={`w-4 h-4 rounded-full flex-shrink-0 mt-0.5 ${
+                          machine.status === 'active' 
+                            ? 'bg-green-500 animate-pulse'
+                            : machine.status === 'maintenance'
+                            ? 'bg-yellow-500'
+                            : 'bg-gray-400'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Status</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 capitalize">
+                            {machine.status}
+                          </p>
+                          {machine.status === 'active' && (
+                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                              Machine is operational
+                            </p>
+                          )}
+                          {machine.status === 'maintenance' && (
+                            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                              Under maintenance
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    )}
+                      
+                      {/* Performance Metrics Summary */}
+                      <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Quick Stats</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Tests</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                              {machine.totalOperations?.toLocaleString() || 0}
+                            </p>
+                          </div>
+                          <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Uptime</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                              {machine.efficiency || 0}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
