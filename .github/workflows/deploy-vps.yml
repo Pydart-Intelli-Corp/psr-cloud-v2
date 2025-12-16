@@ -81,10 +81,7 @@ jobs:
             set -e
             cd /var/www/psr-v4
             
-            echo "🛑 Stopping PM2..."
-            pm2 stop psr-v4 || true
-            
-            echo "📦 Extracting deployment archive..."
+            echo " Extracting deployment archive..."
             tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
             rm /tmp/deploy.tar.gz
             
@@ -126,10 +123,13 @@ jobs:
             echo "🔐 Fixing file ownership..."
             chown -R root:root /var/www/psr-v4
             
-            echo "🚀 Starting PM2..."
-            pm2 delete psr-v4 || true
-            pm2 start npm --name psr-v4 -- start
-            pm2 save
+            echo "🚀 Starting/Reloading PM2..."
+            if pm2 list | grep -q psr-v4; then
+              pm2 reload psr-v4 --update-env
+            else
+              pm2 start npm --name psr-v4 -- start
+              pm2 save
+            fi
             
             echo "📊 PM2 Status:"
             pm2 status
