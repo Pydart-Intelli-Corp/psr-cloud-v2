@@ -122,9 +122,7 @@ jobs:
             NEXT_PUBLIC_APP_URL=http://${VPS_HOST}
             ENV_EOF
             
-            echo "�️ Running database migrations..."
-            npx sequelize-cli db:migrate --env production 2>/dev/null || echo "Migrations skipped"
-            
+
             echo "🔐 Fixing file ownership..."
             chown -R root:root /var/www/psr-v4
             
