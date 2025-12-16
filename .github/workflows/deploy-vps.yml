@@ -43,7 +43,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
-          source: ".next/,public/,database/,config/,package.json,package-lock.json,next.config.ts,tsconfig.json,postcss.config.mjs,tailwind.config.js,instrumentation.ts,ecosystem.config.js"
+          source: ".next/,src/,public/,database/,config/,package.json,package-lock.json,next.config.ts,tsconfig.json,postcss.config.mjs,tailwind.config.js,instrumentation.ts,ecosystem.config.js"
           target: "/var/www/psr-v4"
           overwrite: true
           rm: false
