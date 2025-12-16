@@ -34,11 +34,14 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
             cd /var/www/psr-v4
             
-            # Create .env.production
+            echo "🛑 Stopping PM2 process..."
+            pm2 stop psr-v4 || true
+            
+            echo "📝 Creating .env.production..."
             cat > .env.production << 'EOF'
             DB_HOST=${{ secrets.DB_HOST }}
             DB_PORT=${{ secrets.DB_PORT || '3306' }}
@@ -72,21 +75,28 @@ jobs:
             NEXT_PUBLIC_APP_URL=http://${{ secrets.VPS_HOST }}
             EOF
             
-            # Install dependencies
+            echo "🧹 Cleaning old build and dependencies..."
+            rm -rf .next node_modules package-lock.json
+            
+            echo "📦 Installing dependencies..."
             npm install
             
-            # Run database migrations
+            echo "🗄️ Running database migrations..."
             npx sequelize-cli db:migrate --env production || true
             npx sequelize-cli db:seed:all --env production || true
             
-            # Build application
+            echo "🏗️ Building application..."
             npm run build
             
-            # Restart PM2
+            echo "🔐 Fixing file ownership..."
+            chown -R root:root /var/www/psr-v4
+            
+            echo "🚀 Starting PM2..."
             pm2 delete psr-v4 || true
             pm2 start npm --name psr-v4 -- start
             pm2 save
             
-            # Show status
+            echo "📊 PM2 Status:"
             pm2 status
-            echo "✅ Deployment complete"
+            
+            echo "✅ Deployment complete!"
