@@ -182,7 +182,10 @@ jobs:
             
             # Build application
             echo "🔨 Building application..."
-            npm run build
+            NODE_OPTIONS="--max-old-space-size=4096" timeout 900 npm run build || {
+              echo "❌ Build failed or timed out after 15 minutes"
+              exit 1
+            }
             
             # Run database migrations
             echo "🗄️ Running database migrations..."
