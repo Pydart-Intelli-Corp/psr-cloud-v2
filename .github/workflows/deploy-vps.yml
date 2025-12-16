@@ -118,8 +118,8 @@ jobs:
             EMAIL_USER=${EMAIL_USER}
             EMAIL_PASSWORD=${EMAIL_PASSWORD}
             EMAIL_FROM=noreply@poornasreeequipments.com
-            NEXT_PUBLIC_API_URL=http://${VPS_HOST}
-            NEXT_PUBLIC_APP_URL=http://${VPS_HOST}
+            NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
+            NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
             ENV_EOF
             
 
