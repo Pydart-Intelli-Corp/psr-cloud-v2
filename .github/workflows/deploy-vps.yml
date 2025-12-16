@@ -29,6 +29,26 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy-pkg
+          cp -r .next deploy-pkg/ || true
+          cp -r public deploy-pkg/ || true
+          cp package*.json deploy-pkg/
+          cp -r database deploy-pkg/
+          cp -r config deploy-pkg/
+          tar -czf deploy.tar.gz -C deploy-pkg .
+
+      - name: Upload build to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "deploy.tar.gz"
+          target: "/tmp/"
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
         env:
@@ -176,16 +196,22 @@ jobs:
               echo "   - Auto-generated JWT secrets"
             fi
             
-            # Install dependencies
-            echo "📦 Installing dependencies..."
-            npm ci --production
+            # Extract pre-built application
+            echo "📦 Extracting pre-built application..."
+            cd /var/www/psr-v4
             
-            # Build application
-            echo "🔨 Building application..."
-            NODE_OPTIONS="--max-old-space-size=4096" timeout 900 npm run build || {
-              echo "❌ Build failed or timed out after 15 minutes"
-              exit 1
-            }
+            # Remove old build
+            rm -rf .next public node_modules
+            
+            # Extract new build
+            tar -xzf /tmp/deploy.tar.gz
+            rm /tmp/deploy.tar.gz
+            
+            # Install only production dependencies (faster)
+            echo "📦 Installing production dependencies..."
+            npm ci --omit=dev
+            
+            echo "✅ Application deployed successfully"
             
             # Run database migrations
             echo "🗄️ Running database migrations..."
