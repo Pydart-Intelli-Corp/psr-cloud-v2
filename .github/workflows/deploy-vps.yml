@@ -38,6 +38,8 @@ jobs:
           cp -r database deploy-pkg/
           cp -r config deploy-pkg/
           tar -czf deploy.tar.gz -C deploy-pkg .
+          ls -lh deploy.tar.gz
+          echo "Archive size: $(du -h deploy.tar.gz | cut -f1)"
 
       - name: Upload build to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -202,6 +204,16 @@ jobs:
             
             # Stop application first to release file locks
             pm2 stop psr-v4 || true
+            
+            # Verify archive exists
+            if [ ! -f "/tmp/deploy.tar.gz" ]; then
+              echo "❌ ERROR: deploy.tar.gz not found in /tmp/"
+              echo "Files in /tmp:"
+              ls -lh /tmp/*.tar.gz 2>/dev/null || echo "No tar.gz files found"
+              exit 1
+            fi
+            
+            echo "✅ Found deploy archive: $(du -h /tmp/deploy.tar.gz | cut -f1)"
             
             # Remove old build (force with find to handle locked directories)
             echo "🧹 Cleaning old build..."
