@@ -1165,6 +1165,8 @@ export default function DairyManagement() {
         onConfirm={handleConfirmDelete}
         dairyName={selectedDairy?.name || ''}
         loading={isDeleting}
+        bmcCount={selectedDairy?.bmcCount || 0}
+        societyCount={selectedDairy?.societyCount || 0}
       />
 
       {/* BMCs Navigation Alert Modal */}

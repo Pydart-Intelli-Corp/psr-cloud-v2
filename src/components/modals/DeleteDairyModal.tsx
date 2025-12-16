@@ -9,6 +9,11 @@ interface DeleteDairyModalProps {
   onConfirm: (otp: string) => Promise<void>;
   dairyName: string;
   loading?: boolean;
+  bmcCount?: number;
+  societyCount?: number;
+  farmerCount?: number;
+  collectionCount?: number;
+  machineCount?: number;
 }
 
 export default function DeleteDairyModal({
@@ -16,7 +21,12 @@ export default function DeleteDairyModal({
   onClose,
   onConfirm,
   dairyName,
-  loading = false
+  loading = false,
+  bmcCount = 0,
+  societyCount = 0,
+  farmerCount = 0,
+  collectionCount = 0,
+  machineCount = 0
 }: DeleteDairyModalProps) {
   const [step, setStep] = useState<'confirm' | 'otp'>('confirm');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -38,7 +48,10 @@ export default function DeleteDairyModal({
 
       const response = await fetch('/api/user/dairy/send-delete-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
         body: JSON.stringify({ dairyId }),
       });
 
@@ -177,30 +190,42 @@ export default function DeleteDairyModal({
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">The following data will be deleted:</p>
                   <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
-                    <li className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                      All associated BMCs
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                      All societies under these BMCs
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                      All farmers and their data
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                      All collection records
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                      All machines and settings
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                      All historical data
-                    </li>
+                    {bmcCount > 0 && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        {bmcCount} BMC{bmcCount > 1 ? 's' : ''}
+                      </li>
+                    )}
+                    {societyCount > 0 && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        {societyCount} societ{societyCount > 1 ? 'ies' : 'y'}
+                      </li>
+                    )}
+                    {farmerCount > 0 && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        {farmerCount} farmer{farmerCount > 1 ? 's' : ''} and their data
+                      </li>
+                    )}
+                    {collectionCount > 0 && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        {collectionCount} collection record{collectionCount > 1 ? 's' : ''}
+                      </li>
+                    )}
+                    {machineCount > 0 && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        {machineCount} machine{machineCount > 1 ? 's' : ''} and settings
+                      </li>
+                    )}
+                    {bmcCount === 0 && societyCount === 0 && farmerCount === 0 && collectionCount === 0 && machineCount === 0 && (
+                      <li className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                        The dairy details only
+                      </li>
+                    )}
                   </ul>
                 </div>
               </div>

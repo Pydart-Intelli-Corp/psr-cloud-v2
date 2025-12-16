@@ -70,6 +70,7 @@ export default function TransferBMCsModal({
     setOtpSent(false);
     setOtpError('');
     setShowOtpInput(false);
+    setIsSendingOtp(false);
   };
 
   const sendOTP = async () => {
@@ -156,7 +157,17 @@ export default function TransferBMCsModal({
       }
     } else {
       if (!selectedDairyId) return;
-      onConfirm(selectedDairyId, false);
+      // For transfer, also require OTP
+      if (!otpSent) {
+        sendOTP();
+      } else {
+        const otpCode = otp.join('');
+        if (otpCode.length !== 6) {
+          setOtpError('Please enter complete 6-digit OTP');
+          return;
+        }
+        onConfirm(selectedDairyId, false, otpCode);
+      }
     }
   };
 
@@ -287,7 +298,7 @@ export default function TransferBMCsModal({
           )}
 
           {/* OTP Section */}
-          {deleteAll && otpSent && (
+          {otpSent && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -296,7 +307,7 @@ export default function TransferBMCsModal({
                 </p>
               </div>
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                Please enter the 6-digit verification code to confirm deletion:
+                Please enter the 6-digit verification code to confirm {deleteAll ? 'deletion' : 'transfer and deletion'}:
               </p>
               
               {/* OTP Input Boxes */}
@@ -364,10 +375,25 @@ export default function TransferBMCsModal({
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={!selectedDairyId}
-              className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+              disabled={!selectedDairyId || isSendingOtp || (otpSent && !isOtpComplete)}
+              className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
             >
-              Transfer & Delete Dairy
+              {isSendingOtp ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Sending OTP...
+                </>
+              ) : otpSent ? (
+                <>
+                  <AlertTriangle className="w-4 h-4" />
+                  Verify OTP & Transfer
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  Send OTP & Confirm Transfer
+                </>
+              )}
             </button>
           )}
         </div>

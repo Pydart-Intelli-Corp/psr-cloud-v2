@@ -31,9 +31,9 @@ import {
   FlowerSpinner,
   LoadingSpinner,
   StatusMessage,
-  EmptyState,
-  ConfirmDeleteModal
+  EmptyState
 } from '@/components';
+import DeleteDairyModal from '@/components/modals/DeleteDairyModal';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 import TransferBMCsModal from '@/components/modals/TransferBMCsModal';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
@@ -353,6 +353,8 @@ export default function DairyDetails() {
       await fetchDairies();
       setShowTransferModal(true);
     } else {
+      // Store dairy ID for OTP modal (used by DeleteDairyModal component)
+      (window as any).selectedDairyIdForDelete = dairyData.dairy.id;
       setShowDeleteModal(true);
     }
   };
@@ -401,18 +403,27 @@ export default function DairyDetails() {
   };
 
   // Handle simple delete (no BMCs)
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async (otp?: string) => {
     if (!dairyData?.dairy) return;
 
     try {
       const token = localStorage.getItem('authToken');
+      const body: {
+        id: number;
+        otp?: string;
+      } = { id: dairyData.dairy.id };
+      
+      if (otp) {
+        body.otp = otp;
+      }
+
       const response = await fetch('/api/user/dairy', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: dairyData.dairy.id })
+        body: JSON.stringify(body)
       });
 
       if (response.ok) {
@@ -1613,12 +1624,16 @@ export default function DairyDetails() {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
+      <DeleteDairyModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleConfirmDelete}
-        itemName={dairyData?.dairy.name || 'this dairy'}
-        itemType="Dairy"
+        dairyName={dairyData?.dairy.name || 'this dairy'}
+        bmcCount={dairyData?.analytics?.totalBmcs || 0}
+        societyCount={dairyData?.analytics?.totalSocieties || 0}
+        farmerCount={dairyData?.analytics?.totalFarmers || 0}
+        collectionCount={dairyData?.analytics?.totalCollections || 0}
+        machineCount={dairyData?.analytics?.totalMachines || 0}
       />
 
       {/* Transfer BMCs Modal */}
