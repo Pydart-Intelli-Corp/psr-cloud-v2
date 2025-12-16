@@ -122,12 +122,8 @@ jobs:
             NEXT_PUBLIC_APP_URL=http://${VPS_HOST}
             ENV_EOF
             
-            echo "📦 Installing production dependencies only..."
-            npm install --production --no-save
-            
-            echo "🗄️ Running database migrations..."
-            npx sequelize-cli db:migrate --env production || true
-            npx sequelize-cli db:seed:all --env production || true
+            echo "�️ Running database migrations..."
+            npx sequelize-cli db:migrate --env production 2>/dev/null || echo "Migrations skipped"
             
             echo "🔐 Fixing file ownership..."
             chown -R root:root /var/www/psr-v4
