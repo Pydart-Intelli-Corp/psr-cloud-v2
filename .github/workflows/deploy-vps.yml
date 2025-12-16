@@ -200,8 +200,14 @@ jobs:
             echo "📦 Extracting pre-built application..."
             cd /var/www/psr-v4
             
-            # Remove old build
-            rm -rf .next public node_modules
+            # Stop application first to release file locks
+            pm2 stop psr-v4 || true
+            
+            # Remove old build (force with find to handle locked directories)
+            echo "🧹 Cleaning old build..."
+            rm -rf .next 2>/dev/null || true
+            rm -rf public 2>/dev/null || true
+            find node_modules -mindepth 1 -delete 2>/dev/null || rm -rf node_modules || true
             
             # Extract new build
             tar -xzf /tmp/deploy.tar.gz
