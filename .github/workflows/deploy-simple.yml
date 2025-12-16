@@ -1,0 +1,26 @@
+name: Simple Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            cd /var/www/psr-v4 || exit 1
+            git pull origin master
+            npm ci
+            npm run build
+            pm2 restart psr-v4 || pm2 start npm --name psr-v4 -- start
+            pm2 save
