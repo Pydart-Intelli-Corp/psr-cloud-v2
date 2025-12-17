@@ -33,6 +33,7 @@ import {
   Award,
   Droplets,
   Eye,
+  EyeOff,
   Plus,
   BarChart3,
   X,
@@ -163,6 +164,8 @@ export default function BMCManagement() {
   const [dairyFilter, setDairyFilter] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ 
     bmcId?: string; 
     name?: string;
@@ -306,21 +309,70 @@ export default function BMCManagement() {
   };
 
   // Open edit modal
-  const handleEditClick = (bmc: BMC) => {
+  const handleEditClick = async (bmc: BMC) => {
     setSelectedBMC(bmc);
-    setFormData({
-      name: bmc.name,
-      bmcId: bmc.bmcId,
-      password: '',
-      dairyFarmId: bmc.dairyFarmId?.toString() || '',
-      location: bmc.location || '',
-      contactPerson: bmc.contactPerson || '',
-      phone: bmc.phone || '',
-      email: bmc.email || '',
-      capacity: bmc.capacity?.toString() || '',
-      status: bmc.status || 'active',
-      monthlyTarget: bmc.monthlyTarget?.toString() || ''
-    });
+    setShowPassword(false);
+    setCurrentPassword('');
+    
+    // Fetch current password
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/user/bmc/password?id=${bmc.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const fetchedPassword = result.data?.password || result.password || '';
+        setCurrentPassword(fetchedPassword);
+        
+        setFormData({
+          name: bmc.name,
+          bmcId: bmc.bmcId,
+          password: fetchedPassword,
+          dairyFarmId: bmc.dairyFarmId?.toString() || '',
+          location: bmc.location || '',
+          contactPerson: bmc.contactPerson || '',
+          phone: bmc.phone || '',
+          email: bmc.email || '',
+          capacity: bmc.capacity?.toString() || '',
+          status: bmc.status || 'active',
+          monthlyTarget: bmc.monthlyTarget?.toString() || ''
+        });
+      } else {
+        setFormData({
+          name: bmc.name,
+          bmcId: bmc.bmcId,
+          password: '',
+          dairyFarmId: bmc.dairyFarmId?.toString() || '',
+          location: bmc.location || '',
+          contactPerson: bmc.contactPerson || '',
+          phone: bmc.phone || '',
+          email: bmc.email || '',
+          capacity: bmc.capacity?.toString() || '',
+          status: bmc.status || 'active',
+          monthlyTarget: bmc.monthlyTarget?.toString() || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching password:', error);
+      setFormData({
+        name: bmc.name,
+        bmcId: bmc.bmcId,
+        password: '',
+        dairyFarmId: bmc.dairyFarmId?.toString() || '',
+        location: bmc.location || '',
+        contactPerson: bmc.contactPerson || '',
+        phone: bmc.phone || '',
+        email: bmc.email || '',
+        capacity: bmc.capacity?.toString() || '',
+        status: bmc.status || 'active',
+        monthlyTarget: bmc.monthlyTarget?.toString() || ''
+      });
+    }
+    
     setShowEditForm(true);
   };
 
@@ -354,7 +406,8 @@ export default function BMCManagement() {
         monthlyTarget: formData.monthlyTarget ? parseInt(formData.monthlyTarget) : undefined
       };
 
-      if (formData.password) {
+      // Only include password if it was changed from the original
+      if (formData.password && formData.password !== currentPassword) {
         updateData.password = formData.password;
       }
 
@@ -1189,14 +1242,31 @@ export default function BMCManagement() {
             />
 
             {/* Optional Fields */}
-            <FormInput
-              label={`${t.bmcManagement.password} (Leave blank to keep current)`}
-              type="password"
-              value={formData.password}
-              onChange={(value) => handleInputChange('password', value)}
-              placeholder="Enter new password (optional)"
-              colSpan={2}
-            />
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder="Enter password"
+                  className="form-input-custom w-full px-3 sm:px-4 py-2 sm:py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-all duration-200 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Current password is pre-filled. Click eye icon to view or edit to change.
+              </p>
+            </div>
 
             <FormInput
               label={t.bmcManagement.capacity}

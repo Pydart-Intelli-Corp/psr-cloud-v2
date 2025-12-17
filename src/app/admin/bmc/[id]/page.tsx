@@ -24,6 +24,7 @@ import {
   Droplet,
   Award,
   Eye,
+  EyeOff,
   Settings,
   Edit,
   Save,
@@ -33,7 +34,9 @@ import {
 import { 
   LoadingSpinner, 
   EmptyState, 
-  StatusMessage
+  StatusMessage,
+  FormInput,
+  FormSelect
 } from '@/components';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
 import TransferSocietiesModal from '@/components/modals/TransferSocietiesModal';
@@ -52,6 +55,7 @@ interface BMCDetails {
   phone?: string;
   email?: string;
   capacity?: number;
+  password?: string;
   status: 'active' | 'inactive' | 'maintenance';
   createdAt: string;
   updatedAt?: string;
@@ -97,6 +101,8 @@ export default function BMCDetails() {
   const [success, setSuccess] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [validationErrors, setValidationErrors] = useState<{
     phone?: string;
     email?: string;
@@ -167,6 +173,51 @@ export default function BMCDetails() {
       setLoading(false);
     }
   }, [bmcIdParam, router]);
+
+  useEffect(() => {
+    fetchBMCDetails();
+  }, [fetchBMCDetails]);
+
+  // Fetch password when entering edit mode
+  useEffect(() => {
+    const fetchPassword = async () => {
+      if (isEditing && bmc?.id) {
+        try {
+          const token = localStorage.getItem('authToken');
+          const response = await fetch(`/api/user/bmc/password?id=${bmc.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            // Safely extract password as string
+            let fetchedPassword = '';
+            if (result.data) {
+              if (typeof result.data === 'string') {
+                fetchedPassword = result.data;
+              } else if (typeof result.data === 'object' && result.data.password) {
+                fetchedPassword = String(result.data.password);
+              }
+            } else if (result.password) {
+              fetchedPassword = String(result.password);
+            }
+            
+            setCurrentPassword(fetchedPassword);
+            setEditFormData(prev => ({ ...prev, password: fetchedPassword }));
+          }
+        } catch (error) {
+          console.error('Error fetching password:', error);
+        }
+      } else if (!isEditing) {
+        setShowPassword(false);
+        setCurrentPassword('');
+      }
+    };
+
+    fetchPassword();
+  }, [isEditing, bmc?.id]);
 
   // Fetch societies under this BMC
   const fetchSocieties = async () => {
@@ -312,6 +363,36 @@ export default function BMCDetails() {
     fetchBMCDetails();
   }, [fetchBMCDetails]);
 
+  // Fetch password when entering edit mode
+  useEffect(() => {
+    const fetchPassword = async () => {
+      if (isEditing && bmc?.id) {
+        try {
+          const token = localStorage.getItem('authToken');
+          const response = await fetch(`/api/user/bmc/password?id=${bmc.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            const password = result.data || '';
+            setCurrentPassword(password);
+            setEditFormData(prev => ({ ...prev, password }));
+          }
+        } catch (error) {
+          console.error('Error fetching password:', error);
+        }
+      } else if (!isEditing) {
+        setShowPassword(false);
+        setCurrentPassword('');
+      }
+    };
+
+    fetchPassword();
+  }, [isEditing, bmc?.id]);
+
   if (!user || loading) {
     return <LoadingSpinner />;
   }
@@ -383,7 +464,7 @@ export default function BMCDetails() {
     try {
       // Validate before saving
       const phoneError = validatePhoneOnBlur(editFormData.phone);
-      const emailError = validateEmailQuick(editFormData.email);
+      const emailError = editFormData.email ? validateEmailQuick(editFormData.email) : '';
 
       if (phoneError || emailError) {
         setValidationErrors({
@@ -419,7 +500,7 @@ export default function BMCDetails() {
           status: editFormData.status,
           capacity: editFormData.capacity ? parseInt(editFormData.capacity) : undefined,
           monthlyTarget: editFormData.monthlyTarget ? parseInt(editFormData.monthlyTarget) : undefined,
-          password: editFormData.password || undefined // Only send if provided
+          password: editFormData.password !== currentPassword ? editFormData.password : undefined
         })
       });
 
@@ -925,25 +1006,24 @@ export default function BMCDetails() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* BMC Name */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          BMC Name <span className="text-red-500">*</span>
-                        </label>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editFormData.name}
-                            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter BMC name"
-                            required
-                          />
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="BMC Name"
+                          value={editFormData.name}
+                          onChange={(value) => setEditFormData({ ...editFormData, name: value })}
+                          placeholder="Enter BMC name"
+                          required
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            BMC Name
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.name}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* BMC ID (Read-only) */}
                       <div>
@@ -956,201 +1036,237 @@ export default function BMCDetails() {
                       </div>
 
                       {/* Contact Person */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Contact Person
-                        </label>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editFormData.contactPerson}
-                            onChange={(e) => setEditFormData({ ...editFormData, contactPerson: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter contact person"
-                          />
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="Contact Person"
+                          value={editFormData.contactPerson}
+                          onChange={(value) => setEditFormData({ ...editFormData, contactPerson: value })}
+                          placeholder="Enter contact person"
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Contact Person
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.contactPerson || 'N/A'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Location */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Location
-                        </label>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editFormData.location}
-                            onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter location"
-                          />
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="Location"
+                          value={editFormData.location}
+                          onChange={(value) => setEditFormData({ ...editFormData, location: value })}
+                          placeholder="Enter location"
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Location
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.location || 'N/A'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Phone */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Phone Number
-                        </label>
-                        {isEditing ? (
-                          <div>
-                            <input
-                              type="tel"
-                              value={editFormData.phone}
-                              onChange={handlePhoneChange}
-                              onBlur={handlePhoneBlur}
-                              maxLength={10}
-                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
-                                validationErrors.phone 
-                                  ? 'border-red-500 dark:border-red-500' 
-                                  : 'border-gray-300 dark:border-gray-600'
-                              }`}
-                              placeholder="Enter 10-digit phone number"
-                            />
-                            {validationErrors.phone && (
-                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                {validationErrors.phone}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="Phone Number"
+                          type="tel"
+                          value={editFormData.phone}
+                          onChange={handlePhoneChange}
+                          onBlur={handlePhoneBlur}
+                          maxLength={10}
+                          placeholder="Enter 10-digit phone number"
+                          error={validationErrors.phone}
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Phone Number
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.phone || 'N/A'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Email */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Email
-                        </label>
-                        {isEditing ? (
-                          <div>
-                            <input
-                              type="email"
-                              value={editFormData.email}
-                              onChange={(e) => {
-                                setEditFormData({ ...editFormData, email: e.target.value });
-                                // Clear error when user starts typing
-                                if (validationErrors.email) {
-                                  setValidationErrors({ ...validationErrors, email: undefined });
-                                }
-                              }}
-                              onBlur={handleEmailBlur}
-                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
-                                validationErrors.email 
-                                  ? 'border-red-500 dark:border-red-500' 
-                                  : 'border-gray-300 dark:border-gray-600'
-                              }`}
-                              placeholder="Enter email address"
-                            />
-                            {validationErrors.email && (
-                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                {validationErrors.email}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="Email"
+                          type="email"
+                          value={editFormData.email}
+                          onChange={(value) => {
+                            setEditFormData({ ...editFormData, email: value });
+                            if (validationErrors.email) {
+                              setValidationErrors({ ...validationErrors, email: undefined });
+                            }
+                          }}
+                          onBlur={handleEmailBlur}
+                          placeholder="Enter email address"
+                          error={validationErrors.email}
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Email
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.email || 'N/A'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Capacity */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Capacity (Liters)
-                        </label>
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            value={editFormData.capacity}
-                            onChange={(e) => setEditFormData({ ...editFormData, capacity: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter capacity in liters"
-                            min="0"
-                          />
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="Capacity (Liters)"
+                          type="number"
+                          value={editFormData.capacity}
+                          onChange={(value) => setEditFormData({ ...editFormData, capacity: value })}
+                          placeholder="Enter capacity in liters"
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Capacity (Liters)
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.capacity ? `${bmc.capacity.toLocaleString()} L` : 'N/A'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Monthly Target */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Monthly Target (Liters)
-                        </label>
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            value={editFormData.monthlyTarget}
-                            onChange={(e) => setEditFormData({ ...editFormData, monthlyTarget: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter monthly target in liters"
-                            min="0"
-                          />
-                        ) : (
+                      {isEditing ? (
+                        <FormInput
+                          label="Monthly Target (Liters)"
+                          type="number"
+                          value={editFormData.monthlyTarget}
+                          onChange={(value) => setEditFormData({ ...editFormData, monthlyTarget: value })}
+                          placeholder="Enter monthly target in liters"
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Monthly Target (Liters)
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <p className="text-gray-900 dark:text-white">{bmc.monthlyTarget ? `${bmc.monthlyTarget.toLocaleString()} L` : 'N/A'}</p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Password */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Password {isEditing && <span className="text-gray-500 text-xs">(Leave blank to keep current)</span>}
+                          Password
                         </label>
                         {isEditing ? (
-                          <input
-                            type="password"
-                            value={editFormData.password}
-                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                            placeholder="Enter new password (optional)"
-                          />
+                          <div>
+                            <div className="relative">
+                              <input
+                                type={showPassword ? 'text' : 'password'}
+                                value={typeof editFormData.password === 'object' 
+                                  ? (editFormData.password?.password || '') 
+                                  : (editFormData.password || '')}
+                                onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                                placeholder="Enter password"
+                                className="form-input-custom w-full px-3 sm:px-4 py-2 sm:py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-all duration-200 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                title={showPassword ? 'Hide password' : 'Show password'}
+                              >
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              </button>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              Current password is pre-filled. Click eye icon to view or edit to change.
+                            </p>
+                          </div>
                         ) : (
-                          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                            <p className="text-gray-900 dark:text-white">••••••••</p>
+                          <div className="relative px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-between">
+                            <p className="text-gray-900 dark:text-white font-mono">
+                              {showPassword && currentPassword ? currentPassword : '••••••••'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!showPassword && !currentPassword) {
+                                  try {
+                                    const token = localStorage.getItem('authToken');
+                                    const response = await fetch(`/api/user/bmc/password?id=${bmc.id}`, {
+                                      headers: {
+                                        'Authorization': `Bearer ${token}`
+                                      }
+                                    });
+                                    
+                                    if (response.ok) {
+                                      const result = await response.json();
+                                      // Safely extract password as string
+                                      let fetchedPassword = '';
+                                      if (result.data) {
+                                        if (typeof result.data === 'string') {
+                                          fetchedPassword = result.data;
+                                        } else if (typeof result.data === 'object' && result.data.password) {
+                                          fetchedPassword = String(result.data.password);
+                                        }
+                                      } else if (result.password) {
+                                        fetchedPassword = String(result.password);
+                                      }
+                                      
+                                      setCurrentPassword(fetchedPassword);
+                                      setShowPassword(true);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error fetching password:', error);
+                                  }
+                                } else {
+                                  setShowPassword(!showPassword);
+                                }
+                              }}
+                              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                              title={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
                           </div>
                         )}
                       </div>
 
                       {/* Status */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Status
-                        </label>
-                        {isEditing ? (
-                          <select
-                            value={editFormData.status}
-                            onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as 'active' | 'inactive' | 'maintenance' })}
-                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                          >
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="maintenance">Maintenance</option>
-                          </select>
-                        ) : (
+                      {isEditing ? (
+                        <FormSelect
+                          label="Status"
+                          value={editFormData.status}
+                          onChange={(value) => setEditFormData({ ...editFormData, status: value as 'active' | 'inactive' | 'maintenance' })}
+                          options={[
+                            { value: 'active', label: 'Active' },
+                            { value: 'inactive', label: 'Inactive' },
+                            { value: 'maintenance', label: 'Maintenance' }
+                          ]}
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Status
+                          </label>
                           <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                             <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(bmc.status)}`}>
                               {bmc.status}
                             </span>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Dairy (Read-only) */}
                       <div>

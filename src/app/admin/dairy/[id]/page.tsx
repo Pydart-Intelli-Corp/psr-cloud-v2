@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Edit3,
   Eye,
+  EyeOff,
   Award,
   Clock,
   Users
@@ -31,7 +32,9 @@ import {
   FlowerSpinner,
   LoadingSpinner,
   StatusMessage,
-  EmptyState
+  EmptyState,
+  FormInput,
+  FormSelect
 } from '@/components';
 import DeleteDairyModal from '@/components/modals/DeleteDairyModal';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
@@ -48,6 +51,7 @@ interface DairyDetails {
   phone?: string;
   email?: string;
   capacity?: number;
+  password?: string;
   status: 'active' | 'inactive' | 'maintenance';
   createdAt: string;
   lastActivity?: string;
@@ -228,6 +232,7 @@ export default function DairyDetails() {
     contactPerson: '',
     phone: '',
     email: '',
+    password: '',
     status: 'active' as 'active' | 'inactive' | 'maintenance'
   });
   const [showEditForm, setShowEditForm] = useState(false);
@@ -240,6 +245,8 @@ export default function DairyDetails() {
   const [showSocietiesNavigateConfirm, setShowSocietiesNavigateConfirm] = useState(false);
   const [showMachinesNavigateConfirm, setShowMachinesNavigateConfirm] = useState(false);
   const [showFarmersNavigateConfirm, setShowFarmersNavigateConfirm] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [formData, setFormData] = useState<DairyFormData>({
     name: '',
     dairyId: '',
@@ -527,6 +534,42 @@ export default function DairyDetails() {
   useEffect(() => {
     fetchDairyDetails();
   }, [dairyId, fetchDairyDetails]);
+
+  // Fetch password when entering edit mode
+  useEffect(() => {
+    const fetchPassword = async () => {
+      if (isEditing && dairyData?.dairy && !currentPassword) {
+        try {
+          const token = localStorage.getItem('authToken');
+          const response = await fetch(`/api/user/dairy/password?id=${dairyData.dairy.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            let fetchedPassword = '';
+            
+            if (typeof result.data === 'object' && result.data.password) {
+              fetchedPassword = String(result.data.password);
+            } else if (result.data) {
+              fetchedPassword = String(result.data);
+            } else if (result.password) {
+              fetchedPassword = String(result.password);
+            }
+            
+            setCurrentPassword(fetchedPassword);
+            setEditFormData(prev => ({ ...prev, password: fetchedPassword }));
+          }
+        } catch (error) {
+          console.error('Error fetching password:', error);
+        }
+      }
+    };
+    
+    fetchPassword();
+  }, [isEditing, dairyData, currentPassword]);
 
   // Redirect if no user
   useEffect(() => {
@@ -1046,12 +1089,15 @@ export default function DairyDetails() {
                             type="button"
                             onClick={() => {
                               setIsEditing(false);
+                              setShowPassword(false);
+                              setCurrentPassword('');
                               setEditFormData({
                                 name: dairyData.dairy.name,
                                 location: dairyData.dairy.location || '',
                                 contactPerson: dairyData.dairy.contactPerson || '',
                                 phone: dairyData.dairy.phone || '',
                                 email: dairyData.dairy.email || '',
+                                password: '',
                                 status: dairyData.dairy.status
                               });
                             }}
@@ -1072,7 +1118,7 @@ export default function DairyDetails() {
                                   return;
                                 }
 
-                                const updateData = {
+                                const updateData: any = {
                                   id: dairyData.dairy.id,
                                   name: editFormData.name,
                                   location: editFormData.location,
@@ -1081,6 +1127,11 @@ export default function DairyDetails() {
                                   email: editFormData.email,
                                   status: editFormData.status
                                 };
+
+                                // Only include password if it was changed
+                                if (editFormData.password && editFormData.password !== currentPassword) {
+                                  updateData.password = editFormData.password;
+                                }
 
                                 const response = await fetch('/api/user/dairy', {
                                   method: 'PUT',
@@ -1127,8 +1178,11 @@ export default function DairyDetails() {
                               contactPerson: dairyData.dairy.contactPerson || '',
                               phone: dairyData.dairy.phone || '',
                               email: dairyData.dairy.email || '',
+                              password: '',
                               status: dairyData.dairy.status
                             });
+                            setShowPassword(false);
+                            setCurrentPassword('');
                             setIsEditing(true);
                           }}
                           className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
@@ -1147,11 +1201,10 @@ export default function DairyDetails() {
                         Dairy Name <span className="text-red-500">*</span>
                       </label>
                       {isEditing ? (
-                        <input
+                        <FormInput
                           type="text"
                           value={editFormData.name}
                           onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
                           placeholder="Enter dairy name"
                           required
                         />
@@ -1178,11 +1231,10 @@ export default function DairyDetails() {
                         Contact Person
                       </label>
                       {isEditing ? (
-                        <input
+                        <FormInput
                           type="text"
                           value={editFormData.contactPerson}
                           onChange={(e) => setEditFormData({ ...editFormData, contactPerson: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
                           placeholder="Enter contact person"
                         />
                       ) : (
@@ -1198,11 +1250,10 @@ export default function DairyDetails() {
                         Location
                       </label>
                       {isEditing ? (
-                        <input
+                        <FormInput
                           type="text"
                           value={editFormData.location}
                           onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
                           placeholder="Enter location"
                         />
                       ) : (
@@ -1219,7 +1270,7 @@ export default function DairyDetails() {
                       </label>
                       {isEditing ? (
                         <div>
-                          <input
+                          <FormInput
                             type="tel"
                             value={editFormData.phone}
                             onChange={(e) => {
@@ -1236,11 +1287,7 @@ export default function DairyDetails() {
                               }
                             }}
                             maxLength={10}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
-                              validationErrors.phone
-                                ? 'border-red-500 dark:border-red-500'
-                                : 'border-gray-300 dark:border-gray-600'
-                            }`}
+                            className={validationErrors.phone ? 'border-red-500 dark:border-red-500' : ''}
                             placeholder="Enter 10-digit phone number"
                           />
                           {validationErrors.phone && (
@@ -1263,7 +1310,7 @@ export default function DairyDetails() {
                       </label>
                       {isEditing ? (
                         <div>
-                          <input
+                          <FormInput
                             type="email"
                             value={editFormData.email}
                             onChange={(e) => {
@@ -1278,11 +1325,7 @@ export default function DairyDetails() {
                                 setValidationErrors({ ...validationErrors, email: error || undefined });
                               }
                             }}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white ${
-                              validationErrors.email
-                                ? 'border-red-500 dark:border-red-500'
-                                : 'border-gray-300 dark:border-gray-600'
-                            }`}
+                            className={validationErrors.email ? 'border-red-500 dark:border-red-500' : ''}
                             placeholder="Enter email"
                           />
                           {validationErrors.email && (
@@ -1298,21 +1341,93 @@ export default function DairyDetails() {
                       )}
                     </div>
 
+                    {/* Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Password
+                      </label>
+                      {isEditing ? (
+                        <div className="relative">
+                          <FormInput
+                            type={showPassword ? 'text' : 'password'}
+                            value={typeof editFormData.password === 'object' 
+                              ? (editFormData.password?.password || '') 
+                              : (editFormData.password || '')}
+                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                            placeholder="Enter new password (leave blank to keep current)"
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-between">
+                          <p className="text-gray-900 dark:text-white font-mono">
+                            {showPassword && currentPassword ? currentPassword : '••••••••'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!showPassword && !currentPassword) {
+                                try {
+                                  const token = localStorage.getItem('authToken');
+                                  const response = await fetch(`/api/user/dairy/password?id=${dairyData.dairy.id}`, {
+                                    headers: {
+                                      'Authorization': `Bearer ${token}`
+                                    }
+                                  });
+                                  
+                                  if (response.ok) {
+                                    const result = await response.json();
+                                    let fetchedPassword = '';
+                                    
+                                    if (typeof result.data === 'object' && result.data.password) {
+                                      fetchedPassword = String(result.data.password);
+                                    } else if (result.data) {
+                                      fetchedPassword = String(result.data);
+                                    } else if (result.password) {
+                                      fetchedPassword = String(result.password);
+                                    }
+                                    
+                                    setCurrentPassword(fetchedPassword);
+                                    setShowPassword(true);
+                                  }
+                                } catch (error) {
+                                  console.error('Error fetching password:', error);
+                                }
+                              } else {
+                                setShowPassword(!showPassword);
+                              }
+                            }}
+                            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex-shrink-0 ml-2"
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Status */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Status
                       </label>
                       {isEditing ? (
-                        <select
+                        <FormSelect
                           value={editFormData.status}
                           onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as 'active' | 'inactive' | 'maintenance' })}
-                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
-                        >
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                          <option value="maintenance">Maintenance</option>
-                        </select>
+                          options={[
+                            { value: 'active', label: 'Active' },
+                            { value: 'inactive', label: 'Inactive' },
+                            { value: 'maintenance', label: 'Maintenance' }
+                          ]}
+                          placeholder="Select status"
+                        />
                       ) : (
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(dairyData.dairy.status)}`}>

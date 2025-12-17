@@ -441,10 +441,8 @@ export async function PUT(request: NextRequest) {
     }
 
     if (password) {
-      const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.hash(password, 10);
       updateFields.push('password = ?');
-      replacements.push(hashedPassword);
+      replacements.push(password);
     }
 
     updateFields.push('updated_at = NOW()');

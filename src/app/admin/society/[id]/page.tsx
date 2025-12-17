@@ -7,14 +7,16 @@ import {
   ArrowLeft, Users, MapPin, Phone, User, Building2,
   Info, Truck, ShoppingCart, Settings, BarChart3,
   Droplet, DollarSign, AlertCircle, Zap, Award, ExternalLink,
-  Edit, Save, X, RefreshCw, Trash2
+  Edit, Save, X, RefreshCw, Trash2, Eye, EyeOff
 } from 'lucide-react';
 import { validateIndianPhone, formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation';
 import { validateEmailQuick } from '@/lib/emailValidation';
 import { 
   LoadingSpinner, 
   EmptyState,
-  StatusMessage
+  StatusMessage,
+  FormInput,
+  FormSelect
 } from '@/components';
 import DeleteSocietyModal from '@/components/modals/DeleteSocietyModal';
 import NavigationConfirmModal from '@/components/NavigationConfirmModal';
@@ -23,6 +25,7 @@ interface Society {
   id: number;
   societyId: string;
   name: string;
+  password?: string;
   location?: string;
   presidentName?: string;
   contactPhone?: string;
@@ -211,6 +214,7 @@ export default function SocietyDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: '',
+    password: '',
     location: '',
     presidentName: '',
     contactPhone: '',
@@ -221,6 +225,8 @@ export default function SocietyDetails() {
     contactPhone: '',
     email: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
 
   const fetchSocietyDetails = useCallback(async () => {
     try {
@@ -273,6 +279,7 @@ export default function SocietyDetails() {
     if (data?.society) {
       setEditFormData({
         name: data.society.name || '',
+        password: '',
         location: data.society.location || '',
         presidentName: data.society.presidentName || '',
         contactPhone: data.society.contactPhone || '',
@@ -280,6 +287,36 @@ export default function SocietyDetails() {
       });
     }
   }, [data]);
+
+  // Fetch password when entering edit mode
+  useEffect(() => {
+    const fetchPassword = async () => {
+      if (isEditing && params.id) {
+        try {
+          const token = localStorage.getItem('authToken');
+          const response = await fetch(`/api/user/society/password?id=${params.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            const fetchedPassword = result.data?.password || result.password || '';
+            setCurrentPassword(fetchedPassword);
+            setEditFormData(prev => ({ ...prev, password: fetchedPassword }));
+          }
+        } catch (error) {
+          console.error('Error fetching password:', error);
+        }
+      } else {
+        setShowPassword(false);
+        setCurrentPassword('');
+      }
+    };
+    
+    fetchPassword();
+  }, [isEditing, params.id]);
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -379,13 +416,35 @@ export default function SocietyDetails() {
         return;
       }
 
-      const response = await fetch(`/api/user/society/${params.id}`, {
+      const updateData: {
+        id: number;
+        name: string;
+        location: string;
+        presidentName: string;
+        contactPhone: string;
+        status: 'active' | 'inactive' | 'maintenance';
+        password?: string;
+      } = {
+        id: Number(params.id),
+        name: editFormData.name,
+        location: editFormData.location,
+        presidentName: editFormData.presidentName,
+        contactPhone: editFormData.contactPhone,
+        status: editFormData.status
+      };
+
+      // Only include password if it was changed
+      if (editFormData.password && editFormData.password !== currentPassword) {
+        updateData.password = editFormData.password;
+      }
+
+      const response = await fetch(`/api/user/society`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(editFormData)
+        body: JSON.stringify(updateData)
       });
 
       if (!response.ok) {
@@ -988,25 +1047,24 @@ export default function SocietyDetails() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Society Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Society Name <span className="text-red-500">*</span>
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editFormData.name}
-                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                        placeholder="Enter society name"
-                        required
-                      />
-                    ) : (
+                  {isEditing ? (
+                    <FormInput
+                      label="Society Name"
+                      value={editFormData.name}
+                      onChange={(value) => setEditFormData({ ...editFormData, name: value })}
+                      placeholder="Enter society name"
+                      required
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Society Name
+                      </label>
                       <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                         <p className="text-gray-900 dark:text-white">{society.name}</p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Society ID (Read-only) */}
                   <div>
@@ -1018,105 +1076,159 @@ export default function SocietyDetails() {
                     </div>
                   </div>
 
-                  {/* President Name */}
+                  {/* Password */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      President Name
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editFormData.presidentName}
-                        onChange={(e) => setEditFormData({ ...editFormData, presidentName: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                        placeholder="Enter president name"
-                      />
-                    ) : (
-                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <p className="text-gray-900 dark:text-white">{society.presidentName || 'N/A'}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Location */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Location
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editFormData.location}
-                        onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                        placeholder="Enter location"
-                      />
-                    ) : (
-                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <p className="text-gray-900 dark:text-white">{society.location || 'N/A'}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Contact Phone */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Contact Phone
+                      Password
                     </label>
                     {isEditing ? (
                       <div>
-                        <input
-                          type="tel"
-                          value={editFormData.contactPhone}
-                          onChange={(e) => handlePhoneChange(e.target.value)}
-                          onBlur={handlePhoneBlur}
-                          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white ${
-                            validationErrors.contactPhone 
-                              ? 'border-red-500 dark:border-red-500' 
-                              : 'border-gray-300 dark:border-gray-600'
-                          }`}
-                          placeholder="Enter 10-digit mobile number"
-                          maxLength={10}
-                        />
-                        {validationErrors.contactPhone && (
-                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                            {validationErrors.contactPhone}
-                          </p>
-                        )}
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={editFormData.password}
+                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                            placeholder="Enter password"
+                            className="form-input-custom w-full px-3 sm:px-4 py-2 sm:py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-all duration-200 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                            title={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          Indian mobile number (10 digits, starts with 6-9)
+                          Current password is pre-filled. Click eye icon to view or edit to change.
                         </p>
                       </div>
                     ) : (
-                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <p className="text-gray-900 dark:text-white">{society.contactPhone || 'N/A'}</p>
+                      <div className="relative px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-between">
+                        <p className="text-gray-900 dark:text-white font-mono">
+                          {showPassword && currentPassword ? currentPassword : '••••••••'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!showPassword && !currentPassword) {
+                              // Fetch password if not already loaded
+                              try {
+                                const token = localStorage.getItem('authToken');
+                                const response = await fetch(`/api/user/society/password?id=${params.id}`, {
+                                  headers: {
+                                    'Authorization': `Bearer ${token}`
+                                  }
+                                });
+                                
+                                if (response.ok) {
+                                  const result = await response.json();
+                                  const fetchedPassword = result.data?.password || result.password || '';
+                                  setCurrentPassword(fetchedPassword);
+                                  setShowPassword(true);
+                                }
+                              } catch (error) {
+                                console.error('Error fetching password:', error);
+                              }
+                            } else {
+                              setShowPassword(!showPassword);
+                            }
+                          }}
+                          className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
                       </div>
                     )}
                   </div>
 
+                  {/* President Name */}
+                  {isEditing ? (
+                    <FormInput
+                      label="President Name"
+                      value={editFormData.presidentName}
+                      onChange={(value) => setEditFormData({ ...editFormData, presidentName: value })}
+                      placeholder="Enter president name"
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        President Name
+                      </label>
+                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-gray-900 dark:text-white">{society.presidentName || 'N/A'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Location */}
+                  {isEditing ? (
+                    <FormInput
+                      label="Location"
+                      value={editFormData.location}
+                      onChange={(value) => setEditFormData({ ...editFormData, location: value })}
+                      placeholder="Enter location"
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Location
+                      </label>
+                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-gray-900 dark:text-white">{society.location || 'N/A'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Phone */}
+                  {isEditing ? (
+                    <FormInput
+                      label="Contact Phone"
+                      type="tel"
+                      value={editFormData.contactPhone}
+                      onChange={handlePhoneChange}
+                      onBlur={handlePhoneBlur}
+                      placeholder="Enter 10-digit mobile number"
+                      maxLength={10}
+                      error={validationErrors.contactPhone}
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Contact Phone
+                      </label>
+                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-gray-900 dark:text-white">{society.contactPhone || 'N/A'}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Status */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Status
-                    </label>
-                    {isEditing ? (
-                      <select
-                        value={editFormData.status}
-                        onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as 'active' | 'inactive' | 'maintenance' })}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="maintenance">Maintenance</option>
-                      </select>
-                    ) : (
+                  {isEditing ? (
+                    <FormSelect
+                      label="Status"
+                      value={editFormData.status}
+                      onChange={(value) => setEditFormData({ ...editFormData, status: value as 'active' | 'inactive' | 'maintenance' })}
+                      options={[
+                        { value: 'active', label: 'Active' },
+                        { value: 'inactive', label: 'Inactive' },
+                        { value: 'maintenance', label: 'Maintenance' }
+                      ]}
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Status
+                      </label>
                       <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                         <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(society.status)}`}>
                           {society.status}
                         </span>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* BMC (Read-only) */}
                   <div>
