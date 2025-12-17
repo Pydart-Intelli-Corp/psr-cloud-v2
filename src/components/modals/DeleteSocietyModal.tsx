@@ -211,7 +211,7 @@ export default function DeleteSocietyModal({
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
                       onPaste={index === 0 ? handlePaste : undefined}
-                      className="w-12 h-12 text-center text-xl font-bold border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:bg-gray-700 dark:text-white"
+                      className="w-12 h-12 text-center text-xl font-bold border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/50 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-gray-700 active:bg-white dark:active:bg-gray-700 focus:text-gray-900 dark:focus:text-white focus:outline-none transition-colors"
                     />
                   ))}
                 </div>

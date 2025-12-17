@@ -5,8 +5,17 @@ import { connectDB } from '@/lib/database';
 import { generateOTP } from '@/lib/emailService';
 import nodemailer from 'nodemailer';
 
-// In-memory store for OTPs (you could also use Redis or database)
-const otpStore = new Map<string, { otp: string; expires: Date; societyId: number }>();
+// Use global object to persist OTP store across hot reloads and module instances
+declare global {
+  var societyDeleteOtpStore: Map<string, { otp: string; expires: Date; societyId: number }> | undefined;
+}
+
+// Initialize global OTP store if it doesn't exist
+if (!global.societyDeleteOtpStore) {
+  global.societyDeleteOtpStore = new Map<string, { otp: string; expires: Date; societyId: number }>();
+}
+
+const otpStore = global.societyDeleteOtpStore;
 
 export async function POST(request: NextRequest) {
   try {
@@ -163,22 +172,34 @@ export async function POST(request: NextRequest) {
 // Export verification function for use in DELETE endpoint
 export function verifyDeleteOTP(adminId: number, societyId: number, otp: string): boolean {
   const otpKey = `${adminId}_${societyId}`;
+  console.log(`🔍 Verifying OTP - Key: ${otpKey}, OTP: ${otp}`);
+  
   const stored = otpStore.get(otpKey);
 
   if (!stored) {
+    console.log(`❌ No OTP found in store for key: ${otpKey}`);
+    console.log(`📋 Available OTP keys:`, Array.from(otpStore.keys()));
     return false;
   }
 
   if (stored.expires < new Date()) {
+    console.log(`❌ OTP expired for key: ${otpKey}`);
     otpStore.delete(otpKey);
     return false;
   }
 
-  if (stored.otp !== otp || stored.societyId !== societyId) {
+  if (stored.otp !== otp) {
+    console.log(`❌ OTP mismatch - Expected: ${stored.otp}, Got: ${otp}`);
+    return false;
+  }
+
+  if (stored.societyId !== societyId) {
+    console.log(`❌ Society ID mismatch - Expected: ${stored.societyId}, Got: ${societyId}`);
     return false;
   }
 
   // OTP is valid, delete it (one-time use)
+  console.log(`✅ OTP verified successfully for key: ${otpKey}`);
   otpStore.delete(otpKey);
   return true;
 }

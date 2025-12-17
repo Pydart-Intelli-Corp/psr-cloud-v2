@@ -608,7 +608,7 @@ export default function SocietyManagement() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`/api/user/society?id=${selectedSociety.id}&otp=${otp}`, {
+      const response = await fetch(`/api/user/society/delete?id=${selectedSociety.id}&otp=${otp}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
