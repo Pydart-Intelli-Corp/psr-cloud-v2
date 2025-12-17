@@ -360,28 +360,36 @@ export async function GET(
       console.error('[Society Details API] Error fetching channel breakdown:', error);
     }
 
-    // Get section pulse data
+    // Get section pulse data with farmer counts
     let sections: unknown[] = [];
     try {
       [sections] = await sequelize.query(`
         SELECT 
-          id,
-          DATE_FORMAT(pulse_date, '%Y-%m-%d') as pulseDate,
-          pulse_status as pulseStatus,
-          DATE_FORMAT(first_collection_time, '%Y-%m-%d %H:%i:%s') as firstCollectionTime,
-          DATE_FORMAT(last_collection_time, '%Y-%m-%d %H:%i:%s') as lastCollectionTime,
-          DATE_FORMAT(section_end_time, '%Y-%m-%d %H:%i:%s') as sectionEndTime,
-          total_collections as totalCollections,
-          inactive_days as inactiveDays,
-          DATE_FORMAT(last_checked, '%Y-%m-%d %H:%i:%s') as lastChecked,
-          DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as createdAt,
-          DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') as updatedAt
-        FROM \`${schemaName}\`.\`section_pulse\`
-        WHERE society_id = ?
-        ORDER BY pulse_date DESC
+          sp.id,
+          DATE_FORMAT(sp.pulse_date, '%Y-%m-%d') as pulseDate,
+          sp.pulse_status as pulseStatus,
+          DATE_FORMAT(sp.first_collection_time, '%Y-%m-%d %H:%i:%s') as firstCollectionTime,
+          DATE_FORMAT(sp.last_collection_time, '%Y-%m-%d %H:%i:%s') as lastCollectionTime,
+          DATE_FORMAT(sp.section_end_time, '%Y-%m-%d %H:%i:%s') as sectionEndTime,
+          sp.total_collections as totalCollections,
+          sp.inactive_days as inactiveDays,
+          DATE_FORMAT(sp.last_checked, '%Y-%m-%d %H:%i:%s') as lastChecked,
+          (SELECT COUNT(*) FROM \`${schemaName}\`.\`farmers\` WHERE society_id = ? AND status = 'active') as totalFarmers,
+          (SELECT COUNT(DISTINCT mc.farmer_id) 
+           FROM \`${schemaName}\`.\`milk_collections\` mc 
+           WHERE mc.society_id = ? AND DATE(mc.collection_date) = sp.pulse_date) as presentFarmers,
+          ((SELECT COUNT(*) FROM \`${schemaName}\`.\`farmers\` WHERE society_id = ? AND status = 'active') - 
+           (SELECT COUNT(DISTINCT mc.farmer_id) 
+            FROM \`${schemaName}\`.\`milk_collections\` mc 
+            WHERE mc.society_id = ? AND DATE(mc.collection_date) = sp.pulse_date)) as absentFarmers,
+          DATE_FORMAT(sp.created_at, '%Y-%m-%d %H:%i:%s') as createdAt,
+          DATE_FORMAT(sp.updated_at, '%Y-%m-%d %H:%i:%s') as updatedAt
+        FROM \`${schemaName}\`.\`section_pulse\` sp
+        WHERE sp.society_id = ?
+        ORDER BY sp.pulse_date DESC
         LIMIT 30
-      `, { replacements: [societyId] });
-      console.log(`[Society Details API] Found ${(sections as Array<unknown>).length} section pulse records`);
+      `, { replacements: [societyId, societyId, societyId, societyId, societyId] });
+      console.log(`[Society Details API] Found ${(sections as Array<unknown>).length} section pulse records with farmer counts`);
     } catch (error) {
       console.error('[Society Details API] Error fetching section pulse:', error);
     }

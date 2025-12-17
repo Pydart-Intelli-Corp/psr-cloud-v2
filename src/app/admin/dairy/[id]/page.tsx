@@ -1196,24 +1196,25 @@ export default function DairyDetails() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Dairy Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Dairy Name <span className="text-red-500">*</span>
-                      </label>
-                      {isEditing ? (
-                        <FormInput
-                          type="text"
-                          value={editFormData.name}
-                          onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                          placeholder="Enter dairy name"
-                          required
-                        />
-                      ) : (
+                    {isEditing ? (
+                      <FormInput
+                        label="Dairy Name"
+                        type="text"
+                        value={editFormData.name}
+                        onChange={(value) => setEditFormData({ ...editFormData, name: value })}
+                        placeholder="Enter dairy name"
+                        required
+                      />
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Dairy Name <span className="text-red-500">*</span>
+                        </label>
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.name}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Dairy ID (Read-only) */}
                     <div>
@@ -1226,146 +1227,135 @@ export default function DairyDetails() {
                     </div>
 
                     {/* Contact Person */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Contact Person
-                      </label>
-                      {isEditing ? (
-                        <FormInput
-                          type="text"
-                          value={editFormData.contactPerson}
-                          onChange={(e) => setEditFormData({ ...editFormData, contactPerson: e.target.value })}
-                          placeholder="Enter contact person"
-                        />
-                      ) : (
+                    {isEditing ? (
+                      <FormInput
+                        label="Contact Person"
+                        type="text"
+                        value={editFormData.contactPerson}
+                        onChange={(value) => setEditFormData({ ...editFormData, contactPerson: value })}
+                        placeholder="Enter contact person"
+                      />
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Contact Person
+                        </label>
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.contactPerson || 'N/A'}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Location */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Location
-                      </label>
-                      {isEditing ? (
-                        <FormInput
-                          type="text"
-                          value={editFormData.location}
-                          onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                          placeholder="Enter location"
-                        />
-                      ) : (
+                    {isEditing ? (
+                      <FormInput
+                        label="Location"
+                        type="text"
+                        value={editFormData.location}
+                        onChange={(value) => setEditFormData({ ...editFormData, location: value })}
+                        placeholder="Enter location"
+                      />
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Location
+                        </label>
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.location || 'N/A'}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Phone */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Phone Number
-                      </label>
-                      {isEditing ? (
-                        <div>
-                          <FormInput
-                            type="tel"
-                            value={editFormData.phone}
-                            onChange={(e) => {
-                              const formatted = formatPhoneInput(e.target.value);
-                              setEditFormData({ ...editFormData, phone: formatted });
-                              if (validationErrors.phone) {
-                                setValidationErrors({ ...validationErrors, phone: undefined });
-                              }
-                            }}
-                            onBlur={() => {
-                              if (editFormData.phone) {
-                                const error = validatePhoneOnBlur(editFormData.phone);
-                                setValidationErrors({ ...validationErrors, phone: error || undefined });
-                              }
-                            }}
-                            maxLength={10}
-                            className={validationErrors.phone ? 'border-red-500 dark:border-red-500' : ''}
-                            placeholder="Enter 10-digit phone number"
-                          />
-                          {validationErrors.phone && (
-                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                              {validationErrors.phone}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
+                    {isEditing ? (
+                      <FormInput
+                        label="Phone Number"
+                        type="tel"
+                        value={editFormData.phone}
+                        onChange={(value) => {
+                          const formatted = formatPhoneInput(value);
+                          setEditFormData({ ...editFormData, phone: formatted });
+                          if (validationErrors.phone) {
+                            setValidationErrors({ ...validationErrors, phone: undefined });
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editFormData.phone) {
+                            const error = validatePhoneOnBlur(editFormData.phone);
+                            setValidationErrors({ ...validationErrors, phone: error || undefined });
+                          }
+                        }}
+                        maxLength={10}
+                        placeholder="Enter 10-digit phone number"
+                        error={validationErrors.phone}
+                      />
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Phone Number
+                        </label>
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.phone || 'N/A'}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Email */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Email
-                      </label>
-                      {isEditing ? (
-                        <div>
-                          <FormInput
-                            type="email"
-                            value={editFormData.email}
-                            onChange={(e) => {
-                              setEditFormData({ ...editFormData, email: e.target.value });
-                              if (validationErrors.email) {
-                                setValidationErrors({ ...validationErrors, email: undefined });
-                              }
-                            }}
-                            onBlur={() => {
-                              if (editFormData.email) {
-                                const error = validateEmailQuick(editFormData.email);
-                                setValidationErrors({ ...validationErrors, email: error || undefined });
-                              }
-                            }}
-                            className={validationErrors.email ? 'border-red-500 dark:border-red-500' : ''}
-                            placeholder="Enter email"
-                          />
-                          {validationErrors.email && (
-                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                              {validationErrors.email}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
+                    {isEditing ? (
+                      <FormInput
+                        label="Email"
+                        type="email"
+                        value={editFormData.email}
+                        onChange={(value) => {
+                          setEditFormData({ ...editFormData, email: value });
+                          if (validationErrors.email) {
+                            setValidationErrors({ ...validationErrors, email: undefined });
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editFormData.email) {
+                            const error = validateEmailQuick(editFormData.email);
+                            setValidationErrors({ ...validationErrors, email: error || undefined });
+                          }
+                        }}
+                        placeholder="Enter email"
+                        error={validationErrors.email}
+                      />
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Email
+                        </label>
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <p className="text-gray-900 dark:text-white">{dairyData.dairy.email || 'N/A'}</p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Password */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Password
-                      </label>
-                      {isEditing ? (
-                        <div className="relative">
-                          <FormInput
-                            type={showPassword ? 'text' : 'password'}
-                            value={typeof editFormData.password === 'object' 
-                              ? (editFormData.password?.password || '') 
-                              : (editFormData.password || '')}
-                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
-                            placeholder="Enter new password (leave blank to keep current)"
-                            className="pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                          >
-                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                          </button>
-                        </div>
-                      ) : (
+                    {isEditing ? (
+                      <div>
+                        <FormInput
+                          label="Password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={editFormData.password || ''}
+                          onChange={(value) => setEditFormData({ ...editFormData, password: value })}
+                          placeholder="Enter new password (leave blank to keep current)"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                          style={{ marginTop: '-12px' }}
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Password
+                        </label>
                         <div className="relative px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 flex items-center justify-between">
                           <p className="text-gray-900 dark:text-white font-mono">
                             {showPassword && currentPassword ? currentPassword : '••••••••'}
@@ -1409,33 +1399,34 @@ export default function DairyDetails() {
                             {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                           </button>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Status */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Status
-                      </label>
-                      {isEditing ? (
-                        <FormSelect
-                          value={editFormData.status}
-                          onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as 'active' | 'inactive' | 'maintenance' })}
-                          options={[
-                            { value: 'active', label: 'Active' },
-                            { value: 'inactive', label: 'Inactive' },
-                            { value: 'maintenance', label: 'Maintenance' }
-                          ]}
-                          placeholder="Select status"
-                        />
-                      ) : (
+                    {isEditing ? (
+                      <FormSelect
+                        label="Status"
+                        value={editFormData.status}
+                        onChange={(value) => setEditFormData({ ...editFormData, status: value as 'active' | 'inactive' | 'maintenance' })}
+                        options={[
+                          { value: 'active', label: 'Active' },
+                          { value: 'inactive', label: 'Inactive' },
+                          { value: 'maintenance', label: 'Maintenance' }
+                        ]}
+                        placeholder="Select status"
+                      />
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Status
+                        </label>
                         <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                           <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(dairyData.dairy.status)}`}>
                             {dairyData.dairy.status}
                           </span>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* Capacity */}
                     <div>

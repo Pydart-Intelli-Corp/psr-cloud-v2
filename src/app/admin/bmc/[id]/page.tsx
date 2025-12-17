@@ -1079,8 +1079,19 @@ export default function BMCDetails() {
                           label="Phone Number"
                           type="tel"
                           value={editFormData.phone}
-                          onChange={handlePhoneChange}
-                          onBlur={handlePhoneBlur}
+                          onChange={(value) => {
+                            const formatted = formatPhoneInput(value);
+                            setEditFormData({ ...editFormData, phone: formatted });
+                            if (validationErrors.phone) {
+                              setValidationErrors({ ...validationErrors, phone: undefined });
+                            }
+                          }}
+                          onBlur={() => {
+                            if (editFormData.phone) {
+                              const error = validatePhoneOnBlur(editFormData.phone);
+                              setValidationErrors({ ...validationErrors, phone: error || undefined });
+                            }
+                          }}
                           maxLength={10}
                           placeholder="Enter 10-digit phone number"
                           error={validationErrors.phone}
@@ -1173,9 +1184,7 @@ export default function BMCDetails() {
                             <div className="relative">
                               <input
                                 type={showPassword ? 'text' : 'password'}
-                                value={typeof editFormData.password === 'object' 
-                                  ? (editFormData.password?.password || '') 
-                                  : (editFormData.password || '')}
+                                value={editFormData.password || ''}
                                 onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
                                 placeholder="Enter password"
                                 className="form-input-custom w-full px-3 sm:px-4 py-2 sm:py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-all duration-200 focus:outline-none"

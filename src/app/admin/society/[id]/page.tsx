@@ -173,6 +173,9 @@ interface SectionPulse {
   lastCollectionTime?: string;
   sectionEndTime?: string;
   totalCollections: number;
+  totalFarmers: number;
+  presentFarmers: number;
+  absentFarmers: number;
   inactiveDays: number;
   lastChecked: string;
   createdAt: string;
@@ -367,6 +370,7 @@ export default function SocietyDetails() {
       if (data?.society) {
         setEditFormData({
           name: data.society.name || '',
+          password: '',
           location: data.society.location || '',
           presidentName: data.society.presidentName || '',
           contactPhone: data.society.contactPhone || '',
@@ -1293,51 +1297,79 @@ export default function SocietyDetails() {
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Collection</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">End Time</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Collections</th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Farmers</th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Present</th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Absent</th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Attendance %</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Inactive Days</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Checked</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        {sections.map((section) => (
-                          <tr key={section.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-900 dark:text-white font-medium">
-                              {formatDate(section.pulseDate)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                ${section.pulseStatus === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : ''}
-                                ${section.pulseStatus === 'paused' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' : ''}
-                                ${section.pulseStatus === 'ended' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : ''}
-                                ${section.pulseStatus === 'not_started' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400' : ''}
-                                ${section.pulseStatus === 'inactive' ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-500' : ''}
-                              `}>
-                                {section.pulseStatus === 'active' && '● Active'}
-                                {section.pulseStatus === 'paused' && '⏸ Paused'}
-                                {section.pulseStatus === 'ended' && '✓ Ended'}
-                                {section.pulseStatus === 'not_started' && '○ Not Started'}
-                                {section.pulseStatus === 'inactive' && '- Inactive'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-600 dark:text-gray-400">
-                              {section.firstCollectionTime || '-'}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-600 dark:text-gray-400">
-                              {section.lastCollectionTime || '-'}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-600 dark:text-gray-400">
-                              {section.sectionEndTime || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-center whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
-                              {formatNumber(section.totalCollections)}
-                            </td>
-                            <td className="px-4 py-3 text-center whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                              {section.inactiveDays}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-500">
-                              {section.lastChecked || '-'}
-                            </td>
-                          </tr>
-                        ))}
+                        {sections.map((section) => {
+                          const attendancePercent = section.totalFarmers > 0 
+                            ? ((section.presentFarmers / section.totalFarmers) * 100).toFixed(1)
+                            : '0.0';
+                          
+                          return (
+                            <tr key={section.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-900 dark:text-white font-medium">
+                                {formatDate(section.pulseDate)}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-center">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                  ${section.pulseStatus === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : ''}
+                                  ${section.pulseStatus === 'paused' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' : ''}
+                                  ${section.pulseStatus === 'ended' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : ''}
+                                  ${section.pulseStatus === 'not_started' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400' : ''}
+                                  ${section.pulseStatus === 'inactive' ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-500' : ''}
+                                `}>
+                                  {section.pulseStatus === 'active' && '● Active'}
+                                  {section.pulseStatus === 'paused' && '⏸ Paused'}
+                                  {section.pulseStatus === 'ended' && '✓ Ended'}
+                                  {section.pulseStatus === 'not_started' && '○ Not Started'}
+                                  {section.pulseStatus === 'inactive' && '- Inactive'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-600 dark:text-gray-400">
+                                {section.firstCollectionTime || '-'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-600 dark:text-gray-400">
+                                {section.lastCollectionTime || '-'}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-600 dark:text-gray-400">
+                                {section.sectionEndTime || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                                {formatNumber(section.totalCollections)}
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">
+                                {formatNumber(section.totalFarmers)}
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400">
+                                {formatNumber(section.presentFarmers)}
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap text-sm font-medium text-red-600 dark:text-red-400">
+                                {formatNumber(section.absentFarmers)}
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap text-sm">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold
+                                  ${parseFloat(attendancePercent) >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : ''}
+                                  ${parseFloat(attendancePercent) >= 50 && parseFloat(attendancePercent) < 80 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : ''}
+                                  ${parseFloat(attendancePercent) < 50 ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : ''}
+                                `}>
+                                  {attendancePercent}%
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                                {section.inactiveDays}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-center text-sm text-gray-500 dark:text-gray-500">
+                                {section.lastChecked || '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
