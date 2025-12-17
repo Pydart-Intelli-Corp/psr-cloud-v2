@@ -1468,57 +1468,57 @@ export default function MachineDetails() {
 
                   {/* Efficiency Card */}
                   <div className={`bg-gradient-to-br rounded-lg sm:rounded-xl border shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow ${
-                    machine.efficiency >= 90 
+                    (machine.efficiency ?? 0) >= 90 
                       ? 'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800'
-                      : machine.efficiency >= 75
+                      : (machine.efficiency ?? 0) >= 75
                       ? 'from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-800'
                       : 'from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-200 dark:border-red-800'
                   }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <p className={`text-xs sm:text-sm font-medium ${
-                          machine.efficiency >= 90 
+                          (machine.efficiency ?? 0) >= 90 
                             ? 'text-green-700 dark:text-green-400'
-                            : machine.efficiency >= 75
+                            : (machine.efficiency ?? 0) >= 75
                             ? 'text-yellow-700 dark:text-yellow-400'
                             : 'text-red-700 dark:text-red-400'
                         }`}>Performance Efficiency</p>
                         <p className={`text-2xl sm:text-3xl font-bold mt-1 ${
-                          machine.efficiency >= 90 
+                          (machine.efficiency ?? 0) >= 90 
                             ? 'text-green-900 dark:text-green-100'
-                            : machine.efficiency >= 75
+                            : (machine.efficiency ?? 0) >= 75
                             ? 'text-yellow-900 dark:text-yellow-100'
                             : 'text-red-900 dark:text-red-100'
                         }`}>
-                          {machine.efficiency || 0}%
+                          {machine.efficiency ?? 0}%
                         </p>
                         <p className={`text-xs sm:text-sm mt-1 ${
-                          machine.efficiency >= 90 
+                          (machine.efficiency ?? 0) >= 90 
                             ? 'text-green-600 dark:text-green-400'
-                            : machine.efficiency >= 75
+                            : (machine.efficiency ?? 0) >= 75
                             ? 'text-yellow-600 dark:text-yellow-400'
                             : 'text-red-600 dark:text-red-400'
                         }`}>
-                          {machine.efficiency >= 90 
+                          {(machine.efficiency ?? 0) >= 90 
                             ? 'Excellent performance'
-                            : machine.efficiency >= 75
+                            : (machine.efficiency ?? 0) >= 75
                             ? 'Good performance'
-                            : machine.efficiency > 0
+                            : (machine.efficiency ?? 0) > 0
                             ? 'Needs attention'
                             : 'No efficiency data'}
                         </p>
                       </div>
                       <div className={`p-3 rounded-xl ${
-                        machine.efficiency >= 90 
+                        (machine.efficiency ?? 0) >= 90 
                           ? 'bg-green-100 dark:bg-green-800/50'
-                          : machine.efficiency >= 75
+                          : (machine.efficiency ?? 0) >= 75
                           ? 'bg-yellow-100 dark:bg-yellow-800/50'
                           : 'bg-red-100 dark:bg-red-800/50'
                       }`}>
                         <Zap className={`w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 ${
-                          machine.efficiency >= 90 
+                          (machine.efficiency ?? 0) >= 90 
                             ? 'text-green-600 dark:text-green-400'
-                            : machine.efficiency >= 75
+                            : (machine.efficiency ?? 0) >= 75
                             ? 'text-yellow-600 dark:text-yellow-400'
                             : 'text-red-600 dark:text-red-400'
                         }`} />
