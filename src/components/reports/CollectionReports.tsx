@@ -106,10 +106,11 @@ interface CollectionReportsProps {
   initialFromDate?: string | null;
   initialToDate?: string | null;
   initialBmcFilter?: string | null;
+  initialMachineFilter?: string | null;
 }
 
-export default function CollectionReports({ globalSearch = '', initialSocietyId = null, initialSocietyName = null, initialFromDate = null, initialToDate = null, initialBmcFilter = null }: CollectionReportsProps) {
-  console.log('CollectionReports received props:', { initialSocietyId, initialSocietyName, initialFromDate, initialToDate });
+export default function CollectionReports({ globalSearch = '', initialSocietyId = null, initialSocietyName = null, initialFromDate = null, initialToDate = null, initialBmcFilter = null, initialMachineFilter = null }: CollectionReportsProps) {
+  console.log('CollectionReports received props:', { initialSocietyId, initialSocietyName, initialFromDate, initialToDate, initialMachineFilter });
   
   const [records, setRecords] = useState<CollectionRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<CollectionRecord[]>([]);
@@ -189,6 +190,24 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [societiesData]); // Run when societies data loads
+
+  // Initialize machine filter from URL parameters
+  useEffect(() => {
+    if (initialMachineFilter && machinesData.length > 0) {
+      // Find machine by machineId string (e.g., "m103")
+      const machine = machinesData.find(m => m.machineId === initialMachineFilter);
+      
+      if (machine && !machineFilter.includes(machine.id.toString())) {
+        console.log('Setting machineFilter to machine:', machine.machineId, 'ID:', machine.id);
+        setMachineFilter([machine.id.toString()]);
+        
+        // Show success message
+        setSuccessMessage(`Filter Applied: Machine ${machine.machineId}`);
+        setTimeout(() => setSuccessMessage(''), 5000);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machinesData]); // Run when machines data loads
 
   // Initialize date filters from URL parameters
   useEffect(() => {

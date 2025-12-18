@@ -176,6 +176,7 @@ export default function MachineDetails() {
   const [correctionHistory, setCorrectionHistory] = useState<Array<Record<string, unknown>>>([]);
   const [statistics, setStatistics] = useState<MachineStatistic[]>([]);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [collectionReports, setCollectionReports] = useState<any[]>([]);
   const [fieldErrors, setFieldErrors] = useState<{
     machineId?: string;
     machineType?: string;
@@ -299,10 +300,17 @@ export default function MachineDetails() {
               sum + (stat.daily_cleaning || 0) + (stat.weekly_cleaning || 0), 0
             );
             
-            // Calculate average efficiency (100% - average cleaning skip percentage)
+            // Calculate average efficiency based on skip rate as percentage of total tests
+            // Efficiency = 100% - (total skips / total tests * 100)
+            const totalTests = stats.reduce((sum, stat) => sum + (stat.total_test || 0), 0);
             const totalSkips = stats.reduce((sum, stat) => sum + (stat.cleaning_skip || 0), 0);
-            const avgSkipRate = stats.length > 0 ? totalSkips / stats.length : 0;
-            calculatedStats.averageEfficiency = Math.round(Math.max(0, 100 - avgSkipRate));
+            
+            if (totalTests > 0) {
+              const skipRatePercentage = (totalSkips / totalTests) * 100;
+              calculatedStats.averageEfficiency = Math.round(Math.max(0, Math.min(100, 100 - skipRatePercentage)));
+            } else {
+              calculatedStats.averageEfficiency = 0;
+            }
             
             // Get last activity from most recent statistic
             if (stats.length > 0) {
@@ -334,11 +342,19 @@ export default function MachineDetails() {
           if (collectionsResponse.ok) {
             const collectionsResult = await collectionsResponse.json();
             if (collectionsResult.success && Array.isArray(collectionsResult.data)) {
+              console.log('📦 Total collections fetched:', collectionsResult.data.length);
+              console.log('🔍 Filtering for machine ID:', actualMachineId);
+              
               // Filter collections by this machine's machineId string
               const machineCollections = collectionsResult.data.filter(
                 (col: any) => col.machine_id === actualMachineId
               );
               collectionCount = machineCollections.length;
+              
+              console.log('✅ Filtered collections for this machine:', collectionCount);
+              
+              // Store collection data for overview display
+              setCollectionReports(machineCollections);
               
               // Get latest collection date/time for last activity
               if (machineCollections.length > 0) {
@@ -1300,10 +1316,8 @@ export default function MachineDetails() {
             <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-gray-700 min-w-max sm:min-w-0">
               {[
                 { id: 'overview' as const, label: t.dashboard?.overview || 'Overview', icon: Building2 },
-                { id: 'analytics' as const, label: t.nav?.analytics || 'Analytics', icon: BarChart3 },
                 { id: 'statistics' as const, label: 'Statistics', icon: PieChart },
-                { id: 'correction' as const, label: 'Correction', icon: Settings },
-                { id: 'activity' as const, label: t.dashboard?.recentActivity || 'Activity', icon: Activity }
+                { id: 'correction' as const, label: 'Correction', icon: Settings }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -1546,6 +1560,158 @@ export default function MachineDetails() {
                     </div>
                   </div>
                 </div>
+
+                {/* Collection Reports Section */}
+                {collectionReports.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6 mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg">
+                          <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100">Collection Reports</h3>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Milk collection data and metrics</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Total Collections */}
+                      <div className="bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800 p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-cyan-700 dark:text-cyan-400 mb-1">Total Collections</p>
+                            <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
+                              {collectionReports.length.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">All time</p>
+                          </div>
+                          <div className="bg-cyan-100 dark:bg-cyan-900/40 p-2 rounded-lg">
+                            <BarChart3 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Total Quantity */}
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Total Quantity</p>
+                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                              {collectionReports.reduce((sum, col) => sum + (parseFloat(col.quantity) || 0), 0).toFixed(2)}
+                            </p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Liters</p>
+                          </div>
+                          <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg">
+                            <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Average per Collection */}
+                      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800 p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-indigo-700 dark:text-indigo-400 mb-1">Avg per Collection</p>
+                            <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
+                              {collectionReports.length > 0 
+                                ? (collectionReports.reduce((sum, col) => sum + (parseFloat(col.quantity) || 0), 0) / collectionReports.length).toFixed(2)
+                                : '0.00'}
+                            </p>
+                            <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">Liters</p>
+                          </div>
+                          <div className="bg-indigo-100 dark:bg-indigo-900/40 p-2 rounded-lg">
+                            <PieChart className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Last 7 Days */}
+                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800 p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-purple-700 dark:text-purple-400 mb-1">Last 7 Days</p>
+                            <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                              {(() => {
+                                const sevenDaysAgo = new Date();
+                                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                                return collectionReports.filter(col => {
+                                  const colDate = new Date(col.collection_date);
+                                  return colDate >= sevenDaysAgo;
+                                }).length.toLocaleString();
+                              })()}
+                            </p>
+                            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Collections</p>
+                          </div>
+                          <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-lg">
+                            <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Collections Table */}
+                    <div className="mt-6">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Recent Collections</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Time</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Farmer ID</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Quantity</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">FAT</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">SNF</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Shift</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {[...collectionReports]
+                              .sort((a, b) => {
+                                const dateA = new Date(a.collection_date + ' ' + (a.collection_time || '00:00:00')).getTime();
+                                const dateB = new Date(b.collection_date + ' ' + (b.collection_time || '00:00:00')).getTime();
+                                return dateB - dateA;
+                              })
+                              .slice(0, 10)
+                              .map((collection, index) => (
+                                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                    {new Date(collection.collection_date).toLocaleDateString()}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                    {collection.collection_time || 'N/A'}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                    {collection.farmer_id || 'N/A'}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm font-medium text-blue-600 dark:text-blue-400">
+                                    {parseFloat(collection.quantity || 0).toFixed(2)} L
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                    {parseFloat(collection.fat || 0).toFixed(2)}%
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                                    {parseFloat(collection.snf || 0).toFixed(2)}%
+                                  </td>
+                                  <td className="px-4 py-3 text-sm">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                      collection.shift_type === 'Morning' 
+                                        ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                                        : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                    }`}>
+                                      {collection.shift_type || 'N/A'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Quick Actions - Moved to bottom on mobile, sidebar on desktop */}
@@ -1555,29 +1721,21 @@ export default function MachineDetails() {
                   <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Quick Actions</h3>
                     <div className="space-y-2 sm:space-y-3">
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-orange-50 dark:hover:from-yellow-900/20 dark:hover:to-orange-900/20 border border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-700 rounded-lg transition-all duration-200 min-h-[44px] group">
-                        <div className="p-1.5 bg-yellow-100 dark:bg-yellow-900/30 rounded group-hover:bg-yellow-200 dark:group-hover:bg-yellow-800/40 transition-colors">
-                          <Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-                        </div>
-                        <span className="ml-3 truncate">Schedule Maintenance</span>
-                      </button>
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-900/20 dark:hover:to-indigo-900/20 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 rounded-lg transition-all duration-200 min-h-[44px] group">
+                      <button 
+                        onClick={() => router.push(`/admin/reports?machineFilter=${machine.machineId}`)}
+                        className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-900/20 dark:hover:to-indigo-900/20 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 rounded-lg transition-all duration-200 min-h-[44px] group">
                         <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded group-hover:bg-blue-200 dark:group-hover:bg-blue-800/40 transition-colors">
                           <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                         </div>
-                        <span className="ml-3 truncate">View Reports</span>
+                        <span className="ml-3 truncate">Reports</span>
                       </button>
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 dark:hover:from-green-900/20 dark:hover:to-emerald-900/20 border border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-700 rounded-lg transition-all duration-200 min-h-[44px] group">
-                        <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded group-hover:bg-green-200 dark:group-hover:bg-green-800/40 transition-colors">
-                          <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                        </div>
-                        <span className="ml-3 truncate">Performance Monitor</span>
-                      </button>
-                      <button className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gradient-to-r hover:from-purple-50 hover:to-violet-50 dark:hover:from-purple-900/20 dark:hover:to-violet-900/20 border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 rounded-lg transition-all duration-200 min-h-[44px] group">
+                      <button 
+                        onClick={() => router.push(`/admin/analytics?machineFilter=${machine.machineId}`)}
+                        className="w-full flex items-center px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gradient-to-r hover:from-purple-50 hover:to-violet-50 dark:hover:from-purple-900/20 dark:hover:to-violet-900/20 border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 rounded-lg transition-all duration-200 min-h-[44px] group">
                         <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded group-hover:bg-purple-200 dark:group-hover:bg-purple-800/40 transition-colors">
-                          <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
                         </div>
-                        <span className="ml-3 truncate">Configuration</span>
+                        <span className="ml-3 truncate">Analytics</span>
                       </button>
                     </div>
                   </div>
@@ -1639,39 +1797,9 @@ export default function MachineDetails() {
                           )}
                         </div>
                       </div>
-                      
-                      {/* Performance Metrics Summary */}
-                      <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Quick Stats</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Tests</p>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                              {machine.totalOperations?.toLocaleString() || 0}
-                            </p>
-                          </div>
-                          <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Uptime</p>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                              {machine.efficiency || 0}%
-                            </p>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'analytics' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3 sm:mb-4">Performance Analytics</h3>
-              <div className="text-center py-8 sm:py-12">
-                <BarChart3 className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 dark:text-gray-600 mx-auto mb-3 sm:mb-4" />
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Analytics dashboard will be implemented here</p>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2">Charts, graphs, and performance metrics</p>
               </div>
             </div>
           )}
@@ -2189,33 +2317,6 @@ export default function MachineDetails() {
                   </table>
                 </div>
               )}
-            </div>
-          )}
-
-          {activeTab === 'activity' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 sm:mb-6">Recent Activity</h3>
-              <div className="space-y-3 sm:space-y-4">
-                {mockActivityLogs.map((log) => (
-                  <motion.div
-                    key={log.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 border border-gray-100 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex-shrink-0 mt-0.5 sm:mt-1">
-                      {getActivityIcon(log.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 break-words">{log.action}</p>
-                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">{log.details}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 sm:mt-2">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
             </div>
           )}
         </div>

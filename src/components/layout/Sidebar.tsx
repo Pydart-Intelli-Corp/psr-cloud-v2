@@ -138,12 +138,15 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
     onToggle();
   };
 
-  // Detect route changes for loading state
-  if (pathname !== prevPathname) {
-    setPrevPathname(pathname);
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 500);
-  }
+  // Detect route changes for loading state - moved to useEffect to prevent infinite loop
+  useEffect(() => {
+    if (pathname !== prevPathname) {
+      setPrevPathname(pathname);
+      setIsLoading(true);
+      const timer = setTimeout(() => setIsLoading(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [pathname, prevPathname]);
 
   // Get the correct dashboard href based on user role
   const getDashboardHref = (role: UserRole): string => {

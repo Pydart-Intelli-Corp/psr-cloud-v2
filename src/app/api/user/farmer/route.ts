@@ -9,8 +9,8 @@ interface FarmerData {
   farmerName: string;
   password?: string;
   contactNumber?: string;
-  smsEnabled?: 'ON' | 'OFF';
-  bonus?: number;
+  email?: string;
+  smsEnabled?: 'ON' | 'OFF';  emailNotificationsEnabled?: string;  bonus?: number;
   address?: string;
   bankName?: string;
   bankAccountNumber?: string;
@@ -28,7 +28,9 @@ interface FarmerQueryResult {
   name: string;
   password?: string;
   phone?: string;
+  email?: string;
   sms_enabled?: 'ON' | 'OFF';
+  email_notifications_enabled?: 'ON' | 'OFF';
   bonus?: number;
   address?: string;
   bank_name?: string;
@@ -86,8 +88,8 @@ export async function GET(request: NextRequest) {
       // Query single farmer
       query = `
         SELECT 
-          f.id, f.farmer_id, f.rf_id, f.name, f.password, f.phone, f.sms_enabled, 
-          f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
+          f.id, f.farmer_id, f.rf_id, f.name, f.password, f.phone, f.email, f.sms_enabled, 
+          f.email_notifications_enabled, f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
           f.society_id, f.machine_id, f.status, f.notes, f.cattle_count, f.created_at, f.updated_at,
           s.name as society_name, s.society_id as society_identifier,
           m.machine_id as machine_name, m.machine_type
@@ -101,8 +103,8 @@ export async function GET(request: NextRequest) {
       // Query all farmers
       query = `
         SELECT 
-          f.id, f.farmer_id, f.rf_id, f.name, f.password, f.phone, f.sms_enabled, 
-          f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
+          f.id, f.farmer_id, f.rf_id, f.name, f.password, f.phone, f.email, f.sms_enabled, 
+          f.email_notifications_enabled, f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
           f.society_id, f.machine_id, f.status, f.notes, f.cattle_count, f.created_at, f.updated_at,
           s.name as society_name, s.society_id as society_identifier,
           m.machine_id as machine_name, m.machine_type
@@ -122,7 +124,9 @@ export async function GET(request: NextRequest) {
       farmerName: farmer.name,
       password: farmer.password,
       contactNumber: farmer.phone,
+      email: farmer.email,
       smsEnabled: farmer.sms_enabled || 'OFF',
+      emailNotificationsEnabled: farmer.email_notifications_enabled || 'ON',
       bonus: Number(farmer.bonus) || 0,
       address: farmer.address,
       bankName: farmer.bank_name,
@@ -195,7 +199,9 @@ export async function POST(request: NextRequest) {
         farmer.farmerName,
         farmer.password || null,
         farmer.contactNumber || null,
+        farmer.email || null,
         farmer.smsEnabled || 'OFF',
+        farmer.emailNotificationsEnabled || 'ON',
         farmer.bonus || 0,
         farmer.address || null,
         farmer.bankName || null,
@@ -209,9 +215,9 @@ export async function POST(request: NextRequest) {
 
       const query = `
         INSERT INTO \`${schemaName}\`.farmers 
-        (farmer_id, rf_id, name, password, phone, sms_enabled, bonus, address, 
+        (farmer_id, rf_id, name, password, phone, email, sms_enabled, email_notifications_enabled, bonus, address,
          bank_name, bank_account_number, ifsc_code, society_id, machine_id, status, notes)
-        VALUES ${insertData.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+        VALUES ${insertData.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
       `;
 
       const replacements = insertData.flat();
@@ -223,8 +229,8 @@ export async function POST(request: NextRequest) {
     } else {
       // Single farmer creation
       const { 
-        farmerId, rfId, farmerName, password, contactNumber, smsEnabled, 
-        bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
+        farmerId, rfId, farmerName, password, contactNumber, email, smsEnabled, 
+        emailNotificationsEnabled, bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
         machineId, status, notes 
       }: FarmerData = singleFarmer;
 
@@ -232,16 +238,32 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Farmer ID and name are required', 400);
       }
 
+      // Check for duplicate email if provided
+      if (email && email.trim() !== '') {
+        const emailCheckQuery = `
+          SELECT farmer_id FROM \`${schemaName}\`.farmers 
+          WHERE email = ? LIMIT 1
+        `;
+        const [existingEmail] = await sequelize.query(emailCheckQuery, { 
+          replacements: [email.trim().toLowerCase()] 
+        });
+        
+        if (Array.isArray(existingEmail) && existingEmail.length > 0) {
+          console.log(`📧 Duplicate email detected: ${email}`);
+          return createErrorResponse('Email address already exists. Please use a different email.', 400);
+        }
+      }
+
       const query = `
         INSERT INTO \`${schemaName}\`.farmers 
-        (farmer_id, rf_id, name, password, phone, sms_enabled, bonus, address, 
+        (farmer_id, rf_id, name, password, phone, email, sms_enabled, email_notifications_enabled, bonus, address, 
          bank_name, bank_account_number, ifsc_code, society_id, machine_id, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const replacements = [
         farmerId, rfId || null, farmerName, password || null, contactNumber || null,
-        smsEnabled || 'OFF', bonus || 0, address || null, bankName || null,
+        email || null, smsEnabled || 'OFF', emailNotificationsEnabled || 'ON', bonus || 0, address || null, bankName || null,
         bankAccountNumber || null, ifscCode || null, societyId || null,
         machineId || null, status || 'active', notes || null
       ];
@@ -252,18 +274,40 @@ export async function POST(request: NextRequest) {
       return createSuccessResponse('Farmer created successfully', null);
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating farmer(s):', error);
     
-    if (error && typeof error === 'object' && 'name' in error && error.name === 'SequelizeUniqueConstraintError') {
-      // Check if it's a farmer_id constraint error
-      if (error && typeof error === 'object' && 'original' in error && error.original && typeof error.original === 'object') {
-        const originalError = error.original as { sqlMessage?: string };
-        if (originalError.sqlMessage && originalError.sqlMessage.includes('farmer_id')) {
+    // Check for duplicate key errors (raw SQL queries)
+    const errorMessage = error?.message || error?.original?.sqlMessage || error?.parent?.sqlMessage || '';
+    const errorCode = error?.original?.code || error?.code || error?.parent?.code || '';
+    const errno = error?.original?.errno || error?.errno || error?.parent?.errno || '';
+    
+    // MySQL duplicate entry error code is ER_DUP_ENTRY or 1062
+    if (errorCode === 'ER_DUP_ENTRY' || errno === 1062 || errorMessage.includes('Duplicate entry')) {
+      // Check which field caused the duplicate
+      if (errorMessage.includes('farmer_id') || errorMessage.includes('unique_farmer_id')) {
+        return createErrorResponse('Farmer ID already exists', 400);
+      }
+      if (errorMessage.includes('email') || errorMessage.includes('unique_email')) {
+        return createErrorResponse('Email address already exists. Please use a different email.', 400);
+      }
+      if (errorMessage.includes('rf_id')) {
+        return createErrorResponse('RF-ID already exists', 400);
+      }
+      return createErrorResponse('Farmer ID, RF-ID, or Email already exists', 400);
+    }
+    
+    // Check for Sequelize unique constraint error
+    if (error?.name === 'SequelizeUniqueConstraintError') {
+      if (error?.original?.sqlMessage) {
+        if (error.original.sqlMessage.includes('farmer_id')) {
           return createErrorResponse('Farmer ID already exists', 400);
         }
+        if (error.original.sqlMessage.includes('email') || error.original.sqlMessage.includes('unique_email')) {
+          return createErrorResponse('Email address already exists. Please use a different email.', 400);
+        }
       }
-      return createErrorResponse('Farmer ID or RF-ID already exists', 400);
+      return createErrorResponse('Farmer ID, RF-ID, or Email already exists', 400);
     }
     
     return createErrorResponse('Failed to create farmer(s)', 500);
@@ -337,8 +381,8 @@ export async function PUT(request: NextRequest) {
 
     // Single farmer update
     const { 
-      id, farmerId, rfId, farmerName, password, contactNumber, smsEnabled, 
-      bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
+      id, farmerId, rfId, farmerName, password, contactNumber, email, smsEnabled, 
+      emailNotificationsEnabled, bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
       machineId, status, notes 
     } = body;
 
@@ -346,10 +390,26 @@ export async function PUT(request: NextRequest) {
       return createErrorResponse('ID, Farmer ID and name are required', 400);
     }
 
+    // Check for duplicate email if provided (exclude current farmer)
+    if (email && email.trim() !== '') {
+      const emailCheckQuery = `
+        SELECT farmer_id FROM \`${schemaName}\`.farmers 
+        WHERE email = ? AND id != ? LIMIT 1
+      `;
+      const [existingEmail] = await sequelize.query(emailCheckQuery, { 
+        replacements: [email.trim().toLowerCase(), id] 
+      });
+      
+      if (Array.isArray(existingEmail) && existingEmail.length > 0) {
+        console.log(`📧 Duplicate email detected: ${email}`);
+        return createErrorResponse('Email address already exists. Please use a different email.', 400);
+      }
+    }
+
     const query = `
       UPDATE \`${schemaName}\`.farmers 
-      SET farmer_id = ?, rf_id = ?, name = ?, password = ?, phone = ?, 
-          sms_enabled = ?, bonus = ?, address = ?, bank_name = ?, 
+      SET farmer_id = ?, rf_id = ?, name = ?, password = ?, phone = ?, email = ?,
+          sms_enabled = ?, email_notifications_enabled = ?, bonus = ?, address = ?, bank_name = ?,
           bank_account_number = ?, ifsc_code = ?, society_id = ?, 
           machine_id = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -357,7 +417,7 @@ export async function PUT(request: NextRequest) {
 
     const replacements = [
       farmerId, rfId || null, farmerName, password || null, contactNumber || null,
-      smsEnabled || 'OFF', bonus || 0, address || null, bankName || null,
+      email || null, smsEnabled || 'OFF', emailNotificationsEnabled || 'ON', bonus || 0, address || null, bankName || null,
       bankAccountNumber || null, ifscCode || null, societyId || null,
       machineId || null, status || 'active', notes || null, id
     ];
@@ -375,18 +435,39 @@ export async function PUT(request: NextRequest) {
     console.log(`✅ Successfully updated farmer: ${farmerId} in schema: ${schemaName}`);
     return createSuccessResponse('Farmer updated successfully', null);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating farmer:', error);
     
-    if (error && typeof error === 'object' && 'name' in error && error.name === 'SequelizeUniqueConstraintError') {
-      // Check if it's a farmer_id constraint error
-      if (error && typeof error === 'object' && 'original' in error && error.original && typeof error.original === 'object') {
-        const originalError = error.original as { sqlMessage?: string };
-        if (originalError.sqlMessage && originalError.sqlMessage.includes('farmer_id')) {
+    // Check for duplicate key errors (raw SQL queries)
+    const errorMessage = error?.message || error?.original?.sqlMessage || '';
+    const errorCode = error?.original?.code || error?.code || '';
+    
+    // MySQL duplicate entry error code is ER_DUP_ENTRY or 1062
+    if (errorCode === 'ER_DUP_ENTRY' || errorCode === 1062 || errorMessage.includes('Duplicate entry')) {
+      // Check which field caused the duplicate
+      if (errorMessage.includes('farmer_id') || errorMessage.includes('unique_farmer_id')) {
+        return createErrorResponse('Farmer ID already exists', 400);
+      }
+      if (errorMessage.includes('email') || errorMessage.includes('unique_email')) {
+        return createErrorResponse('Email address already exists. Please use a different email.', 400);
+      }
+      if (errorMessage.includes('rf_id')) {
+        return createErrorResponse('RF-ID already exists', 400);
+      }
+      return createErrorResponse('Farmer ID, RF-ID, or Email already exists', 400);
+    }
+    
+    // Check for Sequelize unique constraint error
+    if (error?.name === 'SequelizeUniqueConstraintError') {
+      if (error?.original?.sqlMessage) {
+        if (error.original.sqlMessage.includes('farmer_id')) {
           return createErrorResponse('Farmer ID already exists', 400);
         }
+        if (error.original.sqlMessage.includes('email') || error.original.sqlMessage.includes('unique_email')) {
+          return createErrorResponse('Email address already exists. Please use a different email.', 400);
+        }
       }
-      return createErrorResponse('Farmer ID or RF-ID already exists', 400);
+      return createErrorResponse('Farmer ID, RF-ID, or Email already exists', 400);
     }
     
     return createErrorResponse('Failed to update farmer', 500);

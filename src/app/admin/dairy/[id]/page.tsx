@@ -1335,21 +1335,29 @@ export default function DairyDetails() {
                     {/* Password */}
                     {isEditing ? (
                       <div>
-                        <FormInput
-                          label="Password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={editFormData.password || ''}
-                          onChange={(value) => setEditFormData({ ...editFormData, password: value })}
-                          placeholder="Enter new password (leave blank to keep current)"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                          style={{ marginTop: '-12px' }}
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={editFormData.password || ''}
+                            onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                            placeholder="Enter new password (leave blank to keep current)"
+                            className="form-input-custom w-full px-3 sm:px-4 py-2 sm:py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-all duration-200 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                            title={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Leave blank to keep current password
+                        </p>
                       </div>
                     ) : (
                       <div>

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
+import { formatPhoneInput, validatePhoneOnBlur, validateIndianPhone } from '@/lib/validation/phoneValidation';
 import { 
   Settings, 
   MapPin,
@@ -28,8 +28,23 @@ import {
   Plus,
   Upload,
   Eye,
-  CheckCircle
+  CheckCircle,
+  Droplets,
+  TrendingUp,
+  Award,
+  BarChart3,
+  Users,
+  X
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import { 
   FlowerSpinner,
   FormModal, 
@@ -79,6 +94,8 @@ interface Machine {
   createdAt: string;
   activeChartsCount?: number;
   chartDetails?: string; // Format: "channel:filename:status|||channel:filename:status"
+  totalCollections30d?: number;
+  totalQuantity30d?: number;
 }
 
 interface MachineFormData {
@@ -177,6 +194,28 @@ function MachineManagement() {
   const [machineFilter, setMachineFilter] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Performance stats state
+  const [performanceStats, setPerformanceStats] = useState<{
+    topCollector: { machine: any; totalQuantity: number } | null;
+    mostTests: { machine: any; totalTests: number } | null;
+    bestCleaning: { machine: any; totalCleanings: number } | null;
+    mostCleaningSkip: { machine: any; totalSkips: number } | null;
+    activeToday: { machine: any; collectionsToday: number } | null;
+    highestUptime: { machine: any; activeDays: number } | null;
+  }>({
+    topCollector: null,
+    mostTests: null,
+    bestCleaning: null,
+    mostCleaningSkip: null,
+    activeToday: null,
+    highestUptime: null
+  });
+  
+  // Graph modal state
+  const [showGraphModal, setShowGraphModal] = useState(false);
+  const [graphMetric, setGraphMetric] = useState<'quantity' | 'tests' | 'cleaning' | 'skip' | 'today' | 'uptime'>('quantity');
+  const [graphData, setGraphData] = useState<any[]>([]);
   const [fieldErrors, setFieldErrors] = useState<{
     machineId?: string;
     machineType?: string;
@@ -448,6 +487,51 @@ function MachineManagement() {
   };
 
   // Fetch machines
+  const fetchPerformanceStats = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/analytics/machine-performance', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      console.log('📊 Performance Stats Response Status:', response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Performance Stats Data:', data);
+        setPerformanceStats(data);
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Performance Stats Error:', errorData);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching performance stats:', error);
+    }
+  }, []);
+
+  const fetchGraphData = useCallback(async (metric: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/analytics/machine-performance?graphData=true&metric=${metric}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGraphData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching graph data:', error);
+      setGraphData([]);
+    }
+  }, []);
+
+  const handleCardClick = (metric: 'quantity' | 'tests' | 'cleaning' | 'skip' | 'today' | 'uptime') => {
+    setGraphMetric(metric);
+    fetchGraphData(metric);
+    setShowGraphModal(true);
+  };
+
   const fetchMachines = useCallback(async () => {
     try {
       setLoading(true);
@@ -584,8 +668,9 @@ function MachineManagement() {
       fetchMachineTypes();
       fetchDairies();
       fetchBmcs();
+      fetchPerformanceStats();
     }
-  }, [user, fetchMachines, fetchSocieties, fetchMachineTypes, fetchDairies, fetchBmcs]);
+  }, [user, fetchMachines, fetchSocieties, fetchMachineTypes, fetchDairies, fetchBmcs, fetchPerformanceStats]);
 
   // Listen for global search events from header
   useEffect(() => {
@@ -669,6 +754,20 @@ function MachineManagement() {
       setSuccess('');
       return;
     }
+
+    // Validate phone number if provided
+    if (formData.contactPhone && formData.contactPhone.trim()) {
+      const phoneValidation = validateIndianPhone(formData.contactPhone);
+      if (!phoneValidation.isValid) {
+        setFieldErrors({ ...fieldErrors, contactPhone: phoneValidation.error || 'Invalid phone number' });
+        setError('Please fix the phone number error before saving.');
+        setSuccess('');
+        return;
+      }
+    }
+
+    // Clear field errors if validation passes
+    setFieldErrors({});
     
     setIsSubmitting(true);
 
@@ -742,6 +841,20 @@ function MachineManagement() {
       setSuccess('');
       return;
     }
+
+    // Validate phone number if provided
+    if (formData.contactPhone && formData.contactPhone.trim()) {
+      const phoneValidation = validateIndianPhone(formData.contactPhone);
+      if (!phoneValidation.isValid) {
+        setFieldErrors({ ...fieldErrors, contactPhone: phoneValidation.error || 'Invalid phone number' });
+        setError('Please fix the phone number error before saving.');
+        setSuccess('');
+        return;
+      }
+    }
+
+    // Clear field errors if validation passes
+    setFieldErrors({});
     
     setIsSubmitting(true);
 
@@ -1698,7 +1811,136 @@ function MachineManagement() {
           error={error}
         />
 
-        {/* Stats Cards */}
+        {/* Performance Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+            <div 
+              onClick={() => performanceStats.topCollector && handleCardClick('quantity')}
+              className={`bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-700 ${performanceStats.topCollector ? 'hover:shadow-lg cursor-pointer' : 'opacity-60'} transition-shadow`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">Top Collector (30d)</h3>
+                <Droplets className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              {performanceStats.topCollector ? (
+                <>
+                  <p className="text-lg font-bold text-green-800 dark:text-green-200 truncate">{performanceStats.topCollector.machine.machineId}</p>
+                  <p className="text-xs text-green-700 dark:text-green-300 truncate">{performanceStats.topCollector.machine.machineType}</p>
+                  {performanceStats.topCollector.machine.societyName && (
+                    <p className="text-xs text-green-600 dark:text-green-400 truncate">{performanceStats.topCollector.machine.societyName}</p>
+                  )}
+                  <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">{performanceStats.topCollector.totalQuantity.toFixed(2)} L</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No data available</p>
+              )}
+            </div>
+            
+            <div 
+              onClick={() => performanceStats.mostTests && handleCardClick('tests')}
+              className={`bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700 ${performanceStats.mostTests ? 'hover:shadow-lg cursor-pointer' : 'opacity-60'} transition-shadow`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Most Tests (30d)</h3>
+                <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              {performanceStats.mostTests ? (
+                <>
+                  <p className="text-lg font-bold text-purple-800 dark:text-purple-200 truncate">{performanceStats.mostTests.machine.machineId}</p>
+                  <p className="text-xs text-purple-700 dark:text-purple-300 truncate">{performanceStats.mostTests.machine.machineType}</p>
+                  {performanceStats.mostTests.machine.societyName && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 truncate">{performanceStats.mostTests.machine.societyName}</p>
+                  )}
+                  <p className="text-sm font-semibold text-purple-600 dark:text-purple-400 mt-1">{performanceStats.mostTests.totalTests} Tests</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No data available</p>
+              )}
+            </div>
+            
+            <div 
+              onClick={() => performanceStats.bestCleaning && handleCardClick('cleaning')}
+              className={`bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700 ${performanceStats.bestCleaning ? 'hover:shadow-lg cursor-pointer' : 'opacity-60'} transition-shadow`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-100">Best Cleaning (30d)</h3>
+                <Award className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              {performanceStats.bestCleaning ? (
+                <>
+                  <p className="text-lg font-bold text-orange-800 dark:text-orange-200 truncate">{performanceStats.bestCleaning.machine.machineId}</p>
+                  <p className="text-xs text-orange-700 dark:text-orange-300 truncate">{performanceStats.bestCleaning.machine.machineType}</p>
+                  {performanceStats.bestCleaning.machine.societyName && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 truncate">{performanceStats.bestCleaning.machine.societyName}</p>
+                  )}
+                  <p className="text-sm font-semibold text-orange-600 dark:text-orange-400 mt-1">{performanceStats.bestCleaning.totalCleanings} Cleanings</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No data available</p>
+              )}
+            </div>
+            
+            <div 
+              onClick={() => performanceStats.mostCleaningSkip && handleCardClick('skip')}
+              className={`bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 rounded-lg border border-red-200 dark:border-red-700 ${performanceStats.mostCleaningSkip ? 'hover:shadow-lg cursor-pointer' : 'opacity-60'} transition-shadow`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-red-900 dark:text-red-100">Most Cleaning Skip (30d)</h3>
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              {performanceStats.mostCleaningSkip ? (
+                <>
+                  <p className="text-lg font-bold text-red-800 dark:text-red-200 truncate">{performanceStats.mostCleaningSkip.machine.machineId}</p>
+                  <p className="text-xs text-red-700 dark:text-red-300 truncate">{performanceStats.mostCleaningSkip.machine.machineType}</p>
+                  {performanceStats.mostCleaningSkip.machine.societyName && (
+                    <p className="text-xs text-red-600 dark:text-red-400 truncate">{performanceStats.mostCleaningSkip.machine.societyName}</p>
+                  )}
+                  <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-1">{performanceStats.mostCleaningSkip.totalSkips} Skips</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No data available</p>
+              )}
+            </div>
+            
+            <div 
+              onClick={() => performanceStats.activeToday && handleCardClick('today')}
+              className={`bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-4 rounded-lg border border-pink-200 dark:border-pink-700 ${performanceStats.activeToday ? 'hover:shadow-lg cursor-pointer' : 'opacity-60'} transition-shadow`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-pink-900 dark:text-pink-100">Active Today</h3>
+                <Clock className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+              </div>
+              {performanceStats.activeToday ? (
+                <>
+                  <p className="text-lg font-bold text-pink-800 dark:text-pink-200 truncate">{performanceStats.activeToday.machine.machineId}</p>
+                  <p className="text-xs text-pink-700 dark:text-pink-300 truncate">{performanceStats.activeToday.machine.machineType}</p>
+                  {performanceStats.activeToday.machine.societyName && (
+                    <p className="text-xs text-pink-600 dark:text-pink-400 truncate">{performanceStats.activeToday.machine.societyName}</p>
+                  )}
+                  <p className="text-sm font-semibold text-pink-600 dark:text-pink-400 mt-1">{performanceStats.activeToday.collectionsToday} Today</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No data available</p>
+              )}
+            </div>
+            
+            <div 
+              onClick={() => performanceStats.highestUptime && handleCardClick('uptime')}
+              className={`bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700 ${performanceStats.highestUptime ? 'hover:shadow-lg cursor-pointer' : 'opacity-60'} transition-shadow`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Highest Uptime (30d)</h3>
+                <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              {performanceStats.highestUptime ? (
+                <>
+                  <p className="text-lg font-bold text-indigo-800 dark:text-indigo-200 truncate">{performanceStats.highestUptime.machine.machineId}</p>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300 truncate">{performanceStats.highestUptime.machine.machineType}</p>
+                  {performanceStats.highestUptime.machine.societyName && (
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate">{performanceStats.highestUptime.machine.societyName}</p>
+                  )}
+                  <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mt-1">{performanceStats.highestUptime.activeDays} Days</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No data available</p>
+              )}
+            </div>
+          </div>
+
+        {/* Status Stats Cards */}
         <StatsGrid
           allItems={machines}
           filteredItems={filteredMachines}
@@ -1909,6 +2151,27 @@ function MachineManagement() {
                                   ...(machine.operatorName ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.operatorName }] : []),
                                   ...(machine.contactPhone ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.contactPhone }] : []),
                                   ...(machine.installationDate ? [{ icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Installed: ${new Date(machine.installationDate).toLocaleDateString()}` }] : []),
+                                  // Collection Statistics (Last 30 Days)
+                                  {
+                                    icon: (
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                      </div>
+                                    ),
+                                    text: (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                          {machine.totalCollections30d || 0} Collections
+                                        </span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">|
+                                        </span>
+                                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                                          {(machine.totalQuantity30d || 0).toFixed(2)} L
+                                        </span>
+                                      </div>
+                                    ),
+                                    className: 'text-blue-600 dark:text-blue-400'
+                                  },
                                   // Rate Chart Information
                                   ...(() => {
                                     const { pending, downloaded } = parseChartDetails(machine.chartDetails);
@@ -2037,6 +2300,27 @@ function MachineManagement() {
                     ...(machine.operatorName ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.operatorName }] : []),
                     ...(machine.contactPhone ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.contactPhone }] : []),
                     ...(machine.installationDate ? [{ icon: <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: `Installed: ${new Date(machine.installationDate).toLocaleDateString()}` }] : []),
+                    // Collection Statistics (Last 30 Days)
+                    {
+                      icon: (
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        </div>
+                      ),
+                      text: (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                            {machine.totalCollections30d || 0} Collections
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">|
+                          </span>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {(machine.totalQuantity30d || 0).toFixed(2)} L
+                          </span>
+                        </div>
+                      ),
+                      className: 'text-blue-600 dark:text-blue-400'
+                    },
                     // Rate Chart Information
                     ...(() => {
                       const { pending, downloaded } = parseChartDetails(machine.chartDetails);
@@ -2151,7 +2435,16 @@ function MachineManagement() {
             <FormInput
               label="Machine ID"
               value={formData.machineId}
-              onChange={(value) => setFormData({ ...formData, machineId: value })}
+              onChange={(value) => {
+                // Allow only one letter followed by numbers
+                const formatted = value
+                  .replace(/[^a-zA-Z0-9]/g, '') // Remove special chars
+                  .replace(/^([a-zA-Z])[a-zA-Z]+/, '$1') // Keep only first letter
+                  .replace(/^([a-zA-Z])(\d*).*/, '$1$2') // One letter + numbers only
+                  .toUpperCase()
+                  .slice(0, 10); // Max length 10 (1 letter + 9 digits)
+                setFormData({ ...formData, machineId: formatted });
+              }}
               placeholder="e.g., M2232, S3232"
               required
               error={fieldErrors.machineId}
@@ -2686,7 +2979,7 @@ function MachineManagement() {
         onConfirm={handleDelete}
         title="Delete Machine"
         itemName={selectedMachine?.machineId || ''}
-        message="Are you sure you want to delete this machine? This action cannot be undone."
+        message="Are you sure you want to permanently delete machine"
       />
 
       {/* Rate Chart View Modal */}
@@ -3081,6 +3374,79 @@ function MachineManagement() {
           </div>
         )}
       </FormModal>
+
+      {/* Graph Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowGraphModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {graphMetric === 'quantity' && 'Top 20 Machines by Quantity (Last 30 Days)'}
+                {graphMetric === 'tests' && 'Top 20 Machines by Total Tests (Last 30 Days)'}
+                {graphMetric === 'cleaning' && 'Top 20 Machines by Cleaning Count (Last 30 Days)'}
+                {graphMetric === 'skip' && 'Top 20 Machines by Cleaning Skip Count (Last 30 Days)'}
+                {graphMetric === 'today' && 'Most Active Machines Today'}
+                {graphMetric === 'uptime' && 'Top 20 Machines by Uptime Days (Last 30 Days)'}
+              </h2>
+              <button onClick={() => setShowGraphModal(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {graphData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={graphData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="label" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis />
+                    <Tooltip content={({ active, payload }) => {
+                      if (active && payload && payload[0]) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                            <p className="font-semibold text-gray-900 dark:text-white">{data.machine.machineId}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{data.machine.machineType}</p>
+                            {data.machine.societyName && (
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{data.machine.societyName}</p>
+                            )}
+                            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mt-1">
+                              {graphMetric === 'quantity' && `${data.value.toFixed(2)} L`}
+                              {graphMetric === 'tests' && `${data.value} Tests`}
+                              {graphMetric === 'cleaning' && `${data.value} Cleanings`}
+                              {graphMetric === 'skip' && `${data.value} Skips`}
+                              {graphMetric === 'today' && `${data.value} Collections Today`}
+                              {graphMetric === 'uptime' && `${data.value} Days Active`}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3b82f6', r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                  No data available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

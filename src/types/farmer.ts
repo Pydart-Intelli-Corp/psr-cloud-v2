@@ -13,6 +13,7 @@ export interface Farmer {
   phoneNumber?: string; // Alias for contactNumber
   email?: string;
   smsEnabled: string;
+  emailNotificationsEnabled?: string;
   bonus: number;
   address?: string;
   bankName?: string;
@@ -41,6 +42,7 @@ export interface FarmerFormData {
   contactNumber?: string;
   email?: string;
   smsEnabled: string;
+  emailNotificationsEnabled?: string;
   bonus: number;
   address?: string;
   bankName?: string;

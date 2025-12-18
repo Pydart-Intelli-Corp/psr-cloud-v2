@@ -158,6 +158,7 @@ export default function SocietyManagement() {
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
   
   // Pulse tracking state
   const [pulseData, setPulseData] = useState<{
@@ -1424,15 +1425,29 @@ export default function SocietyManagement() {
               colSpan={1}
             />
 
-            <FormInput
-              label="Password"
-              type="password"
-              value={formData.password}
-              onChange={(value) => handleInputChange('password', value)}
-              placeholder="Enter password"
-              required
-              colSpan={1}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showAddPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder="Enter password"
+                  required
+                  className="form-input-custom w-full px-3 sm:px-4 py-2 sm:py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-all duration-200 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAddPassword(!showAddPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  title={showAddPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showAddPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
 
             <FormSelect
               label="Associated BMC"

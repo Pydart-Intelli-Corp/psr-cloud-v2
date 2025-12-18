@@ -3,8 +3,18 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Users, UserCheck, Phone, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload } from 'lucide-react';
+import { Users, UserCheck, Phone, Mail, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload, Droplets, TrendingUp, Award, BarChart3, X } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
+import { validateEmailOnBlur } from '@/lib/validation/emailValidation';
 import { 
   FlowerSpinner,
   FormModal, 
@@ -80,8 +90,28 @@ const FarmerManagement = () => {
   const [viewMode, setViewMode] = useState<'folder' | 'list'>('folder');
   const [selectedSocieties, setSelectedSocieties] = useState<Set<number>>(new Set());
   
+  // Graph modal state
+  const [showGraphModal, setShowGraphModal] = useState(false);
+  const [graphMetric, setGraphMetric] = useState<'quantity' | 'revenue' | 'fat' | 'snf' | 'collections' | 'rate'>('quantity');
+  const [graphData, setGraphData] = useState<any[]>([]);
+  
   // Bulk status update state
   const [bulkStatus, setBulkStatus] = useState<'active' | 'inactive' | 'suspended' | 'maintenance'>('active');
+  const [performanceStats, setPerformanceStats] = useState<{
+    topCollector: { farmer: any; totalQuantity: number } | null;
+    bestFat: { farmer: any; avgFat: number } | null;
+    bestSnf: { farmer: any; avgSnf: number } | null;
+    topRevenue: { farmer: any; totalAmount: number } | null;
+    mostActive: { farmer: any; totalCollections: number } | null;
+    bestQuality: { farmer: any; avgRate: number } | null;
+  }>({  
+    topCollector: null,
+    bestFat: null,
+    bestSnf: null,
+    topRevenue: null,
+    mostActive: null,
+    bestQuality: null
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -89,7 +119,9 @@ const FarmerManagement = () => {
     rfId: '',
     farmerName: '',
     contactNumber: '',
+    email: '',
     smsEnabled: 'OFF',
+    emailNotificationsEnabled: 'ON',
     bonus: 0,
     address: '',
     bankName: '',
@@ -200,6 +232,66 @@ const FarmerManagement = () => {
       setLoading(false);
     }
   }, [router]);
+
+  const fetchPerformanceStats = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/analytics/farmer-performance', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPerformanceStats(data.stats || {
+          topCollector: null,
+          bestFat: null,
+          bestSnf: null,
+          topRevenue: null,
+          mostActive: null,
+          bestQuality: null
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching performance stats:', error);
+    }
+  }, []);
+
+  const fetchGraphData = useCallback(async (metric: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`/api/analytics/farmer-performance?graphData=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const allFarmers = data.farmers || [];
+        
+        const chartData = allFarmers.map((farmer: any) => ({
+          name: farmer.farmer_name,
+          farmerId: farmer.farmer_id,
+          societyName: farmer.society_name,
+          value: metric === 'quantity' ? (parseFloat(farmer.total_quantity) || 0) :
+                 metric === 'revenue' ? (parseFloat(farmer.total_amount) || 0) :
+                 metric === 'fat' ? (parseFloat(farmer.avg_fat) || 0) :
+                 metric === 'snf' ? (parseFloat(farmer.avg_snf) || 0) :
+                 metric === 'collections' ? (parseInt(farmer.total_collections) || 0) :
+                 (parseFloat(farmer.avg_rate) || 0)
+        })).sort((a: any, b: any) => b.value - a.value).slice(0, 20); // Top 20 farmers
+        
+        setGraphData(chartData);
+      }
+    } catch (error) {
+      console.error('Error fetching graph data:', error);
+      setGraphData([]);
+    }
+  }, []);
+
+  const handleCardClick = (metric: 'quantity' | 'revenue' | 'fat' | 'snf' | 'collections' | 'rate') => {
+    setGraphMetric(metric);
+    fetchGraphData(metric);
+    setShowGraphModal(true);
+  };
 
   const fetchSocieties = async () => {
     try {
@@ -320,6 +412,7 @@ const FarmerManagement = () => {
           farmerName: farmer.farmerName,
           contactNumber: farmer.contactNumber,
           smsEnabled: farmer.smsEnabled,
+          emailNotificationsEnabled: farmer.emailNotificationsEnabled || 'ON',
           bonus: farmer.bonus,
           address: farmer.address,
           bankName: farmer.bankName,
@@ -834,7 +927,9 @@ const FarmerManagement = () => {
           rfId: '',
           farmerName: '',
           contactNumber: '',
+          email: '',
           smsEnabled: 'OFF',
+          emailNotificationsEnabled: 'ON',
           bonus: 0,
           address: '',
           bankName: '',
@@ -850,7 +945,7 @@ const FarmerManagement = () => {
         fetchFarmers();
       } else {
         const errorResponse = await response.json();
-        const errorMessage = errorResponse.error || 'Failed to create farmer';
+        const errorMessage = errorResponse.error || errorResponse.message || 'Failed to create farmer';
         
         // Clear previous field errors
         setFieldErrors({});
@@ -860,6 +955,8 @@ const FarmerManagement = () => {
           setFieldErrors({ farmerId: 'This Farmer ID already exists' });
         } else if (errorMessage.toLowerCase().includes('farmer name') && errorMessage.toLowerCase().includes('already exists')) {
           setFieldErrors({ farmerName: 'This Farmer name already exists' });
+        } else if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('already exists')) {
+          setFieldErrors({ email: 'This email address already exists' });
         } else {
           setError(errorMessage);
         }
@@ -930,7 +1027,9 @@ const FarmerManagement = () => {
           rfId: '',
           farmerName: '',
           contactNumber: '',
+          email: '',
           smsEnabled: 'OFF',
+          emailNotificationsEnabled: 'ON',
           bonus: 0,
           address: '',
           bankName: '',
@@ -946,7 +1045,7 @@ const FarmerManagement = () => {
         fetchFarmers();
       } else {
         const errorResponse = await response.json();
-        const errorMessage = errorResponse.error || 'Failed to update farmer';
+        const errorMessage = errorResponse.error || errorResponse.message || 'Failed to update farmer';
         
         // Clear previous field errors
         setFieldErrors({});
@@ -956,6 +1055,8 @@ const FarmerManagement = () => {
           setFieldErrors({ farmerId: 'This Farmer ID already exists' });
         } else if (errorMessage.toLowerCase().includes('farmer name') && errorMessage.toLowerCase().includes('already exists')) {
           setFieldErrors({ farmerName: 'This Farmer name already exists' });
+        } else if (errorMessage.toLowerCase().includes('email') && errorMessage.toLowerCase().includes('already exists')) {
+          setFieldErrors({ email: 'This email address already exists' });
         } else {
           setError(errorMessage);
         }
@@ -1107,7 +1208,9 @@ const FarmerManagement = () => {
       rfId: '',
       farmerName: '',
       contactNumber: '',
+      email: '',
       smsEnabled: 'OFF',
+      emailNotificationsEnabled: 'ON',
       bonus: 0,
       address: '',
       bankName: '',
@@ -1132,7 +1235,9 @@ const FarmerManagement = () => {
       rfId: farmer.rfId || '',
       farmerName: farmer.farmerName,
       contactNumber: farmer.contactNumber || '',
+      email: farmer.email || '',
       smsEnabled: farmer.smsEnabled,
+      emailNotificationsEnabled: farmer.emailNotificationsEnabled || 'ON',
       bonus: farmer.bonus,
       address: farmer.address || '',
       bankName: farmer.bankName || '',
@@ -1162,7 +1267,9 @@ const FarmerManagement = () => {
       rfId: '',
       farmerName: '',
       contactNumber: '',
+      email: '',
       smsEnabled: 'OFF',
+      emailNotificationsEnabled: 'ON',
       bonus: 0,
       address: '',
       bankName: '',
@@ -1185,7 +1292,9 @@ const FarmerManagement = () => {
       rfId: '',
       farmerName: '',
       contactNumber: '',
+      email: '',
       smsEnabled: 'OFF',
+      emailNotificationsEnabled: 'ON',
       bonus: 0,
       address: '',
       bankName: '',
@@ -1207,7 +1316,8 @@ const FarmerManagement = () => {
     fetchBmcs();
     fetchSocieties();
     fetchAllMachines();
-  }, [fetchFarmers]);
+    fetchPerformanceStats();
+  }, [fetchFarmers, fetchPerformanceStats]);
 
   // Filter farmers using inline logic that supports array-based filters
   const filteredFarmers = farmers.filter(farmer => {
@@ -1385,7 +1495,114 @@ const FarmerManagement = () => {
         error={error}
       />
 
-      {/* Stats Cards */}
+      {/* Performance Stats Cards */}
+      {(performanceStats.topCollector || performanceStats.bestFat || performanceStats.topRevenue) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+          {performanceStats.topCollector && (
+            <div 
+              onClick={() => handleCardClick('quantity')}
+              className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-700 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">Top Collector (30d)</h3>
+                <Droplets className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <p className="text-lg font-bold text-green-800 dark:text-green-200 truncate">{performanceStats.topCollector.farmer.farmerName}</p>
+              <p className="text-xs text-green-700 dark:text-green-300 truncate">ID: {performanceStats.topCollector.farmer.farmerId}</p>
+              {performanceStats.topCollector.farmer.societyName && (
+                <p className="text-xs text-green-600 dark:text-green-400 truncate">{performanceStats.topCollector.farmer.societyName}</p>
+              )}
+              <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">{performanceStats.topCollector.totalQuantity.toFixed(2)} L</p>
+            </div>
+          )}
+          
+          {performanceStats.topRevenue && (
+            <div 
+              onClick={() => handleCardClick('revenue')}
+              className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Top Earner (30d)</h3>
+                <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <p className="text-lg font-bold text-blue-800 dark:text-blue-200 truncate">{performanceStats.topRevenue.farmer.farmerName}</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300 truncate">ID: {performanceStats.topRevenue.farmer.farmerId}</p>
+              {performanceStats.topRevenue.farmer.societyName && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 truncate">{performanceStats.topRevenue.farmer.societyName}</p>
+              )}
+              <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mt-1">₹{performanceStats.topRevenue.totalAmount.toFixed(2)}</p>
+            </div>
+          )}
+          
+          {performanceStats.bestFat && (
+            <div 
+              onClick={() => handleCardClick('fat')}
+              className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Best Fat (30d)</h3>
+                <Award className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <p className="text-lg font-bold text-purple-800 dark:text-purple-200 truncate">{performanceStats.bestFat.farmer.farmerName}</p>
+              <p className="text-xs text-purple-700 dark:text-purple-300 truncate">ID: {performanceStats.bestFat.farmer.farmerId}</p>
+              {performanceStats.bestFat.farmer.societyName && (
+                <p className="text-xs text-purple-600 dark:text-purple-400 truncate">{performanceStats.bestFat.farmer.societyName}</p>
+              )}
+              <p className="text-sm font-semibold text-purple-600 dark:text-purple-400 mt-1">{performanceStats.bestFat.avgFat.toFixed(2)}% Fat</p>
+            </div>
+          )}
+          
+          {performanceStats.bestSnf && (
+            <div 
+              onClick={() => handleCardClick('snf')}
+              className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg border border-orange-200 dark:border-orange-700 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-100">Best SNF (30d)</h3>
+                <BarChart3 className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <p className="text-lg font-bold text-orange-800 dark:text-orange-200 truncate">{performanceStats.bestSnf.farmer.farmerName}</p>
+              <p className="text-xs text-orange-700 dark:text-orange-300 truncate">ID: {performanceStats.bestSnf.farmer.farmerId}</p>
+              {performanceStats.bestSnf.farmer.societyName && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 truncate">{performanceStats.bestSnf.farmer.societyName}</p>
+              )}
+              <p className="text-sm font-semibold text-orange-600 dark:text-orange-400 mt-1">{performanceStats.bestSnf.avgSnf.toFixed(2)}% SNF</p>
+            </div>
+          )}
+          
+          {performanceStats.mostActive && (
+            <div 
+              onClick={() => handleCardClick('collections')}
+              className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20 p-4 rounded-lg border border-pink-200 dark:border-pink-700 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-pink-900 dark:text-pink-100">Most Active (30d)</h3>
+                <Users className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+              </div>
+              <p className="text-lg font-bold text-pink-800 dark:text-pink-200 truncate">{performanceStats.mostActive.farmer.farmerName}</p>
+              <p className="text-xs text-pink-700 dark:text-pink-300 truncate">ID: {performanceStats.mostActive.farmer.farmerId}</p>
+              {performanceStats.mostActive.farmer.societyName && (
+                <p className="text-xs text-pink-600 dark:text-pink-400 truncate">{performanceStats.mostActive.farmer.societyName}</p>
+              )}
+              <p className="text-sm font-semibold text-pink-600 dark:text-pink-400 mt-1">{performanceStats.mostActive.totalCollections} Collections</p>
+            </div>
+          )}
+          
+          {performanceStats.bestQuality && (
+            <div 
+              onClick={() => handleCardClick('rate')}
+              className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 p-4 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:shadow-lg transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">Best Rate (30d)</h3>
+                <Award className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <p className="text-lg font-bold text-indigo-800 dark:text-indigo-200 truncate">{performanceStats.bestQuality.farmer.farmerName}</p>
+              <p className="text-xs text-indigo-700 dark:text-indigo-300 truncate">ID: {performanceStats.bestQuality.farmer.farmerId}</p>
+              {performanceStats.bestQuality.farmer.societyName && (
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate">{performanceStats.bestQuality.farmer.societyName}</p>
+              )}
+              <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mt-1">₹{performanceStats.bestQuality.avgRate.toFixed(2)}/L</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Status Stats Cards */}
       <StatsGrid
         allItems={farmers}
         filteredItems={filteredFarmers}
@@ -1573,6 +1790,7 @@ const FarmerManagement = () => {
                               icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
                               details={[
                                 ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
+                                ...(farmer.email ? [{ icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.email }] : []),
                                 ...(farmer.machineName || farmer.machineType ? [{ 
                                   icon: <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
                                   text: farmer.machineType && farmer.machineName 
@@ -1619,6 +1837,7 @@ const FarmerManagement = () => {
                 icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
                 details={[
                   ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
+                  ...(farmer.email ? [{ icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.email }] : []),
                   ...(farmer.societyName ? [{ 
                     icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
                     text: farmer.societyIdentifier 
@@ -1762,6 +1981,23 @@ const FarmerManagement = () => {
             placeholder={t.farmerManagement.enterContactNumber}
             error={fieldErrors.contactNumber}
           />
+          <FormInput
+            label="Email"
+            type="email"
+            value={formData.email}
+            onChange={(value) => setFormData({ ...formData, email: value })}
+            onBlur={() => {
+              const error = validateEmailOnBlur(formData.email);
+              if (error) {
+                setFieldErrors(prev => ({ ...prev, email: error }));
+              } else {
+                const { email: _removed, ...rest } = fieldErrors;
+                setFieldErrors(rest);
+              }
+            }}
+            placeholder="Enter Email Address"
+            error={fieldErrors.email}
+          />
           <FormSelect
             label={t.farmerManagement.smsEnabled}
             value={formData.smsEnabled}
@@ -1771,6 +2007,16 @@ const FarmerManagement = () => {
               { value: 'ON', label: 'ON' }
             ]}
             placeholder={t.farmerManagement.selectStatus}
+          />
+          <FormSelect
+            label="Email Notifications"
+            value={formData.emailNotificationsEnabled}
+            onChange={(value) => setFormData({ ...formData, emailNotificationsEnabled: value })}
+            options={[
+              { value: 'OFF', label: 'OFF' },
+              { value: 'ON', label: 'ON' }
+            ]}
+            placeholder="Select Option"
           />
           
           {/* Optional Fields */}
@@ -1845,7 +2091,13 @@ const FarmerManagement = () => {
             onCancel={closeAddModal}
             submitText={t.farmerManagement.createFarmer}
             isLoading={isSubmitting}
-            isSubmitDisabled={!formData.societyId || !formData.machineId || !formData.farmerId || !formData.farmerName}
+            isSubmitDisabled={
+              !formData.societyId || 
+              !formData.machineId || 
+              !formData.farmerId || 
+              !formData.farmerName ||
+              Object.values(fieldErrors).some(error => error !== '')
+            }
             submitType="submit"
           />
         </form>
@@ -1926,8 +2178,42 @@ const FarmerManagement = () => {
             label={t.farmerManagement.contactNumber}
             type="tel"
             value={formData.contactNumber}
-            onChange={(value) => setFormData({ ...formData, contactNumber: value })}
+            onChange={(value) => {
+              const formatted = formatPhoneInput(value);
+              setFormData({ ...formData, contactNumber: formatted });
+              if (fieldErrors.contactNumber) {
+                setFieldErrors({ ...fieldErrors, contactNumber: '' });
+              }
+            }}
+            onBlur={() => {
+              const validationError = validatePhoneOnBlur(formData.contactNumber);
+              if (validationError) {
+                setFieldErrors({ ...fieldErrors, contactNumber: validationError });
+              }
+            }}
+            error={fieldErrors.contactNumber}
             placeholder={t.farmerManagement.enterMobileNumber}
+            colSpan={1}
+          />
+          
+          <FormInput
+            label="Email"
+            type="email"
+            value={formData.email}
+            onChange={(value) => {
+              setFormData({ ...formData, email: value });
+              if (fieldErrors.email) {
+                setFieldErrors({ ...fieldErrors, email: '' });
+              }
+            }}
+            onBlur={() => {
+              const validationError = validateEmailOnBlur(formData.email);
+              if (validationError) {
+                setFieldErrors({ ...fieldErrors, email: validationError });
+              }
+            }}
+            error={fieldErrors.email}
+            placeholder="Enter email address"
             colSpan={1}
           />
           
@@ -1935,6 +2221,17 @@ const FarmerManagement = () => {
             label={t.farmerManagement.smsEnabled}
             value={formData.smsEnabled}
             onChange={(value) => setFormData({ ...formData, smsEnabled: value })}
+            options={[
+              { value: 'OFF', label: 'OFF' },
+              { value: 'ON', label: 'ON' }
+            ]}
+            colSpan={1}
+          />
+          
+          <FormSelect
+            label="Email Notifications"
+            value={formData.emailNotificationsEnabled}
+            onChange={(value) => setFormData({ ...formData, emailNotificationsEnabled: value })}
             options={[
               { value: 'OFF', label: 'OFF' },
               { value: 'ON', label: 'ON' }
@@ -2014,7 +2311,13 @@ const FarmerManagement = () => {
             onCancel={closeEditModal}
             submitText={t.farmerManagement.updateFarmer}
             isLoading={isSubmitting}
-            isSubmitDisabled={!formData.societyId || !formData.machineId || !formData.farmerId || !formData.farmerName}
+            isSubmitDisabled={
+              !formData.societyId || 
+              !formData.machineId || 
+              !formData.farmerId || 
+              !formData.farmerName ||
+              Object.values(fieldErrors).some(error => error !== '')
+            }
             submitType="submit"
           />
         </form>
@@ -2168,6 +2471,141 @@ const FarmerManagement = () => {
           }
         ]}
       />
+
+      {/* Graph Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {graphMetric === 'quantity' && 'Top Collectors - Last 30 Days'}
+                  {graphMetric === 'revenue' && 'Top Earners - Last 30 Days'}
+                  {graphMetric === 'fat' && 'Best Fat Percentage - Last 30 Days'}
+                  {graphMetric === 'snf' && 'Best SNF Percentage - Last 30 Days'}
+                  {graphMetric === 'collections' && 'Most Active Farmers - Last 30 Days'}
+                  {graphMetric === 'rate' && 'Best Rates - Last 30 Days'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowGraphModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* Graph Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {(() => {
+                const getLineColor = () => {
+                  switch (graphMetric) {
+                    case 'quantity': return '#10b981';
+                    case 'revenue': return '#3b82f6';
+                    case 'fat': return '#8b5cf6';
+                    case 'snf': return '#f59e0b';
+                    case 'collections': return '#ec4899';
+                    case 'rate': return '#6366f1';
+                    default: return '#6b7280';
+                  }
+                };
+
+                const getYAxisLabel = () => {
+                  switch (graphMetric) {
+                    case 'quantity': return 'Quantity (L)';
+                    case 'revenue': return 'Revenue (₹)';
+                    case 'fat': return 'Fat %';
+                    case 'snf': return 'SNF %';
+                    case 'collections': return 'Collections';
+                    case 'rate': return 'Rate (₹/L)';
+                    default: return 'Value';
+                  }
+                };
+
+                const CustomTooltip = ({ active, payload }: {
+                  active?: boolean;
+                  payload?: Array<{
+                    payload: { name: string; farmerId: string; societyName: string; value: number };
+                  }>;
+                }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700">
+                        <p className="font-bold text-gray-900 dark:text-white mb-1">{data.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">ID: {data.farmerId}</p>
+                        {data.societyName && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{data.societyName}</p>
+                        )}
+                        <p className="font-semibold" style={{ color: getLineColor() }}>
+                          {graphMetric === 'revenue' && '₹'}
+                          {data.value.toFixed(2)}
+                          {graphMetric === 'fat' || graphMetric === 'snf' ? '%' : ''}
+                          {graphMetric === 'quantity' ? ' L' : ''}
+                          {graphMetric === 'rate' ? '/L' : ''}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                };
+
+                return graphData.length > 0 ? (
+                  <div className="w-full h-[500px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={graphData} margin={{ top: 5, right: 30, left: 20, bottom: 80 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-gray-700" />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45}
+                          textAnchor="end"
+                          height={100}
+                          interval={0}
+                          tick={{ fontSize: 11 }}
+                          stroke="#6b7280"
+                          label={{ 
+                            value: 'Farmer Name', 
+                            position: 'insideBottom', 
+                            offset: -5,
+                            style: { fontSize: 13, fontWeight: 500, fill: '#9ca3af' }
+                          }}
+                        />
+                        <YAxis 
+                          label={{ 
+                            value: getYAxisLabel(), 
+                            angle: -90, 
+                            position: 'insideLeft',
+                            style: { fontSize: 14, fontWeight: 600 }
+                          }}
+                          tick={{ fontSize: 12 }}
+                          stroke="#6b7280"
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Line 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke={getLineColor()} 
+                          strokeWidth={3}
+                          dot={{ fill: getLineColor(), r: 5 }}
+                          activeDot={{ r: 7 }}
+                          name={getYAxisLabel()}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BarChart3 className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">No data available for the last 30 days</p>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -380,6 +380,81 @@ async function handleRequest(
       console.error(`⚠️ Failed to update section pulse:`, pulseError);
     }
 
+    // Send email notification to farmer (if new collection and email exists)
+    if (isNewCollection) {
+      try {
+        // Fetch farmer details including email and notification preference
+        const farmerQuery = `
+          SELECT f.name as farmer_name, f.email, f.email_notifications_enabled, s.name as society_name
+          FROM \`${schemaName}\`.farmers f
+          LEFT JOIN \`${schemaName}\`.societies s ON f.society_id = s.id
+          WHERE f.farmer_id = ?
+          LIMIT 1
+        `;
+        
+        const [farmerResults] = await sequelize.query(farmerQuery, {
+          replacements: [collectionData.farmerId]
+        });
+        
+        if (Array.isArray(farmerResults) && farmerResults.length > 0) {
+          const farmerData = farmerResults[0] as any;
+          
+          console.log(`📧 Email check for farmer ${collectionData.farmerId}:`, {
+            hasEmail: !!farmerData.email,
+            email: farmerData.email,
+            notificationSetting: farmerData.email_notifications_enabled,
+            willSend: farmerData.email && farmerData.email.trim() !== '' && farmerData.email_notifications_enabled === 'ON'
+          });
+          
+          // Only send email if: (1) email exists, (2) notifications are enabled
+          if (farmerData.email && farmerData.email.trim() !== '' && 
+              farmerData.email_notifications_enabled === 'ON') {
+            console.log(`📧 Sending collection email to farmer ${collectionData.farmerId} at ${farmerData.email}`);
+            
+            // Import email service
+            const { sendMilkCollectionEmail } = await import('@/lib/emailService');
+            
+            // Send email (don't await - send async)
+            sendMilkCollectionEmail(
+              farmerData.email,
+              farmerData.farmer_name || farmerName || collectionData.farmerId,
+              {
+                farmerId: collectionData.farmerId,
+                societyName: farmerData.society_name,
+                collectionDate: formattedDate,
+                collectionTime: formattedTime,
+                shiftType: shiftType,
+                channel: collectionData.channel,
+                quantity: collectionData.quantity,
+                fatPercentage: collectionData.fat,
+                snfPercentage: collectionData.snf,
+                clrValue: collectionData.clr,
+                proteinPercentage: collectionData.protein,
+                lactosePercentage: collectionData.lactose,
+                waterPercentage: collectionData.water,
+                temperature: collectionData.temperature,
+                ratePerLiter: collectionData.rate,
+                totalAmount: collectionData.totalAmount,
+                bonus: collectionData.bonus
+              }
+            ).catch((emailError) => {
+              // Log email error but don't fail the collection
+              console.error(`⚠️ Failed to send collection email:`, emailError);
+            });
+            
+            console.log(`✅ Collection email queued for sending`);
+          } else {
+            console.log(`ℹ️  No email address found for farmer ${collectionData.farmerId}`);
+          }
+        } else {
+          console.log(`ℹ️  Farmer not found in database: ${collectionData.farmerId}`);
+        }
+      } catch (emailError) {
+        // Log email error but don't fail the collection save
+        console.error(`⚠️ Error processing collection email:`, emailError);
+      }
+    }
+
     console.log(`${'='.repeat(80)}\n`);
 
     // Return success response

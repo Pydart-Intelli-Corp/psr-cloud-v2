@@ -53,6 +53,7 @@ function ReportsPage() {
   const [initialFromDate, setInitialFromDate] = useState<string | null>(null);
   const [initialToDate, setInitialToDate] = useState<string | null>(null);
   const [initialBmcFilter, setInitialBmcFilter] = useState<string | null>(null);
+  const [initialMachineFilter, setInitialMachineFilter] = useState<string | null>(null);
 
   // Read URL parameters on mount
   useEffect(() => {
@@ -61,8 +62,9 @@ function ReportsPage() {
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
     const bmcFilter = searchParams.get('bmcFilter');
+    const machineFilter = searchParams.get('machineFilter');
     
-    console.log('Reports Page - URL Params:', { societyId, societyName, fromDate, toDate });
+    console.log('Reports Page - URL Params:', { societyId, societyName, fromDate, toDate, machineFilter });
     
     if (societyId) {
       setInitialSocietyId(societyId);
@@ -83,6 +85,11 @@ function ReportsPage() {
       console.log('Setting initialBmcFilter:', bmcFilter);
       setInitialBmcFilter(bmcFilter);
     }
+    
+    if (machineFilter) {
+      console.log('Setting initialMachineFilter:', machineFilter);
+      setInitialMachineFilter(machineFilter);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 
@@ -99,10 +106,10 @@ function ReportsPage() {
   }, []);
 
   const renderContent = () => {
-    console.log('Rendering with date filters:', { initialFromDate, initialToDate, initialBmcFilter });
+    console.log('Rendering with date filters:', { initialFromDate, initialToDate, initialBmcFilter, initialMachineFilter });
     switch (activeTab) {
       case 'collection':
-        return <CollectionReports key="collection" globalSearch={globalSearch} initialSocietyId={initialSocietyId} initialSocietyName={initialSocietyName} initialFromDate={initialFromDate} initialToDate={initialToDate} initialBmcFilter={initialBmcFilter} />;
+        return <CollectionReports key="collection" globalSearch={globalSearch} initialSocietyId={initialSocietyId} initialSocietyName={initialSocietyName} initialFromDate={initialFromDate} initialToDate={initialToDate} initialBmcFilter={initialBmcFilter} initialMachineFilter={initialMachineFilter} />;
       case 'dispatch':
         return <DispatchReports key="dispatch" globalSearch={globalSearch} />;
       case 'sales':

@@ -133,7 +133,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this machine?')) {
+    if (!confirm('Are you sure you want to permanently delete this machine? This action cannot be undone and will remove all associated data.')) {
       return;
     }
 

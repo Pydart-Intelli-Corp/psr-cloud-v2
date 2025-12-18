@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   BarChart,
   Bar,
@@ -93,6 +94,7 @@ interface AnalyticsData {
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 export default function AnalyticsComponent() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState(0); // 0 = All Time
@@ -102,6 +104,7 @@ export default function AnalyticsComponent() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Filter states
   const [dairyFilter, setDairyFilter] = useState<string[]>([]);
@@ -111,12 +114,66 @@ export default function AnalyticsComponent() {
   const [channelFilter, setChannelFilter] = useState('all');
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
   const [pieBreakdownType, setPieBreakdownType] = useState<'society' | 'bmc' | 'dairy' | 'machine' | 'channel'>('society');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [machinesVersion, setMachinesVersion] = useState(0);
 
   // Filter data
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
   const [societies, setSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
-  const [machines, setMachines] = useState<Array<{ id: number; machineId: string; machineType: string }>>([]);
+  const [machines, setMachines] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string }>>([]);
+  
+  // Use ref to access current machines in fetchAnalytics without causing re-renders
+  const machinesRef = useRef(machines);
+  const urlFilterAppliedRef = useRef(false);
+  const searchParamsRef = useRef(searchParams);
+  const hasUrlFilterParam = useRef(false);
+  
+  // Update refs whenever values change
+  useEffect(() => {
+    machinesRef.current = machines;
+    searchParamsRef.current = searchParams;
+    
+    // Check if URL has machine filter parameter on mount
+    if (!hasUrlFilterParam.current) {
+      const machineFilterParam = searchParams.get('machineFilter');
+      hasUrlFilterParam.current = !!machineFilterParam;
+    }
+    
+    console.log('🔄 Machines state updated, count:', machines.length, 
+      'Sample:', machines.slice(0, 2).map(m => ({ id: m.id, machineId: m.machineId })));
+  }, [machines, searchParams]);
+
+  // Initialize machine filter from URL when machines are loaded (runs once)
+  useEffect(() => {
+    // Only apply URL filter after initial loading is complete
+    if (initialLoading) {
+      console.log('⏳ Waiting for filter data to load before applying URL filter');
+      return;
+    }
+    
+    const machineFilterParam = searchParamsRef.current.get('machineFilter');
+    
+    if (machineFilterParam && machinesRef.current.length > 0 && !urlFilterAppliedRef.current) {
+      console.log('📌 Analytics - URL Params:', { machineFilter: machineFilterParam });
+      console.log('📌 Available machines:', machinesRef.current.map(m => ({ id: m.id, machineId: m.machineId })));
+      
+      // Find machine by machineId string (e.g., "m103")
+      const machine = machinesRef.current.find(m => m.machineId === machineFilterParam);
+      
+      if (machine) {
+        console.log('✅ Applying URL machine filter:', machine.machineId, 'ID:', machine.id);
+        urlFilterAppliedRef.current = true; // Mark as applied
+        setMachineFilter([machine.id.toString()]);
+      } else {
+        console.warn('⚠️ Machine not found:', machineFilterParam);
+        urlFilterAppliedRef.current = true; // Mark as attempted even if not found
+      }
+    } else if (!machineFilterParam) {
+      // No URL filter param, mark as applied so we don't wait
+      urlFilterAppliedRef.current = true;
+    }
+  }, [initialLoading]);
 
   // Fetch filter data
   useEffect(() => {
@@ -178,8 +235,12 @@ export default function AnalyticsComponent() {
             collectionCount: 0 // Will be updated after analytics fetch
           })));
         }
+        
+        console.log('✅ Filter data loaded, ready for analytics fetch');
+        setInitialLoading(false);
       } catch (error) {
         console.error('Error fetching filter data:', error);
+        setInitialLoading(false);
       }
     };
 
@@ -207,10 +268,16 @@ export default function AnalyticsComponent() {
       if (bmcFilter.length > 0) filterParams.append('bmc', bmcFilter.join(','));
       if (societyFilter.length > 0) filterParams.append('society', societyFilter.join(','));
       if (machineFilter.length > 0) {
-        // Convert machine database IDs to machine_id strings
+        console.log('🔍 Machine Filter:', machineFilter, 'Available Machines:', machinesRef.current.length);
+        // Convert machine database IDs to machine_id strings using ref
         const machineIds = machineFilter
-          .map(id => machines.find(m => m.id.toString() === id)?.machineId)
+          .map(id => {
+            const machine = machinesRef.current.find(m => m.id.toString() === id);
+            console.log('Converting ID:', id, 'to machineId:', machine?.machineId);
+            return machine?.machineId;
+          })
           .filter(Boolean);
+        console.log('✅ Converted Machine IDs:', machineIds);
         if (machineIds.length > 0) {
           filterParams.append('machine', machineIds.join(','));
         }
@@ -218,6 +285,7 @@ export default function AnalyticsComponent() {
       if (channelFilter !== 'all') filterParams.append('channel', channelFilter);
 
       const queryString = filterParams.toString() ? `${dateParams}&${filterParams}` : dateParams;
+      console.log('📡 Analytics API Query:', queryString);
 
       const response = await fetch(`/api/user/analytics?${queryString}`, {
         headers: {
@@ -247,23 +315,38 @@ export default function AnalyticsComponent() {
         console.log('📋 Sample Sales Data:', result.dailySales[0]);
       }
       
-      setData(result);
-
-      // Update machine collection counts from analytics data
+      // Update machine collection counts FIRST (before setData) to avoid batching issues
       if (result.machineBreakdown && result.machineBreakdown.length > 0) {
-        setMachines(prevMachines => 
-          prevMachines.map(machine => {
-            const machineStats = result.machineBreakdown.find(
-              (m: { machine_id: string }) => m.machine_id === machine.machineId
-            );
-            return {
-              ...machine,
-              collectionCount: machineStats?.total_collections || 0
-            };
-          })
-        );
+        console.log('📊 Machine Breakdown Data:', result.machineBreakdown.slice(0, 3));
+        
+        // Create completely new machine objects with updated counts
+        const updatedMachines = machinesRef.current.map(machine => {
+          const machineStats = result.machineBreakdown.find(
+            (m: { machine_id: string }) => m.machine_id === machine.machineId
+          );
+          const collectionCount = machineStats?.total_collections || 0;
+          console.log(`  ${machine.machineId}: ${collectionCount} collections`);
+          
+          // Return completely new object to ensure React detects change
+          return {
+            id: machine.id,
+            machineId: machine.machineId,
+            machineType: machine.machineType,
+            societyId: machine.societyId,
+            societyName: machine.societyName,
+            societyIdentifier: machine.societyIdentifier,
+            collectionCount
+          };
+        });
+        
+        console.log('✅ Updating machines with collection counts', updatedMachines.slice(0, 2));
+        setMachines(updatedMachines);
+        setMachinesVersion(prev => prev + 1); // Force FilterDropdown re-render
+      } else {
+        console.log('⚠️ No machine breakdown data in analytics response');
       }
 
+      setData(result);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -273,10 +356,29 @@ export default function AnalyticsComponent() {
   }, [dateRange, fromDate, toDate, useCustomDate, refreshTrigger, dairyFilter, bmcFilter, societyFilter, machineFilter, channelFilter]);
 
   useEffect(() => {
+    if (initialLoading) {
+      console.log('⏳ Skipping analytics fetch, waiting for filter data to load');
+      return;
+    }
+    
+    // If URL has machine filter param, wait for it to be applied before fetching
+    if (hasUrlFilterParam.current && !urlFilterAppliedRef.current) {
+      console.log('⏳ Waiting for URL filter to be applied before fetching analytics');
+      return;
+    }
+    
+    console.log('🚀 Running fetchAnalytics with filters:', { 
+      machineFilter, 
+      dairyFilter, 
+      bmcFilter, 
+      societyFilter,
+      machinesAvailable: machines.length,
+      urlFilterApplied: urlFilterAppliedRef.current
+    });
     fetchAnalytics();
-  }, [fetchAnalytics]);
+  }, [fetchAnalytics, initialLoading, machineFilter]);
 
-  if (loading) {
+  if (initialLoading || loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <FlowerSpinner size={64} />
@@ -515,6 +617,20 @@ export default function AnalyticsComponent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+      {/* Success Message */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-right">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+          <span className="font-medium">{successMessage}</span>
+          <button
+            onClick={() => setSuccessMessage('')}
+            className="ml-2 hover:bg-white/20 rounded p-1 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 mb-6">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
@@ -661,6 +777,7 @@ export default function AnalyticsComponent() {
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700 mb-6">
         <FilterDropdown
+          key={`filters-${machinesVersion}`}
           statusFilter="all"
           onStatusChange={() => {}}
           dairyFilter={dairyFilter}

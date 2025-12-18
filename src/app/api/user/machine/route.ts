@@ -37,6 +37,8 @@ interface MachineQueryResult {
   updated_at?: string;
   active_charts_count?: number;
   chart_details?: string;
+  total_collections_30d?: number;
+  total_quantity_30d?: number;
 }
 
 // POST - Create new machine
@@ -255,7 +257,19 @@ export async function GET(request: NextRequest) {
            FROM \`${schemaName}\`.rate_charts rc
            LEFT JOIN \`${schemaName}\`.rate_chart_download_history dh 
              ON dh.rate_chart_id = rc.id AND dh.machine_id = m.id
-           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details,
+          COALESCE(
+            (SELECT COUNT(*) 
+             FROM \`${schemaName}\`.milk_collections mc 
+             WHERE mc.machine_id = m.machine_id 
+             AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)), 0
+          ) as total_collections_30d,
+          COALESCE(
+            (SELECT SUM(mc.quantity) 
+             FROM \`${schemaName}\`.milk_collections mc 
+             WHERE mc.machine_id = m.machine_id 
+             AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)), 0
+          ) as total_quantity_30d
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
         WHERE m.id = ?
@@ -287,7 +301,19 @@ export async function GET(request: NextRequest) {
            FROM \`${schemaName}\`.rate_charts rc
            LEFT JOIN \`${schemaName}\`.rate_chart_download_history dh 
              ON dh.rate_chart_id = rc.id AND dh.machine_id = m.id
-           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details,
+          COALESCE(
+            (SELECT COUNT(DISTINCT mc.id) 
+             FROM \`${schemaName}\`.milk_collections mc 
+             WHERE mc.machine_id = m.id
+             AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)), 0
+          ) as total_collections_30d,
+          COALESCE(
+            (SELECT ROUND(SUM(mc.quantity), 2)
+             FROM \`${schemaName}\`.milk_collections mc 
+             WHERE mc.machine_id = m.id
+             AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)), 0
+          ) as total_quantity_30d
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
         WHERE m.society_id IN (${placeholders})
@@ -312,7 +338,19 @@ export async function GET(request: NextRequest) {
            FROM \`${schemaName}\`.rate_charts rc
            LEFT JOIN \`${schemaName}\`.rate_chart_download_history dh 
              ON dh.rate_chart_id = rc.id AND dh.machine_id = m.id
-           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details
+           WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details,
+          COALESCE(
+            (SELECT COUNT(DISTINCT mc.id) 
+             FROM \`${schemaName}\`.milk_collections mc 
+             WHERE mc.machine_id = m.id
+             AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)), 0
+          ) as total_collections_30d,
+          COALESCE(
+            (SELECT ROUND(SUM(mc.quantity), 2)
+             FROM \`${schemaName}\`.milk_collections mc 
+             WHERE mc.machine_id = m.id
+             AND mc.collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)), 0
+          ) as total_quantity_30d
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
         ORDER BY m.created_at DESC
@@ -344,7 +382,10 @@ export async function GET(request: NextRequest) {
       updatedAt: machine.updated_at,
       // Rate chart information
       activeChartsCount: machine.active_charts_count,
-      chartDetails: machine.chart_details
+      chartDetails: machine.chart_details,
+      // Collection statistics (last 30 days)
+      totalCollections30d: Number(machine.total_collections_30d) || 0,
+      totalQuantity30d: Number(machine.total_quantity_30d) || 0
     }));
 
     if (id) {

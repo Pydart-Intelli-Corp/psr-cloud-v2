@@ -358,4 +358,196 @@ export const sendAdminRejectionEmail = async (
   await transporter.sendMail(mailOptions);
 };
 
+// Send milk collection notification email
+export const sendMilkCollectionEmail = async (
+  email: string,
+  farmerName: string,
+  collectionDetails: {
+    farmerId: string;
+    societyName?: string;
+    collectionDate: string;
+    collectionTime: string;
+    shiftType: string;
+    channel: string;
+    quantity: number;
+    fatPercentage: number;
+    snfPercentage: number;
+    clrValue: number;
+    proteinPercentage: number;
+    lactosePercentage: number;
+    waterPercentage: number;
+    temperature: number;
+    ratePerLiter: number;
+    totalAmount: number;
+    bonus: number;
+  }
+): Promise<void> => {
+  const formattedDate = new Date(collectionDetails.collectionDate).toLocaleDateString('en-IN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const mailOptions = {
+    from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
+    to: email,
+    subject: `Milk Collection Receipt - ${collectionDetails.farmerId} - ${formattedDate}`,
+    html: `
+      <div style="max-width: 650px; margin: 0 auto; padding: 20px; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f5f5f5;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 12px 12px 0 0; color: white; text-align: center;">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 600;">🥛 Milk Collection Receipt</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.95; font-size: 16px;">Poornasree Equipments Cloud</p>
+        </div>
+        
+        <!-- Body -->
+        <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <!-- Greeting -->
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #1f2937; margin: 0 0 10px 0; font-size: 22px;">Hello ${farmerName},</h2>
+            <p style="color: #6b7280; margin: 0; line-height: 1.6;">
+              Your milk collection has been successfully recorded. Here are the details:
+            </p>
+          </div>
+
+          <!-- Collection Details Card -->
+          <div style="background: #f9fafb; border-left: 4px solid #10b981; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="color: #059669; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">📋 Collection Information</h3>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280; width: 45%;">Farmer ID:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.farmerId}</td>
+              </tr>
+              ${collectionDetails.societyName ? `
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Society:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.societyName}</td>
+              </tr>
+              ` : ''}
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Date:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${formattedDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Time:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.collectionTime}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Shift:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">
+                  <span style="background: ${collectionDetails.shiftType === 'morning' ? '#fef3c7' : '#dbeafe'}; color: ${collectionDetails.shiftType === 'morning' ? '#92400e' : '#1e40af'}; padding: 4px 12px; border-radius: 12px; font-size: 14px;">
+                    ${collectionDetails.shiftType === 'morning' ? '🌅 Morning' : '🌆 Evening'}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Milk Type:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.channel}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Quality Parameters Card -->
+          <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">🔬 Quality Parameters</h3>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280; width: 45%;">Fat:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.fatPercentage.toFixed(2)}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">SNF:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.snfPercentage.toFixed(2)}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">CLR:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.clrValue.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Protein:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.proteinPercentage.toFixed(2)}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Lactose:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.lactosePercentage.toFixed(2)}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Water:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.waterPercentage.toFixed(2)}%</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #6b7280;">Temperature:</td>
+                <td style="padding: 8px 0; color: #1f2937; font-weight: 600;">${collectionDetails.temperature.toFixed(2)}°C</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Payment Details Card -->
+          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 8px; margin-bottom: 20px; color: white;">
+            <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">💰 Payment Details</h3>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; opacity: 0.9; width: 45%;">Quantity:</td>
+                <td style="padding: 8px 0; font-weight: 600; font-size: 16px;">${collectionDetails.quantity.toFixed(2)} Liters</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; opacity: 0.9;">Rate per Liter:</td>
+                <td style="padding: 8px 0; font-weight: 600; font-size: 16px;">₹${collectionDetails.ratePerLiter.toFixed(2)}</td>
+              </tr>
+              ${collectionDetails.bonus > 0 ? `
+              <tr>
+                <td style="padding: 8px 0; opacity: 0.9;">Bonus:</td>
+                <td style="padding: 8px 0; font-weight: 600; font-size: 16px;">₹${collectionDetails.bonus.toFixed(2)}</td>
+              </tr>
+              ` : ''}
+              <tr style="border-top: 1px solid rgba(255,255,255,0.3);">
+                <td style="padding: 12px 0; font-size: 18px; font-weight: 600;">Total Amount:</td>
+                <td style="padding: 12px 0; font-size: 24px; font-weight: 700;">₹${collectionDetails.totalAmount.toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Footer Note -->
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <p style="margin: 0; color: #92400e; line-height: 1.6; font-size: 14px;">
+              <strong>📝 Note:</strong> This is an automated notification for your milk collection. Please keep this email for your records. For any discrepancies, contact your society office within 24 hours.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center;">
+            <p style="color: #6b7280; margin: 0 0 10px 0; font-size: 14px;">
+              Thank you for your continued support!
+            </p>
+            <p style="color: #9ca3af; margin: 0; font-size: 12px;">
+              Best regards,<br>
+              <strong>Poornasree Equipments Cloud Team</strong>
+            </p>
+          </div>
+        </div>
+        
+        <!-- Disclaimer -->
+        <div style="margin-top: 20px; text-align: center;">
+          <p style="color: #9ca3af; font-size: 11px; line-height: 1.4; margin: 0;">
+            This is an automated email. Please do not reply to this email.<br>
+            © ${new Date().getFullYear()} Poornasree Equipments Cloud. All rights reserved.
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Collection email sent to ${email}`);
+  } catch (error) {
+    console.error(`❌ Failed to send collection email to ${email}:`, error);
+    throw error;
+  }
+};
+
 export default transporter;
