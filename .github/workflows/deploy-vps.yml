@@ -54,17 +54,21 @@ jobs:
           
           echo "📦 Final archive size:"
           ls -lh deploy.tar.gz
+          echo "✅ Archive created successfully"
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
 
       - name: Upload to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          source: "deploy.tar.gz"
-          target: "/tmp/"
-          overwrite: true
+        run: |
+          echo "📤 Uploading archive to VPS..."
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no \
+            deploy.tar.gz ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:/tmp/deploy.tar.gz
+          
+          echo "✅ Verifying upload..."
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} \
+            "ls -lh /tmp/deploy.tar.gz && echo 'Upload verified successfully'"
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
@@ -94,17 +98,33 @@ jobs:
             set -e
             cd /var/www/psr-v4
             
+            # Verify archive exists
+            if [ ! -f /tmp/deploy.tar.gz ]; then
+              echo "❌ ERROR: Archive not found at /tmp/deploy.tar.gz"
+              echo "📂 Contents of /tmp:"
+              ls -lah /tmp/ | grep deploy || echo "No deploy files found"
+              exit 1
+            fi
+            
             echo "📦 Archive size: $(du -h /tmp/deploy.tar.gz | cut -f1)"
             echo "💾 Available memory: $(free -h | awk '/^Mem:/ {print $7}')"
+            echo "💿 Available disk: $(df -h /var/www/psr-v4 | tail -1 | awk '{print $4}')"
             
             echo "🧹 Cleaning old build files..."
             rm -rf .next/cache 2>/dev/null || true
             
-            echo "🔄 Extracting deployment archive (low memory mode)..."
-            # Extract with progress and lower memory usage
-            pv /tmp/deploy.tar.gz 2>/dev/null | tar -xzf - -C /var/www/psr-v4 || \
-            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4 --checkpoint=1000 --checkpoint-action=dot
+            echo "🔄 Extracting deployment archive..."
+            # Test archive integrity first
+            if ! tar -tzf /tmp/deploy.tar.gz > /dev/null 2>&1; then
+              echo "❌ Archive is corrupted or incomplete"
+              exit 1
+            fi
+            
+            # Extract with lower memory usage
+            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
             rm /tmp/deploy.tar.gz
+            
+            echo "✅ Extraction completed successfully"
             
             echo "📝 Creating .env.production..."
             cat > .env.production << ENV_EOF
