@@ -180,15 +180,23 @@ jobs:
             echo "🔐 Fixing file ownership..."
             chown -R root:root /var/www/psr-v4
             
-            echo "🚀 Starting/Reloading PM2..."
-            if pm2 list | grep -q psr-v4; then
-              pm2 reload psr-v4 --update-env
-            else
-              pm2 start npm --name psr-v4 -- start
-              pm2 save
+            echo "� Installing dependencies..."
+            npm ci --production --prefer-offline --no-audit
+            
+            echo "🚀 Managing PM2 process..."
+            # Check if process exists and delete if found
+            if pm2 describe psr-v4 > /dev/null 2>&1; then
+              echo "🔄 Restarting existing PM2 process..."
+              pm2 delete psr-v4
             fi
             
-            echo "📊 PM2 Status:"
-            pm2 status
+            # Start fresh process
+            echo "▶️  Starting new PM2 process..."
+            pm2 start npm --name psr-v4 -- start
+            pm2 save
             
-            echo "✅ Deployment completed!"
+            echo "📊 PM2 Status:"
+            pm2 status psr-v4
+            pm2 logs psr-v4 --lines 10 --nostream
+            
+            echo "✅ Deployment completed successfully!"
