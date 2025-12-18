@@ -32,14 +32,27 @@ jobs:
       - name: Create deployment archive
         run: |
           mkdir -p deploy
-          cp -r .next deploy/
-          cp -r src deploy/
-          cp -r public deploy/
-          cp -r database deploy/
-          cp -r config deploy/
+          
+          echo "📦 Preparing deployment files..."
+          # Copy .next build (exclude cache and traces)
+          mkdir -p deploy/.next
+          rsync -av --exclude='cache' --exclude='trace' --exclude='*.map' .next/ deploy/.next/ || cp -r .next deploy/
+          
+          # Copy essential files only
+          cp -r public deploy/ 2>/dev/null || true
+          cp -r database deploy/ 2>/dev/null || true
+          cp -r config deploy/ 2>/dev/null || true
           cp package*.json deploy/
           cp next.config.ts tsconfig.json postcss.config.mjs tailwind.config.js instrumentation.ts ecosystem.config.js deploy/ 2>/dev/null || true
+          
+          echo "📊 Deployment size before compression:"
+          du -sh deploy/
+          du -sh deploy/.next/ 2>/dev/null || true
+          
+          # Create optimized archive
           tar -czf deploy.tar.gz -C deploy .
+          
+          echo "📦 Final archive size:"
           ls -lh deploy.tar.gz
 
       - name: Upload to VPS
@@ -81,8 +94,16 @@ jobs:
             set -e
             cd /var/www/psr-v4
             
-            echo " Extracting deployment archive..."
-            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
+            echo "📦 Archive size: $(du -h /tmp/deploy.tar.gz | cut -f1)"
+            echo "💾 Available memory: $(free -h | awk '/^Mem:/ {print $7}')"
+            
+            echo "🧹 Cleaning old build files..."
+            rm -rf .next/cache 2>/dev/null || true
+            
+            echo "🔄 Extracting deployment archive (low memory mode)..."
+            # Extract with progress and lower memory usage
+            pv /tmp/deploy.tar.gz 2>/dev/null | tar -xzf - -C /var/www/psr-v4 || \
+            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4 --checkpoint=1000 --checkpoint-action=dot
             rm /tmp/deploy.tar.gz
             
             echo "📝 Creating .env.production..."

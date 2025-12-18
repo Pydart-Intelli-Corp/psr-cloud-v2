@@ -1,0 +1,27 @@
+# Deployment exclusions - keep archive size minimal
+node_modules/
+.git/
+.github/
+.next/cache/
+.next/trace/
+**/*.map
+**/*.log
+.env*
+!.env.production
+*.md
+docs/
+tests/
+test/
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+coverage/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
