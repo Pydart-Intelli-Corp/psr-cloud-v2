@@ -129,18 +129,34 @@ jobs:
             echo "🧹 Cleaning old build files..."
             rm -rf .next/cache 2>/dev/null || true
             
-            echo "🔄 Extracting deployment archive..."
+            echo "� Current directory structure:"
+            ls -lah | head -15
+            
+            echo "�🔄 Extracting deployment archive..."
             # Test archive integrity first
+            echo "🔍 Testing archive integrity..."
             if ! tar -tzf /tmp/deploy.tar.gz > /dev/null 2>&1; then
               echo "❌ Archive is corrupted or incomplete"
               exit 1
             fi
+            echo "✅ Archive integrity verified"
+            
+            # Check file still exists after test
+            if [ ! -f /tmp/deploy.tar.gz ]; then
+              echo "❌ Archive disappeared after integrity check"
+              exit 1
+            fi
             
             # Extract with lower memory usage
-            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
-            rm /tmp/deploy.tar.gz
-            
-            echo "✅ Extraction completed successfully"
+            echo "📦 Extracting files..."
+            if tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4; then
+              echo "✅ Extraction completed successfully"
+              # Only remove if extraction succeeded
+              rm -f /tmp/deploy.tar.gz 2>/dev/null || echo "⚠️  Could not remove archive (already gone)"
+            else
+              echo "❌ Extraction failed"
+              exit 1
+            fi
             
             echo "📝 Creating .env.production..."
             cat > .env.production << ENV_EOF
