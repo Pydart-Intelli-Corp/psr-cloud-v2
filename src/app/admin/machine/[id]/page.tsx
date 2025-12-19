@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { 
   ArrowLeft,
   Settings,
@@ -181,6 +182,7 @@ export default function MachineDetails() {
     machineId?: string;
     machineType?: string;
     societyId?: string;
+    contactPhone?: string;
   }>({});
   const [formData, setFormData] = useState<MachineFormData>({
     machineId: '',
@@ -484,8 +486,8 @@ export default function MachineDetails() {
       });
 
       const result = await response.json();
-      if (result.success && Array.isArray(result.data)) {
-        setMachineTypes(result.data.filter((type: MachineType) => type.isActive));
+      if (result.success) {
+        setMachineTypes(result.data.machines || []);
       }
     } catch (error) {
       console.error('Error fetching machine types:', error);
@@ -579,7 +581,8 @@ export default function MachineDetails() {
         },
         body: JSON.stringify({
           id: machine.id,
-          ...formData
+          ...formData,
+          societyId: parseInt(formData.societyId)
         })
       });
 
@@ -1274,28 +1277,31 @@ export default function MachineDetails() {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -10 }}
                       transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20"
+                      className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden z-20"
                     >
-                      <button
-                        onClick={() => {
-                          handleEditClick();
-                          setIsMenuOpen(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
-                      >
-                        <Edit3 className="w-4 h-4 text-green-600 dark:text-green-500" />
-                        <span>{t.common?.edit || 'Edit'}</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleDeleteClick();
-                          setIsMenuOpen(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-b-lg"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-500" />
-                        <span>{t.common?.delete || 'Delete'}</span>
-                      </button>
+                      <div className="py-1">
+                        <button
+                          onClick={() => {
+                            handleEditClick();
+                            setIsMenuOpen(false);
+                          }}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-700 dark:hover:text-green-400 transition-all duration-150"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          <span className="font-medium">{t.common?.edit || 'Edit'}</span>
+                        </button>
+                        <div className="h-px bg-gray-100 dark:bg-gray-700 mx-2" />
+                        <button
+                          onClick={() => {
+                            handleDeleteClick();
+                            setIsMenuOpen(false);
+                          }}
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-400 transition-all duration-150"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="font-medium">{t.common?.delete || 'Delete'}</span>
+                        </button>
+                      </div>
                     </motion.div>
                   </>
                 )}
@@ -2331,265 +2337,6 @@ export default function MachineDetails() {
       </div>
 
       {/* Edit Machine Modal */}
-      <AnimatePresence>
-        {showEditForm && machine && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4"
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setShowEditForm(false);
-                setFormData({
-                  machineId: '',
-                  machineType: '',
-                  societyId: '',
-                  location: '',
-                  installationDate: '',
-                  operatorName: '',
-                  contactPhone: '',
-                  status: 'active',
-                  notes: ''
-                });
-              }
-            }}
-          >
-            <motion.div
-              initial={{ y: '100%', opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: '100%', opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Mobile drag handle */}
-              <div className="sm:hidden flex justify-center pt-3 pb-1">
-                <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
-              </div>
-
-              <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
-                    Edit {machine.machineId}
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowEditForm(false);
-                      setFormData({
-                        machineId: '',
-                        machineType: '',
-                        societyId: '',
-                        location: '',
-                        installationDate: '',
-                        operatorName: '',
-                        contactPhone: '',
-                        status: 'active',
-                        notes: ''
-                      });
-                    }}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400 touch-target sm:min-h-0 sm:min-w-0"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <form onSubmit={handleUpdateMachine} className="p-4 sm:p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Machine ID *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.machineId}
-                      onChange={(e) => handleInputChange('machineId', e.target.value)}
-                      className="psr-input placeholder:text-gray-300 dark:placeholder:text-gray-600 placeholder:opacity-100 !text-gray-900 dark:!text-gray-100"
-                      placeholder="Enter machine ID"
-                      autoComplete="off"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Machine Type *
-                    </label>
-                    <select
-                      value={formData.machineType}
-                      onChange={(e) => handleInputChange('machineType', e.target.value)}
-                      className="psr-input !text-gray-900 dark:!text-gray-100"
-                      required
-                    >
-                      <option value="">Select machine type</option>
-                      {machineTypes.map((type) => (
-                        <option key={type.id} value={type.machineType}>
-                          {type.machineType}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Society *
-                    </label>
-                    <select
-                      value={formData.societyId}
-                      onChange={(e) => handleInputChange('societyId', e.target.value)}
-                      className="psr-input !text-gray-900 dark:!text-gray-100"
-                      required
-                    >
-                      <option value="">Select society</option>
-                      {societies.map((society) => (
-                        <option key={society.id} value={society.id.toString()}>
-                          {society.name} (ID: {society.society_id})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Location
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.location}
-                      onChange={(e) => handleInputChange('location', e.target.value)}
-                      className="psr-input placeholder:text-gray-300 dark:placeholder:text-gray-600 placeholder:opacity-100 !text-gray-900 dark:!text-gray-100"
-                      placeholder="Enter location"
-                      autoComplete="off"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Installation Date
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.installationDate}
-                      onChange={(e) => handleInputChange('installationDate', e.target.value)}
-                      className="psr-input !text-gray-900 dark:!text-gray-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => handleInputChange('status', e.target.value as 'active' | 'inactive' | 'maintenance' | 'suspended')}
-                      className="psr-input !text-gray-900 dark:!text-gray-100"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="maintenance">Maintenance</option>
-                      <option value="suspended">Suspended</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Operator Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.operatorName}
-                      onChange={(e) => handleInputChange('operatorName', e.target.value)}
-                      className="psr-input placeholder:text-gray-300 dark:placeholder:text-gray-600 placeholder:opacity-100 !text-gray-900 dark:!text-gray-100"
-                      placeholder="Enter operator name"
-                      autoComplete="off"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Contact Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.contactPhone}
-                      onChange={(e) => handleInputChange('contactPhone', e.target.value)}
-                      className="psr-input placeholder:text-gray-300 dark:placeholder:text-gray-600 placeholder:opacity-100 !text-gray-900 dark:!text-gray-100"
-                      placeholder="Enter contact phone"
-                      autoComplete="off"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Notes
-                    </label>
-                    <textarea
-                      value={formData.notes}
-                      onChange={(e) => handleInputChange('notes', e.target.value)}
-                      className="psr-input placeholder:text-gray-300 dark:placeholder:text-gray-600 placeholder:opacity-100 !text-gray-900 dark:!text-gray-100"
-                      placeholder="Enter any additional notes"
-                      rows={3}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowEditForm(false);
-                      setFormData({
-                        machineId: '',
-                        machineType: '',
-                        societyId: '',
-                        location: '',
-                        installationDate: '',
-                        operatorName: '',
-                        contactPhone: '',
-                        status: 'active',
-                        notes: ''
-                      });
-                    }}
-                    className="w-full sm:w-auto px-6 py-3 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={formLoading}
-                    className="w-full sm:w-auto flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 dark:hover:from-blue-600 dark:hover:to-indigo-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-blue-500/25"
-                  >
-                    {formLoading ? (
-                      <>
-                        <FlowerSpinner size={16} className="mr-2" />
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Update Machine
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete Confirmation Modal */}
-      <ConfirmDeleteModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleConfirmDelete}
-        itemName={machine?.machineId || 'this machine'}
-        itemType="Machine"
-      />
-
-      {/* Edit Machine Modal */}
       <FormModal
         isOpen={showEditForm}
         onClose={closeEditModal}
@@ -2661,8 +2408,21 @@ export default function MachineDetails() {
               label="Contact Phone"
               type="tel"
               value={formData.contactPhone}
-              onChange={(value) => setFormData({ ...formData, contactPhone: value })}
+              onChange={(value) => {
+                const formatted = formatPhoneInput(value);
+                setFormData({ ...formData, contactPhone: formatted });
+              }}
+              onBlur={() => {
+                const error = validatePhoneOnBlur(formData.contactPhone);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, contactPhone: error }));
+                } else {
+                  const { contactPhone: _removed, ...rest } = fieldErrors;
+                  setFieldErrors(rest);
+                }
+              }}
               placeholder="Operator contact number"
+              error={fieldErrors.contactPhone}
             />
 
             <FormSelect
@@ -2697,6 +2457,15 @@ export default function MachineDetails() {
           />
         </form>
       </FormModal>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        itemName={machine?.machineId || 'this machine'}
+        itemType="Machine"
+      />
 
       {/* History Modal */}
       <AnimatePresence>

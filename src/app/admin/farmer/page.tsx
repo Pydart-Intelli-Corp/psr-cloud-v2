@@ -76,7 +76,7 @@ const FarmerManagement = () => {
   const [selectedFarmers, setSelectedFarmers] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [farmerToDelete, setFarmerToDelete] = useState<{id: number, name: string} | null>(null);
+  const [farmerToDelete, setFarmerToDelete] = useState<{id: number, name: string, farmerId: string} | null>(null);
   const [showSingleDeleteConfirm, setShowSingleDeleteConfirm] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
@@ -450,7 +450,7 @@ const FarmerManagement = () => {
   const handleDelete = (id: number) => {
     const farmer = farmers.find(f => f.id === id);
     if (farmer) {
-      setFarmerToDelete({ id: farmer.id, name: farmer.farmerName });
+      setFarmerToDelete({ id: farmer.id, name: farmer.farmerName, farmerId: farmer.farmerId });
       setShowSingleDeleteConfirm(true);
     }
   };
@@ -2057,10 +2057,16 @@ const FarmerManagement = () => {
           />
           <FormInput
             label={t.farmerManagement.bankAccountNumber}
-            type="text"
+            type="number"
             value={formData.bankAccountNumber}
-            onChange={(value) => setFormData({ ...formData, bankAccountNumber: value })}
+            onChange={(value) => {
+              // Only allow numbers
+              const numericValue = value.replace(/\D/g, '');
+              setFormData({ ...formData, bankAccountNumber: numericValue });
+            }}
             placeholder={t.farmerManagement.enterAccountNumber}
+            pattern="[0-9]*"
+            inputMode="numeric"
           />
           <FormInput
             label={t.farmerManagement.ifscCode}
@@ -2268,10 +2274,16 @@ const FarmerManagement = () => {
           
           <FormInput
             label={t.farmerManagement.bankAccountNumber}
-            type="text"
+            type="number"
             value={formData.bankAccountNumber}
-            onChange={(value) => setFormData({ ...formData, bankAccountNumber: value })}
+            onChange={(value) => {
+              // Only allow numbers
+              const numericValue = value.replace(/\D/g, '');
+              setFormData({ ...formData, bankAccountNumber: numericValue });
+            }}
             placeholder={t.farmerManagement.enterAccountNumber}
+            pattern="[0-9]*"
+            inputMode="numeric"
             colSpan={1}
           />
           
@@ -2446,10 +2458,9 @@ const FarmerManagement = () => {
           setFarmerToDelete(null);
         }}
         onConfirm={confirmDeleteFarmer}
-        itemName={farmerToDelete?.name || ''}
-        itemType={t.farmerManagement.farmer}
-        title={t.farmerManagement.deleteFarmer}
-        message={t.farmerManagement.confirmDeleteThis}
+        itemName={farmerToDelete?.farmerId || ''}
+        title="Delete Farmer"
+        message="Are you sure you want to permanently delete farmer"
         confirmText={t.common.delete}
         cancelText={t.common.cancel}
       />

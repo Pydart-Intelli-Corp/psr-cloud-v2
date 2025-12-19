@@ -1111,9 +1111,15 @@ const FarmerDetails = () => {
                 />
                 <FormInput
                   label="Account Number"
-                  type="text"
+                  type="number"
                   value={formData.bankAccountNumber}
-                  onChange={(value) => setFormData({ ...formData, bankAccountNumber: value })}
+                  onChange={(value) => {
+                    // Only allow numbers
+                    const numericValue = value.replace(/\D/g, '');
+                    setFormData({ ...formData, bankAccountNumber: numericValue });
+                  }}
+                  pattern="[0-9]*"
+                  inputMode="numeric"
                 />
                 <FormInput
                   label="IFSC Code"

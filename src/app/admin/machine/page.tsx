@@ -2685,7 +2685,6 @@ function MachineManagement() {
               required
               error={fieldErrors.machineId}
               colSpan={2}
-              readOnly
             />
 
             <FormSelect
@@ -2698,7 +2697,7 @@ function MachineManagement() {
               }))}
               placeholder="Select Machine Type"
               required
-              disabled={true}
+              disabled={machineTypesLoading}
               error={fieldErrors.machineType}
             />
 
@@ -2712,7 +2711,7 @@ function MachineManagement() {
               }))}
               placeholder="Select Society"
               required
-              disabled={true}
+              disabled={societiesLoading}
               error={fieldErrors.societyId}
             />
 
