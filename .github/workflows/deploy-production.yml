@@ -112,9 +112,9 @@ jobs:
             
             echo "✅ Files extracted successfully"
             
-            # Step 4: Install Fresh Dependencies
-            echo "📦 Installing production dependencies..."
-            npm install --production --prefer-offline --no-audit --no-fund
+            # Step 4: Install Dependencies (including Next.js runtime)
+            echo "📦 Installing dependencies..."
+            npm install --prefer-offline --no-audit --no-fund
             
             # Step 5: Configure Environment
             echo "⚙️ Creating production environment..."
@@ -164,8 +164,8 @@ ENV_EOF
             pm2 save --force
             
             # Step 8: Health Verification
-            echo "⏳ Waiting for application to start..."
-            sleep 8
+            echo "⏳ Waiting for Next.js to fully initialize..."
+            sleep 15
             
             echo "📊 Application Status:"
             pm2 status
@@ -176,11 +176,24 @@ ENV_EOF
             
             echo ""
             echo "🌐 Testing Application Health..."
-            if curl -f -m 5 http://localhost:3000/health 2>/dev/null; then
-              echo "✅ Health check PASSED"
-            else
-              echo "⚠️ Health check FAILED (app may still be initializing)"
-            fi
+            
+            # Try multiple times with longer timeout
+            RETRY=0
+            MAX_RETRY=5
+            while [ $RETRY -lt $MAX_RETRY ]; do
+              if curl -f -m 10 http://localhost:3000 2>/dev/null; then
+                echo "✅ Health check PASSED"
+                break
+              else
+                RETRY=$((RETRY+1))
+                if [ $RETRY -lt $MAX_RETRY ]; then
+                  echo "⏳ Retry $RETRY/$MAX_RETRY..."
+                  sleep 3
+                else
+                  echo "⚠️ Health check FAILED after $MAX_RETRY attempts"
+                fi
+              fi
+            done
             
             echo ""
             echo "================================================"
