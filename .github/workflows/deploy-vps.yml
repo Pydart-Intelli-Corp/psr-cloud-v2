@@ -33,12 +33,11 @@ jobs:
         run: |
           mkdir -p deploy
           cp -r .next deploy/
-          cp -r src deploy/
           cp -r public deploy/
           cp -r database deploy/
           cp -r config deploy/
           cp package*.json deploy/
-          cp next.config.ts tsconfig.json postcss.config.mjs tailwind.config.js instrumentation.ts ecosystem.config.js deploy/ 2>/dev/null || true
+          cp next.config.ts postcss.config.mjs tailwind.config.js instrumentation.ts ecosystem.config.js deploy/ 2>/dev/null || true
           tar -czf deploy.tar.gz -C deploy .
           ls -lh deploy.tar.gz
 
@@ -82,7 +81,8 @@ jobs:
             cd /var/www/psr-v4
             
             echo " Extracting deployment archive..."
-            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
+            # Extract with minimal memory usage - stream extraction
+            gunzip -c /tmp/deploy.tar.gz | tar -xf - -C /var/www/psr-v4
             rm /tmp/deploy.tar.gz
             
             echo "📝 Creating .env.production..."
