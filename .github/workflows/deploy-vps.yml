@@ -94,7 +94,10 @@ jobs:
             gunzip -c ~/deploy.tar.gz | tar -xf -
             rm ~/deploy.tar.gz
             
-            echo "📝 Creating .env.production..."
+            echo "� Installing production dependencies..."
+            npm ci --production --prefer-offline
+            
+            echo "�📝 Creating .env.production..."
             cat > .env.production << ENV_EOF
             DB_HOST=${DB_HOST}
             DB_PORT=${DB_PORT}
@@ -134,13 +137,24 @@ jobs:
             
             echo "🚀 Starting/Reloading PM2..."
             if pm2 list | grep -q psr-v4; then
+              echo "🔄 Reloading existing PM2 process..."
               pm2 reload psr-v4 --update-env
             else
-              pm2 start npm --name psr-v4 -- start
+              echo "🆕 Starting new PM2 process..."
+              pm2 start ecosystem.config.js --only psr-v4
               pm2 save
             fi
             
+            echo "⏳ Waiting for app to start..."
+            sleep 5
+            
             echo "📊 PM2 Status:"
             pm2 status
+            
+            echo "🔍 Checking application health..."
+            pm2 logs psr-v4 --lines 20 --nostream
+            
+            echo "🌐 Testing local connection..."
+            curl -f http://localhost:3000/health || echo "⚠️ Health check failed"
             
             echo "✅ Deployment completed!"
