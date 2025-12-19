@@ -87,15 +87,21 @@ jobs:
             fi
             
             echo "✅ Archive found: $(ls -lh /root/deploy.tar.gz)"
-            echo " Extracting deployment archive..."
+            echo "🧹 Backing up old dependencies..."
             cd /var/www/psr-v4
             
+            # Move old node_modules to temp location to avoid conflicts
+            if [ -d "node_modules" ]; then
+              mv node_modules node_modules.old 2>/dev/null || rm -rf node_modules.old
+            fi
+            
+            echo " Extracting deployment archive..."
             # Extract with minimal memory usage - stream extraction
             gunzip -c /root/deploy.tar.gz | tar -xf -
             rm /root/deploy.tar.gz
             
-            echo "🧹 Cleaning old dependencies..."
-            rm -rf node_modules package-lock.json
+            echo "🗑️ Removing old dependencies..."
+            rm -rf node_modules.old package-lock.json 2>/dev/null &
             
             echo "📦 Installing production dependencies..."
             npm install --production --no-audit --no-fund
