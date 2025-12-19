@@ -49,7 +49,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           source: "deploy.tar.gz"
-          target: "~/"
+          target: "/root/"
           overwrite: true
 
       - name: Deploy to VPS
@@ -80,19 +80,19 @@ jobs:
             set -e
             
             echo "🔍 Checking deployment archive..."
-            if [ ! -f ~/deploy.tar.gz ]; then
-              echo "❌ ERROR: deploy.tar.gz not found in home directory!"
-              ls -lh ~/
+            if [ ! -f /root/deploy.tar.gz ]; then
+              echo "❌ ERROR: deploy.tar.gz not found!"
+              ls -lh /root/
               exit 1
             fi
             
-            echo "✅ Archive found: $(ls -lh ~/deploy.tar.gz)"
+            echo "✅ Archive found: $(ls -lh /root/deploy.tar.gz)"
             echo " Extracting deployment archive..."
             cd /var/www/psr-v4
             
             # Extract with minimal memory usage - stream extraction
-            gunzip -c ~/deploy.tar.gz | tar -xf -
-            rm ~/deploy.tar.gz
+            gunzip -c /root/deploy.tar.gz | tar -xf -
+            rm /root/deploy.tar.gz
             
             echo "🧹 Cleaning old dependencies..."
             rm -rf node_modules package-lock.json
