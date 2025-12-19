@@ -94,8 +94,11 @@ jobs:
             gunzip -c ~/deploy.tar.gz | tar -xf -
             rm ~/deploy.tar.gz
             
-            echo "� Installing production dependencies..."
-            npm ci --production --prefer-offline
+            echo "🧹 Cleaning old dependencies..."
+            rm -rf node_modules package-lock.json
+            
+            echo "📦 Installing production dependencies..."
+            npm install --production --no-audit --no-fund
             
             echo "�📝 Creating .env.production..."
             cat > .env.production << ENV_EOF
