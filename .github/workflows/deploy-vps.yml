@@ -32,31 +32,17 @@ jobs:
       - name: Create deployment archive
         run: |
           mkdir -p deploy
-          
-          echo "📦 Preparing deployment files..."
-          # Copy .next build (exclude cache and traces)
-          mkdir -p deploy/.next
-          rsync -av --exclude='cache' --exclude='trace' --exclude='*.map' .next/ deploy/.next/ || cp -r .next deploy/
-          
-          # Copy essential files only
-          cp -r public deploy/ 2>/dev/null || true
-          cp -r database deploy/ 2>/dev/null || true
-          cp -r config deploy/ 2>/dev/null || true
+          cp -r .next deploy/
+          cp -r src deploy/
+          cp -r public deploy/
+          cp -r database deploy/
+          cp -r config deploy/
           cp package*.json deploy/
           cp next.config.ts tsconfig.json postcss.config.mjs tailwind.config.js instrumentation.ts ecosystem.config.js deploy/ 2>/dev/null || true
-          
-          echo "📊 Deployment size before compression:"
-          du -sh deploy/
-          du -sh deploy/.next/ 2>/dev/null || true
-          
-          # Create optimized archive
           tar -czf deploy.tar.gz -C deploy .
-          
-          echo "📦 Final archive size:"
           ls -lh deploy.tar.gz
-          echo "✅ Archive created successfully"
 
-      - name: Upload to VPS via SCP
+      - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -66,25 +52,6 @@ jobs:
           source: "deploy.tar.gz"
           target: "/tmp/"
           overwrite: true
-          timeout: 10m
-          command_timeout: 10m
-          
-      - name: Verify Upload
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          script: |
-            if [ -f /tmp/deploy.tar.gz ]; then
-              echo "✅ Upload successful!"
-              ls -lh /tmp/deploy.tar.gz
-            else
-              echo "❌ Upload failed - file not found"
-              ls -lah /tmp/ | head -20
-              exit 1
-            fi
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
@@ -114,49 +81,9 @@ jobs:
             set -e
             cd /var/www/psr-v4
             
-            # Verify archive exists
-            if [ ! -f /tmp/deploy.tar.gz ]; then
-              echo "❌ ERROR: Archive not found at /tmp/deploy.tar.gz"
-              echo "📂 Contents of /tmp:"
-              ls -lah /tmp/ | grep deploy || echo "No deploy files found"
-              exit 1
-            fi
-            
-            echo "📦 Archive size: $(du -h /tmp/deploy.tar.gz | cut -f1)"
-            echo "💾 Available memory: $(free -h | awk '/^Mem:/ {print $7}')"
-            echo "💿 Available disk: $(df -h /var/www/psr-v4 | tail -1 | awk '{print $4}')"
-            
-            echo "🧹 Cleaning old build files..."
-            rm -rf .next/cache 2>/dev/null || true
-            
-            echo "� Current directory structure:"
-            ls -lah | head -15
-            
-            echo "�🔄 Extracting deployment archive..."
-            # Test archive integrity first
-            echo "🔍 Testing archive integrity..."
-            if ! tar -tzf /tmp/deploy.tar.gz > /dev/null 2>&1; then
-              echo "❌ Archive is corrupted or incomplete"
-              exit 1
-            fi
-            echo "✅ Archive integrity verified"
-            
-            # Check file still exists after test
-            if [ ! -f /tmp/deploy.tar.gz ]; then
-              echo "❌ Archive disappeared after integrity check"
-              exit 1
-            fi
-            
-            # Extract with lower memory usage
-            echo "📦 Extracting files..."
-            if tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4; then
-              echo "✅ Extraction completed successfully"
-              # Only remove if extraction succeeded
-              rm -f /tmp/deploy.tar.gz 2>/dev/null || echo "⚠️  Could not remove archive (already gone)"
-            else
-              echo "❌ Extraction failed"
-              exit 1
-            fi
+            echo " Extracting deployment archive..."
+            tar -xzf /tmp/deploy.tar.gz -C /var/www/psr-v4
+            rm /tmp/deploy.tar.gz
             
             echo "📝 Creating .env.production..."
             cat > .env.production << ENV_EOF
@@ -196,23 +123,15 @@ jobs:
             echo "🔐 Fixing file ownership..."
             chown -R root:root /var/www/psr-v4
             
-            echo "� Installing dependencies..."
-            npm ci --production --prefer-offline --no-audit
-            
-            echo "🚀 Managing PM2 process..."
-            # Check if process exists and delete if found
-            if pm2 describe psr-v4 > /dev/null 2>&1; then
-              echo "🔄 Restarting existing PM2 process..."
-              pm2 delete psr-v4
+            echo "🚀 Starting/Reloading PM2..."
+            if pm2 list | grep -q psr-v4; then
+              pm2 reload psr-v4 --update-env
+            else
+              pm2 start npm --name psr-v4 -- start
+              pm2 save
             fi
             
-            # Start fresh process
-            echo "▶️  Starting new PM2 process..."
-            pm2 start npm --name psr-v4 -- start
-            pm2 save
-            
             echo "📊 PM2 Status:"
-            pm2 status psr-v4
-            pm2 logs psr-v4 --lines 10 --nostream
+            pm2 status
             
-            echo "✅ Deployment completed successfully!"
+            echo "✅ Deployment completed!"
