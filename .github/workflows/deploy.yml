@@ -127,25 +127,15 @@ jobs:
             
             cd /var/www/psr-v4
             
-            # Install dependencies with memory limits
+            # Install dependencies with extreme memory limits
             echo "📦 Installing dependencies..."
-            export NODE_OPTIONS="--max-old-space-size=768"
+            export NODE_OPTIONS="--max-old-space-size=512 --max-semi-space-size=2"
             
-            # Clear npm cache first to save space
-            npm cache clean --force 2>/dev/null || true
-            
-            # Install with ultra-conservative settings
-            npm install --production \
-              --prefer-offline \
-              --no-audit \
-              --no-fund \
-              --maxsockets=1 \
-              --fetch-retries=1 \
-              --fetch-retry-mintimeout=1000 \
-              --loglevel=error 2>&1 | head -100 || {
-              echo "⚠️ npm install failed"
-              free -h
-              exit 1
+            # Use npm ci (faster, less memory than install)
+            npm ci --production --prefer-offline --no-audit --no-fund 2>&1 | tail -20 || {
+              echo "⚠️ npm ci failed, trying minimal install..."
+              export NODE_OPTIONS="--max-old-space-size=256"
+              npm install --production --no-optional --ignore-scripts 2>&1 | tail -20
             }
             
             # Create environment file
