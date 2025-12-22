@@ -178,42 +178,48 @@ jobs:
             echo "⚙️ Creating environment configuration..."
             
             cat > .env.production << 'ENV_EOF'
-DB_HOST=${DB_HOST}
-DB_PORT=${DB_PORT}
-DB_USER=${DB_USER}
-DB_PASSWORD=${DB_PASSWORD}
-DB_NAME=${DB_NAME}
-DB_SSL_CA=
-DB_REJECT_UNAUTHORIZED=false
-NODE_ENV=production
-PORT=3000
-NEXT_TELEMETRY_DISABLED=1
-JWT_SECRET=${JWT_SECRET}
-JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-JWT_EXPIRES_IN=1h
-JWT_REFRESH_EXPIRES_IN=7d
-SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
-SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
-SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USERNAME=${EMAIL_USER}
-SMTP_PASSWORD=${EMAIL_PASSWORD}
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_SECURE=false
-EMAIL_USER=${EMAIL_USER}
-EMAIL_PASSWORD=${EMAIL_PASSWORD}
-EMAIL_FROM=noreply@poornasreeequipments.com
-NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
-NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
-ENV_EOF
+            DB_HOST=${DB_HOST}
+            DB_PORT=${DB_PORT}
+            DB_USER=${DB_USER}
+            DB_PASSWORD=${DB_PASSWORD}
+            DB_NAME=${DB_NAME}
+            DB_SSL_CA=
+            DB_REJECT_UNAUTHORIZED=false
+            NODE_ENV=production
+            PORT=3000
+            NEXT_TELEMETRY_DISABLED=1
+            JWT_SECRET=${JWT_SECRET}
+            JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+            JWT_EXPIRES_IN=1h
+            JWT_REFRESH_EXPIRES_IN=7d
+            SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
+            SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
+            SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
+            SMTP_HOST=smtp.gmail.com
+            SMTP_PORT=587
+            SMTP_SECURE=false
+            SMTP_USERNAME=${EMAIL_USER}
+            SMTP_PASSWORD=${EMAIL_PASSWORD}
+            EMAIL_HOST=smtp.gmail.com
+            EMAIL_PORT=587
+            EMAIL_SECURE=false
+            EMAIL_USER=${EMAIL_USER}
+            EMAIL_PASSWORD=${EMAIL_PASSWORD}
+            EMAIL_FROM=noreply@poornasreeequipments.com
+            NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
+            NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
+            ENV_EOF
+            
+            # Remove indentation from .env.production
+            sed -i 's/^[ \t]*//' .env.production
             
             # Expand variables in .env.production
-            eval "cat > .env.production << ENV_EOF2
-$(cat .env.production)
-ENV_EOF2"
+            echo "🔄 Expanding variables..."
+            temp_env=$(mktemp)
+            while IFS= read -r line || [ -n "$line" ]; do
+              eval echo \""$line"\" >> "$temp_env"
+            done < .env.production
+            mv "$temp_env" .env.production
             
             echo "✅ Environment configured"
             
