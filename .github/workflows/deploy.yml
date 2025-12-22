@@ -92,8 +92,14 @@ jobs:
             fi
             
             # 2. Now safe to stop processes
-            # Kill PM2 daemon and all processes to free maximum memory
-            pm2 kill 2>/dev/null || true
+            # Only kill PM2 if it's actually running to avoid spawning daemon
+            if pgrep -f "PM2" > /dev/null || pgrep -f "pm2" > /dev/null; then
+               echo "🛑 Stopping PM2..."
+               # Try graceful stop first, then kill
+               pm2 kill 2>/dev/null || pkill -f PM2 || true
+            else
+               echo "ℹ️ PM2 not running, skipping kill."
+            fi
             
             # Wait a moment for processes to die
             sleep 2
