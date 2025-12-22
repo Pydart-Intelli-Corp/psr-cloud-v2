@@ -91,46 +91,50 @@ jobs:
             echo "🚀 Starting Deployment"
             echo "================================================"
             
-            # Free memory aggressively
-            echo "🧹 Clearing memory..."
-            sync
-            echo 3 > /proc/sys/vm/drop_caches
-            
-            # Kill any lingering processes
+            # Check for malware first (non-blocking)
+            echo "🔍 Checking for malware..."
             pkill -9 linuxsys 2>/dev/null || true
-            pkill -9 node 2>/dev/null || true
-            sleep 2
+            pkill -9 kdevtmpfsi 2>/dev/null || true
+            pkill -9 kinsing 2>/dev/null || true
             
-            # Show memory before
-            echo "💾 Memory before cleanup:"
+            # Show current memory
+            echo "💾 Current memory:"
             free -h | head -2
             
-            # Stop current application
+            # Stop application gracefully first
             echo "🛑 Stopping application..."
-            pm2 stop psr-v4 2>/dev/null || true
-            pm2 delete psr-v4 2>/dev/null || true
-            pm2 kill 2>/dev/null || true
-            sleep 2
+            pm2 stop psr-v4 2>/dev/null || echo "App not running"
+            pm2 delete psr-v4 2>/dev/null || echo "App not in PM2"
+            sleep 1
+            
+            # Now clear memory after app stopped
+            echo "🧹 Clearing memory cache..."
+            sync
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
             
             # Backup logs only
             echo "📦 Backing up logs..."
             mkdir -p /tmp/psr-logs-backup
             [ -d "/var/www/psr-v4/logs" ] && cp -r /var/www/psr-v4/logs/* /tmp/psr-logs-backup/ 2>/dev/null || true
             
-            # Clean directory efficiently (avoid rm -rf spike)
+            # Clean directory in small batches
             echo "🧹 Cleaning deployment directory..."
-            cd /var/www/psr-v4 2>/dev/null && find . -mindepth 1 -delete 2>/dev/null || true
-            cd $HOME
+            if [ -d "/var/www/psr-v4" ]; then
+              cd /var/www/psr-v4
+              rm -rf .next node_modules 2>/dev/null || true
+              find . -maxdepth 1 -type f -delete 2>/dev/null || true
+              cd $HOME
+            fi
             mkdir -p /var/www/psr-v4
             
             # Extract new build
             echo "📦 Extracting application..."
-            tar -xzf $HOME/deploy.tar.gz -C /var/www/psr-v4
+            tar -xzf $HOME/deploy.tar.gz -C /var/www/psr-v4 2>&1 || {
+              echo "❌ Extraction failed, checking disk space..."
+              df -h /var/www
+              exit 1
+            }
             rm -f $HOME/deploy.tar.gz
-            
-            # Clear cache after extraction
-            sync
-            echo 1 > /proc/sys/vm/drop_caches
             
             # Restore logs
             mkdir -p /var/www/psr-v4/logs
