@@ -40,7 +40,7 @@ export const authorizeRole = (requiredRoles: UserRole[]) => {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!requiredRoles.includes(user.role)) {
+    if (!requiredRoles.includes(user.role as UserRole)) {
       return { success: false, error: 'Insufficient permissions' };
     }
 
@@ -68,7 +68,7 @@ export const requireAdmin = (user: JWTPayload): { success: boolean; error?: stri
   }
 
   const adminRoles = [UserRole.SUPER_ADMIN, UserRole.ADMIN];
-  if (!adminRoles.includes(user.role)) {
+  if (!adminRoles.includes(user.role as UserRole)) {
     return { success: false, error: 'Admin access required' };
   }
 

@@ -152,6 +152,7 @@ export default function SocietyManagement() {
     name?: string;
     bmcId?: string;
     contactPhone?: string;
+    email?: string;
   }>({});
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [selectedSocieties, setSelectedSocieties] = useState<Set<number>>(new Set());
