@@ -74,33 +74,18 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           timeout: 60s
-          command_timeout: 5m
+          command_timeout: 3m
           script: |
             echo "🧹 Pre-upload cleanup..."
             
-            # Kill suspicious processes first
-            echo "🔪 Killing suspicious processes..."
-            pkill -9 linuxsys 2>/dev/null || true
-            pkill -9 xmrig 2>/dev/null || true
-            sleep 1
-            
-            # Stop PM2 gracefully
-            echo "🛑 Stopping PM2..."
-            pm2 stop all 2>/dev/null || true
-            pm2 delete all 2>/dev/null || true
-            pm2 kill 2>/dev/null || true
-            sleep 1
-            
-            # Sync and clear caches
-            echo "💾 Clearing caches..."
-            sync
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            
-            # Remove old files
+            # Remove old deployment archive only
             rm -f /root/deploy.tar.gz
             
-            echo "✅ Pre-cleanup complete"
+            # Show current memory
+            echo "💾 Current memory:"
             free -h
+            
+            echo "✅ Pre-cleanup complete"
 
       - name: 📤 Upload Deployment Package to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -142,62 +127,42 @@ jobs:
           script_stop: true
           command_timeout: 15m
           script: |
+            set -e
+            
             echo "🚀 ULTRA-FAST DEPLOYMENT PROCESS"
             echo "================================================"
             
             # ============================================
-            # STEP 0: ENABLE SWAP (FIRST PRIORITY)
+            # STEP 0: VERIFY SWAP & CLEAN SUSPICIOUS PROCESSES
             # ============================================
-            echo "💾 Checking swap space..."
+            echo "💾 Verifying swap and cleaning suspicious processes..."
             
-            # Check if swap is already active
-            if swapon --show | grep -q "/swapfile"; then
-              echo "✅ Swap already active"
-            elif [ -f /swapfile ]; then
-              echo "⚠️ Swap file exists but not active. Activating..."
-              swapon /swapfile || true
-            else
-              echo "⚠️ No swap detected. Creating 4GB swap file..."
-              df -h /
-              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
-              chmod 600 /swapfile
-              mkswap /swapfile
-              swapon /swapfile
-              echo "✅ Swap created and enabled"
+            # Kill only known malware/miners (not PM2 or node)
+            pkill -f linuxsys 2>/dev/null || true
+            pkill -f xmrig 2>/dev/null || true
+            pkill -f cryptominer 2>/dev/null || true
+            
+            # Verify swap is active
+            if ! swapon --show | grep -q "/swapfile"; then
+              echo "⚠️ Swap not active, activating..."
+              swapon /swapfile 2>/dev/null || true
             fi
             
             free -h
+            echo "✅ System verified"
 
             # ============================================
-            # STEP 1: CLEAR MEMORY & STOP APPLICATION
+            # STEP 1: STOP APPLICATION GRACEFULLY
             # ============================================
-            echo "🧹 Clearing system memory and caches..."
+            echo "🛑 Stopping current application..."
             
-            # Kill high memory consuming processes (excluding critical ones)
-            echo "🔪 Killing high memory processes..."
-            pkill -f linuxsys 2>/dev/null || true
-            pkill -f cryptominer 2>/dev/null || true
-            pkill -f xmrig 2>/dev/null || true
-            sleep 1
+            # Stop applications via PM2 (graceful)
+            if command -v pm2 &> /dev/null; then
+              pm2 stop all 2>/dev/null || true
+              pm2 delete all 2>/dev/null || true
+            fi
             
-            # Stop all running applications
-            pm2 stop all 2>/dev/null || true
-            pm2 delete all 2>/dev/null || true
-            
-            # Kill PM2 daemon to free maximum memory
-            pkill -9 PM2 2>/dev/null || true
-            
-            sleep 2
-            
-            # Clear PageCache, dentries, and inodes
-            sync
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' || true
-            
-            # Show memory before cleanup
-            echo "💾 Memory status:"
-            free -h
-            
-            echo "✅ Memory cleared, processes stopped"
+            echo "✅ Application stopped"
 
             # ============================================
             # STEP 2: CLEANUP (Move & Recreate Strategy)
@@ -257,6 +222,9 @@ jobs:
             # ============================================
             echo "📦 Installing production dependencies..."
             
+            # Change to application directory
+            cd /var/www/psr-v4
+            
             # Use npm ci for clean install (faster than npm install)
             NODE_ENV=production npm ci --prefer-offline --omit=dev --no-audit --no-fund --loglevel=error
             
@@ -266,6 +234,9 @@ jobs:
             # STEP 5: CONFIGURE ENVIRONMENT (FAST)
             # ============================================
             echo "⚙️ Creating environment configuration..."
+            
+            # Ensure we're in the app directory
+            cd /var/www/psr-v4
             
             cat > .env.production << 'ENV_EOF'
             DB_HOST=${DB_HOST}
@@ -317,17 +288,25 @@ jobs:
             # STEP 6: SET PERMISSIONS (FAST)
             # ============================================
             echo "🔐 Setting permissions..."
+            
+            cd /var/www/psr-v4
             chown -R root:root . 2>/dev/null || true
             chmod -R 755 . 2>/dev/null || true
+            
+            echo "✅ Permissions set"
             
             # ============================================
             # STEP 7: START APPLICATION (PM2)
             # ============================================
             echo "🚀 Starting application with PM2..."
             
+            cd /var/www/psr-v4
+            
             # Start only the main app (not pulse-scheduler yet)
             pm2 start ecosystem.config.js --only psr-v4 --update-env
             pm2 save --force
+            
+            echo "✅ Application started"
             
             # ============================================
             # STEP 8: HEALTH CHECK
