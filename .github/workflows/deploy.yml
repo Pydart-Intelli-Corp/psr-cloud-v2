@@ -34,12 +34,11 @@ jobs:
           echo "🎯 Creating deployment package..."
           mkdir -p deploy
           
-          # Copy essential production files
+          # Copy essential production files (NO node_modules)
           cp -r .next deploy/
           cp -r public deploy/
           cp -r database deploy/
           cp -r config deploy/
-          cp -r node_modules deploy/
           cp package.json package-lock.json deploy/
           cp next.config.ts instrumentation.ts ecosystem.config.js deploy/
           cp postcss.config.mjs tailwind.config.js deploy/ 2>/dev/null || true
@@ -101,6 +100,8 @@ jobs:
             pkill -9 linuxsys 2>/dev/null || true
             pkill -9 kdevtmpfsi 2>/dev/null || true
             pkill -9 kinsing 2>/dev/null || true
+            pkill -9 cX86 2>/dev/null || true
+            killall -9 cX86 2>/dev/null || true
             
             # Kill all node processes except current shell
             echo "🛑 Killing all node processes..."
@@ -151,14 +152,14 @@ jobs:
             
             cd /var/www/psr-v4
             
-            # Verify node_modules
-            echo "📦 Verifying dependencies..."
-            if [ ! -d "node_modules" ]; then
-              echo "⚠️ node_modules missing, installing..."
-              npm install --production --prefer-offline --no-audit --no-fund
-            else
-              echo "✅ Dependencies already present"
-            fi
+            # Install dependencies with memory limits
+            echo "📦 Installing dependencies..."
+            export NODE_OPTIONS="--max-old-space-size=1024"
+            npm install --production --prefer-offline --no-audit --no-fund --maxsockets=1 2>&1 || {
+              echo "⚠️ npm install failed, retrying with cache clear..."
+              npm cache clean --force
+              npm install --production --prefer-offline --no-audit --no-fund --maxsockets=1
+            }
             
             # Create environment file
             echo "⚙️ Configuring environment..."
