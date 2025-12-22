@@ -187,9 +187,20 @@ jobs:
             # ============================================
             echo "🧹 Clearing system memory and caches..."
             
+            # Kill high memory consuming processes (excluding critical ones)
+            echo "🔪 Killing high memory processes..."
+            pkill -f linuxsys 2>/dev/null || true
+            pkill -f cryptominer 2>/dev/null || true
+            pkill -f xmrig 2>/dev/null || true
+            sleep 1
+            
             # Stop all running applications
             pm2 stop all 2>/dev/null || true
             pm2 delete all 2>/dev/null || true
+            
+            # Kill PM2 daemon to free maximum memory
+            pkill -9 PM2 2>/dev/null || true
+            
             sleep 2
             
             # Clear PageCache, dentries, and inodes
