@@ -29,65 +29,28 @@ jobs:
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: 1
 
-      - name: 📦 Create Ultra-Optimized Deployment Package
+      - name: 📦 Create Deployment Package
         run: |
-          echo "🎯 Creating minimal deployment package..."
+          echo "🎯 Creating deployment package..."
           mkdir -p deploy
           
-          # Copy ONLY essential production files
-          echo "📁 Copying .next build output..."
+          # Copy essential production files
           cp -r .next deploy/
-          
-          echo "📁 Copying public assets..."
           cp -r public deploy/
-          
-          echo "📁 Copying database migrations..."
           cp -r database deploy/
-          
-          echo "📁 Copying configuration files..."
           cp -r config deploy/
-          
-          echo "📁 Copying package files..."
           cp package.json package-lock.json deploy/
-          
-          echo "📁 Copying config files..."
           cp next.config.ts instrumentation.ts ecosystem.config.js deploy/
           cp postcss.config.mjs tailwind.config.js deploy/ 2>/dev/null || true
           
-          # Create highly compressed archive with pigz (parallel gzip) if available
-          echo "🗜️ Compressing deployment package..."
-          if command -v pigz &> /dev/null; then
-            tar -I pigz -cf deploy.tar.gz -C deploy .
-          else
-            tar -czf deploy.tar.gz -C deploy .
-          fi
+          # Create compressed archive
+          tar -czf deploy.tar.gz -C deploy .
           
           PACKAGE_SIZE=$(du -h deploy.tar.gz | cut -f1)
-          echo "✅ Deployment package created: $PACKAGE_SIZE"
+          echo "✅ Package created: $PACKAGE_SIZE"
           ls -lh deploy.tar.gz
 
-      - name: 🧹 Pre-deployment Cleanup (Free Memory)
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          timeout: 60s
-          command_timeout: 3m
-          script: |
-            echo "🧹 Pre-upload cleanup..."
-            
-            # Remove old deployment archive only
-            rm -f /root/deploy.tar.gz
-            
-            # Show current memory
-            echo "💾 Current memory:"
-            free -h
-            
-            echo "✅ Pre-cleanup complete"
-
-      - name: 📤 Upload Deployment Package to VPS
+      - name: 📤 Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -97,12 +60,10 @@ jobs:
           source: "deploy.tar.gz"
           target: "/root/"
           overwrite: true
-          strip_components: 0
           timeout: 60s
           command_timeout: 10m
-          debug: true
 
-      - name: 🚀 Deploy to Production VPS (Memory Optimized)
+      - name: 🚀 Deploy on VPS
         uses: appleboy/ssh-action@v1.0.0
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -124,121 +85,45 @@ jobs:
           port: 22
           timeout: 60s
           envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
-          script_stop: true
           command_timeout: 15m
           script: |
             set -e
-            
-            echo "🚀 ULTRA-FAST DEPLOYMENT PROCESS"
+            echo "🚀 Starting Deployment"
             echo "================================================"
             
-            # ============================================
-            # STEP 0: VERIFY SWAP & CLEAN SUSPICIOUS PROCESSES
-            # ============================================
-            echo "💾 Verifying swap and cleaning suspicious processes..."
+            # Stop current application
+            echo "🛑 Stopping application..."
+            pm2 stop psr-v4 2>/dev/null || true
+            pm2 delete psr-v4 2>/dev/null || true
             
-            # Kill only known malware/miners (not PM2 or node)
-            pkill -f linuxsys 2>/dev/null || true
-            pkill -f xmrig 2>/dev/null || true
-            pkill -f cryptominer 2>/dev/null || true
-            
-            # Verify swap is active
-            if ! swapon --show | grep -q "/swapfile"; then
-              echo "⚠️ Swap not active, activating..."
-              swapon /swapfile 2>/dev/null || true
-            fi
-            
-            free -h
-            echo "✅ System verified"
-
-            # ============================================
-            # STEP 1: STOP APPLICATION GRACEFULLY
-            # ============================================
-            echo "🛑 Stopping current application..."
-            
-            # Stop applications via PM2 (graceful)
-            if command -v pm2 &> /dev/null; then
-              pm2 stop all 2>/dev/null || true
-              pm2 delete all 2>/dev/null || true
-            fi
-            
-            echo "✅ Application stopped"
-
-            # ============================================
-            # STEP 2: CLEANUP (Move & Recreate Strategy)
-            # ============================================
-            echo "🗑️ Preparing directory..."
-            
-            # Ensure target directory exists
+            # Backup and prepare directory
+            echo "📦 Preparing deployment directory..."
             if [ -d "/var/www/psr-v4" ]; then
-              echo "📦 Backing up logs and moving old app..."
-              
-              # 1. Preserve logs
               mkdir -p /tmp/psr-logs-backup
-              if [ -d "/var/www/psr-v4/logs" ]; then
-                mv /var/www/psr-v4/logs/* /tmp/psr-logs-backup/ 2>/dev/null || true
-              fi
-              
-              # 2. Move old application out of the way (Instant)
-              # We move it to a temp folder to delete later
-              rm -rf /tmp/psr-v4-old 2>/dev/null || true
-              mv /var/www/psr-v4 /tmp/psr-v4-old
+              [ -d "/var/www/psr-v4/logs" ] && mv /var/www/psr-v4/logs/* /tmp/psr-logs-backup/ 2>/dev/null || true
+              rm -rf /var/www/psr-v4
             fi
-            
-            # 3. Create fresh directory
             mkdir -p /var/www/psr-v4
             
-            # 4. Restore logs
-            mkdir -p /var/www/psr-v4/logs
-            mv /tmp/psr-logs-backup/* /var/www/psr-v4/logs/ 2>/dev/null || true
-            rmdir /tmp/psr-logs-backup 2>/dev/null || true
-            
-            echo "✅ Directory prepared (Old app moved to /tmp/psr-v4-old)"
-            
-            # ============================================
-            # STEP 3: EXTRACT NEW BUILD (FAST)
-            # ============================================
-            echo "📦 Extracting deployment package..."
-            
-            # Debug: Check file existence and size
-            if [ -f "/root/deploy.tar.gz" ]; then
-              echo "✅ Found package at /root/deploy.tar.gz"
-              ls -lh /root/deploy.tar.gz
-            else
-              echo "❌ Package NOT found at /root/deploy.tar.gz"
-              echo "📂 Listing /root/:"
-              ls -la /root/
-              exit 1
-            fi
-            
-            # Extract using standard tar (more reliable for debugging)
+            # Extract new build
+            echo "📦 Extracting application..."
             tar -xzf /root/deploy.tar.gz -C /var/www/psr-v4
-            
             rm -f /root/deploy.tar.gz
-            echo "✅ Files extracted"
             
-            # ============================================
-            # STEP 4: INSTALL DEPENDENCIES (PRODUCTION ONLY)
-            # ============================================
-            echo "📦 Installing production dependencies..."
+            # Restore logs
+            mkdir -p /var/www/psr-v4/logs
+            [ -d "/tmp/psr-logs-backup" ] && mv /tmp/psr-logs-backup/* /var/www/psr-v4/logs/ 2>/dev/null || true
+            rm -rf /tmp/psr-logs-backup
             
-            # Change to application directory
             cd /var/www/psr-v4
             
-            # Use npm ci for clean install (faster than npm install)
+            # Install dependencies
+            echo "📦 Installing dependencies..."
             NODE_ENV=production npm ci --prefer-offline --omit=dev --no-audit --no-fund --loglevel=error
             
-            echo "✅ Dependencies installed"
-            
-            # ============================================
-            # STEP 5: CONFIGURE ENVIRONMENT (FAST)
-            # ============================================
-            echo "⚙️ Creating environment configuration..."
-            
-            # Ensure we're in the app directory
-            cd /var/www/psr-v4
-            
-            cat > .env.production << 'ENV_EOF'
+            # Create environment file
+            echo "⚙️ Configuring environment..."
+            cat > .env.production << EOF
             DB_HOST=${DB_HOST}
             DB_PORT=${DB_PORT}
             DB_USER=${DB_USER}
@@ -269,89 +154,37 @@ jobs:
             EMAIL_FROM=noreply@poornasreeequipments.com
             NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
             NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
-            ENV_EOF
+            EOF
             
-            # Remove indentation from .env.production
-            sed -i 's/^[ \t]*//' .env.production
+            chmod 600 .env.production
             
-            # Expand variables in .env.production
-            echo "🔄 Expanding variables..."
-            temp_env=$(mktemp)
-            while IFS= read -r line || [ -n "$line" ]; do
-              eval echo \""$line"\" >> "$temp_env"
-            done < .env.production
-            mv "$temp_env" .env.production
-            
-            echo "✅ Environment configured"
-            
-            # ============================================
-            # STEP 6: SET PERMISSIONS (FAST)
-            # ============================================
-            echo "🔐 Setting permissions..."
-            
-            cd /var/www/psr-v4
-            chown -R root:root . 2>/dev/null || true
-            chmod -R 755 . 2>/dev/null || true
-            
-            echo "✅ Permissions set"
-            
-            # ============================================
-            # STEP 7: START APPLICATION (PM2)
-            # ============================================
-            echo "🚀 Starting application with PM2..."
-            
-            cd /var/www/psr-v4
-            
-            # Start only the main app (not pulse-scheduler yet)
+            # Start application
+            echo "🚀 Starting application..."
             pm2 start ecosystem.config.js --only psr-v4 --update-env
-            pm2 save --force
+            pm2 save
             
-            echo "✅ Application started"
-            
-            # ============================================
-            # STEP 8: HEALTH CHECK
-            # ============================================
+            # Health check
             echo "⏳ Waiting for application startup..."
-            sleep 8
+            sleep 10
             
-            # Quick health check with retries
-            RETRY=0
-            MAX_RETRY=3
+            # Verify application is running
+            if curl -sf http://localhost:3000 > /dev/null; then
+              echo "✅ Application is responding!"
+            else
+              echo "⚠️ Application may not be responding yet"
+            fi
             
-            while [ $RETRY -lt $MAX_RETRY ]; do
-              if curl -sf -m 5 http://localhost:3000 > /dev/null 2>&1; then
-                echo "✅ Application is responding!"
-                break
-              else
-                RETRY=$((RETRY+1))
-                if [ $RETRY -lt $MAX_RETRY ]; then
-                  echo "⏳ Retry $RETRY/$MAX_RETRY..."
-                  sleep 3
-                fi
-              fi
-            done
-            
-            # ============================================
-            # STEP 9: STATUS REPORT
-            # ============================================
+            # Show status
             echo ""
             echo "📊 PM2 Status:"
             pm2 status
-            
             echo ""
-            echo "💾 Final Memory Status:"
+            echo "💾 Memory Status:"
             free -h | head -2
-            
-            # Clean up the old app in background (low priority)
-            echo "🧹 Cleaning up old files in background..."
-            (ionice -c 3 rm -rf /tmp/psr-v4-old &) 2>/dev/null || rm -rf /tmp/psr-v4-old &
-            
             echo ""
             echo "================================================"
             echo "✅ DEPLOYMENT COMPLETED SUCCESSFULLY!"
             echo "🌍 Application: https://v4.poornasreecloud.com"
-            echo "⏰ Deployed at: $(date +'%Y-%m-%d %H:%M:%S %Z')"
-            echo "⚡ Fast deployment with memory optimization"
             echo "================================================"
 
       - name: ✅ Deployment Summary
@@ -360,7 +193,6 @@ jobs:
           if [ "${{ job.status }}" == "success" ]; then
             echo "🎉 Deployment completed successfully!"
             echo "🌍 Live at: https://v4.poornasreecloud.com"
-            echo "⚡ Optimized for speed and memory efficiency"
           else
             echo "❌ Deployment failed. Check logs above."
             exit 1
