@@ -3,6 +3,46 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
 
+// Helper function to check farmer email uniqueness across all admin schemas
+async function checkGlobalFarmerEmailUniqueness(email: string, excludeFarmerId?: number, currentSchemaName?: string): Promise<{ isUnique: boolean; existingSchema?: string }> {
+  const { sequelize, User } = await import('@/models').then(m => m.getModels());
+  
+  // Get all admin schemas
+  const [schemas] = await sequelize.query(`
+    SELECT DISTINCT TABLE_SCHEMA 
+    FROM information_schema.TABLES 
+    WHERE (TABLE_SCHEMA LIKE 'db_%' OR TABLE_SCHEMA LIKE 'tester_%') 
+    AND TABLE_NAME = 'farmers'
+    ORDER BY TABLE_SCHEMA
+  `);
+  
+  const adminSchemas = (schemas as Array<{ TABLE_SCHEMA: string }>).map(s => s.TABLE_SCHEMA);
+  
+  for (const schema of adminSchemas) {
+    try {
+      let query = `SELECT farmer_id, name FROM \`${schema}\`.\`farmers\` WHERE email = ?`;
+      const replacements: any[] = [email.trim().toLowerCase()];
+      
+      // If checking for update (exclude current farmer)
+      if (excludeFarmerId && currentSchemaName && schema === currentSchemaName) {
+        query += ' AND id != ?';
+        replacements.push(excludeFarmerId);
+      }
+      
+      const [existingEmail] = await sequelize.query(query, { replacements });
+      
+      if (Array.isArray(existingEmail) && existingEmail.length > 0) {
+        return { isUnique: false, existingSchema: schema };
+      }
+    } catch (error) {
+      console.log(`⚠️ Schema ${schema} not accessible or doesn't have farmers table`);
+      continue;
+    }
+  }
+  
+  return { isUnique: true };
+}
+
 interface FarmerData {
   farmerId: string;
   rfId?: string;
@@ -238,19 +278,12 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Farmer ID and name are required', 400);
       }
 
-      // Check for duplicate email if provided
+      // Check for global farmer email uniqueness across all admin schemas if provided
       if (email && email.trim() !== '') {
-        const emailCheckQuery = `
-          SELECT farmer_id FROM \`${schemaName}\`.farmers 
-          WHERE email = ? LIMIT 1
-        `;
-        const [existingEmail] = await sequelize.query(emailCheckQuery, { 
-          replacements: [email.trim().toLowerCase()] 
-        });
-        
-        if (Array.isArray(existingEmail) && existingEmail.length > 0) {
-          console.log(`📧 Duplicate email detected: ${email}`);
-          return createErrorResponse('Email address already exists. Please use a different email.', 400);
+        const emailCheck = await checkGlobalFarmerEmailUniqueness(email);
+        if (!emailCheck.isUnique) {
+          console.log(`📧 Global duplicate farmer email detected: ${email} (exists in schema: ${emailCheck.existingSchema})`);
+          return createErrorResponse('Email address already exists in the system. Please use a different email.', 400);
         }
       }
 
@@ -390,19 +423,12 @@ export async function PUT(request: NextRequest) {
       return createErrorResponse('ID, Farmer ID and name are required', 400);
     }
 
-    // Check for duplicate email if provided (exclude current farmer)
+    // Check for global farmer email uniqueness across all admin schemas if provided (exclude current farmer)
     if (email && email.trim() !== '') {
-      const emailCheckQuery = `
-        SELECT farmer_id FROM \`${schemaName}\`.farmers 
-        WHERE email = ? AND id != ? LIMIT 1
-      `;
-      const [existingEmail] = await sequelize.query(emailCheckQuery, { 
-        replacements: [email.trim().toLowerCase(), id] 
-      });
-      
-      if (Array.isArray(existingEmail) && existingEmail.length > 0) {
-        console.log(`📧 Duplicate email detected: ${email}`);
-        return createErrorResponse('Email address already exists. Please use a different email.', 400);
+      const emailCheck = await checkGlobalFarmerEmailUniqueness(email, id, schemaName);
+      if (!emailCheck.isUnique) {
+        console.log(`📧 Global duplicate farmer email detected: ${email} (exists in schema: ${emailCheck.existingSchema})`);
+        return createErrorResponse('Email address already exists in the system. Please use a different email.', 400);
       }
     }
 

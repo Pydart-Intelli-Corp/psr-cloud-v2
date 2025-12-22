@@ -9,7 +9,8 @@ import {
   TrendingUp,
   BarChart3,
   RefreshCw,
-  Trash2
+  Trash2,
+  Mail
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -17,6 +18,7 @@ import StatsCard from '@/components/management/StatsCard';
 import { FlowerSpinner } from '@/components';
 import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } from '@/components/management';
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
+import EmailReportModal from '@/components/dialogs/EmailReportModal';
 
 interface SalesRecord {
   id: number;
@@ -140,6 +142,10 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [bulkDeletePassword, setBulkDeletePassword] = useState('');
+
+  // Email modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
   
   // Fetch dairies, BMCs, societies, and machines
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
@@ -443,6 +449,30 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
+  // Fetch admin email for email functionality
+  useEffect(() => {
+    const fetchAdminEmail = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const response = await fetch('/api/user/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const email = data.email || '';
+          setAdminEmail(email);
+        }
+      } catch (error) {
+        console.error('Error fetching admin email:', error);
+      }
+    };
+
+    fetchAdminEmail();
+  }, []);
+
   // Filter records with multi-field search (matching machine management pattern)
   useEffect(() => {
     let filtered = records;
@@ -706,6 +736,167 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     doc.save(`sales-report-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
+  // Send email with CSV and PDF attachments
+  const handleSendEmail = async (email: string) => {
+    if (!email || !email.includes('@')) {
+      throw new Error('Please enter a valid email address');
+    }
+
+    try {
+      // Generate CSV content
+      const dateRange = dateFromFilter && dateToFilter 
+        ? `${dateFromFilter} To ${dateToFilter}`
+        : dateFilter || 'All Dates';
+      const currentDateTime = new Date().toLocaleString('en-IN', { 
+        year: 'numeric', month: '2-digit', day: '2-digit', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+      });
+
+      const dataRows = filteredRecords.map(record => [
+        record.count,
+        record.sales_date,
+        record.sales_time,
+        record.channel,
+        record.shift_type,
+        `${record.machine_id} (${record.machine_type})`,
+        record.society_name || '',
+        record.quantity,
+        record.rate_per_liter,
+        record.total_amount
+      ]);
+
+      const csvContent = [
+        ['POORNASREE EQUIPMENTS MILK SALES REPORT'],
+        ['Admin Report with Sales Summary'],
+        [],
+        ['Report Generated:', currentDateTime],
+        ['Date Range:', dateRange],
+        ['Total Sales:', stats.totalSales],
+        ['Total Quantity (L):', stats.totalQuantity.toFixed(2)],
+        ['Total Amount (₹):', stats.totalAmount.toFixed(2)],
+        ['Average Rate (₹/L):', stats.averageRate.toFixed(2)],
+        [],
+        ['Count', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Quantity (L)', 'Rate (₹/L)', 'Total Amount (₹)'],
+        ...dataRows
+      ].map(row => row.join(',')).join('\n');
+
+      // Generate PDF as base64 - matching current PDF design exactly
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      
+      // Add Logo (same as current PDF)
+      const logoPath = '/fulllogo.png';
+      doc.addImage(logoPath, 'PNG', 14, 8, 0, 12);
+
+      // Header (same as current PDF)
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Daily Sales Report - LactoConnect Milk Sales System', 148.5, 15, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Date From ${dateRange}`, 148.5, 21, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DETAILED SALES DATA', 148.5, 28, { align: 'center' });
+
+      // Detailed Data Table with SI No (same as current PDF)
+      const tableData = filteredRecords.map((record, index) => [
+        (index + 1).toString(),
+        record.count,
+        record.sales_date,
+        record.sales_time,
+        getChannelDisplay(record.channel),
+        record.shift_type,
+        `${record.machine_id} (${record.machine_type})`,
+        `${record.society_name} (${record.society_id})`,
+        record.quantity,
+        record.rate_per_liter,
+        record.total_amount
+      ]);
+
+      autoTable(doc, {
+        startY: 32,
+        head: [['SI No', 'Count', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Quantity (L)', 'Rate', 'Total Amount']],
+        body: tableData,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8, lineWidth: 0.5, lineColor: [0, 0, 0] },
+        bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] },
+        columnStyles: {
+          0: { cellWidth: 12 }
+        }
+      });
+
+      // Summary Section (same as current PDF)
+      const finalY = doc.lastAutoTable.finalY + 8;
+      
+      // Left side - Overall Summary
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('OVERALL SUMMARY', 14, finalY);
+      doc.setFont('helvetica', 'normal');
+      let leftY = finalY + 6;
+      doc.text(`Total Sales        : ${stats.totalSales}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Total Quantity (L) : ${stats.totalQuantity.toFixed(2)}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Total Amount       : ${stats.totalAmount.toFixed(2)}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Average Rate       : ${stats.averageRate.toFixed(2)}`, 14, leftY);
+
+      // Right side - Report Notes
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REPORT NOTES', 283, finalY, { align: 'right' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      let rightY = finalY + 6;
+      doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
+      rightY += 5;
+      doc.text('Contact: marketing@poornasree.com', 283, rightY, { align: 'right' });
+      
+      rightY += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      rightY += 5;
+      doc.text('Thank you for using LactoConnect', 283, rightY, { align: 'right' });
+      rightY += 5;
+      doc.text('For support, visit: www.poornasree.com', 283, rightY, { align: 'right' });
+
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+      // Send email with attachments
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/reports/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: email,
+          csvContent,
+          pdfContent: pdfBase64,
+          reportType: 'Sales Report',
+          dateRange,
+          stats
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to send email');
+      }
+
+      setSuccessMessage(`Report sent successfully to ${email}`);
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw error;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -776,6 +967,13 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
               >
                 <FileDown className="w-4 h-4" />
                 <span className="hidden sm:inline">PDF</span>
+              </button>
+              <button
+                onClick={() => setShowEmailModal(true)}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm hover:shadow-md"
+              >
+                <Mail className="w-4 h-4" />
+                <span className="hidden sm:inline">Send Mail</span>
               </button>
             </div>
           </div>
@@ -975,6 +1173,16 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         message={isDeletingBulk ? `Deleting ${selectedRecords.size} Records` : "Deleting Record"}
         submessage="Verifying credentials and removing data..."
         showProgress={false}
+      />
+
+      {/* Email Modal */}
+      <EmailReportModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        onSend={handleSendEmail}
+        defaultEmail={adminEmail}
+        recordCount={filteredRecords.length}
+        reportType="Sales Report"
       />
 
       {/* Status Messages */}

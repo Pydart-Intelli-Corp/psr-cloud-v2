@@ -10,6 +10,7 @@ import {
   Edit, Save, X, RefreshCw, Trash2, Eye, EyeOff
 } from 'lucide-react';
 import { validateIndianPhone, formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation';
+import { validateEmailOnBlur, formatEmailInput } from '@/lib/validation/emailValidation';
 import { validateEmailQuick } from '@/lib/emailValidation';
 import { 
   LoadingSpinner, 
@@ -29,6 +30,7 @@ interface Society {
   location?: string;
   presidentName?: string;
   contactPhone?: string;
+  email: string;
   bmcId: number;
   bmcName?: string;
   bmcIdentifier?: string;
@@ -221,6 +223,7 @@ export default function SocietyDetails() {
     location: '',
     presidentName: '',
     contactPhone: '',
+    email: '',
     status: 'active' as 'active' | 'inactive' | 'maintenance'
   });
   const [saveLoading, setSaveLoading] = useState(false);
@@ -286,6 +289,7 @@ export default function SocietyDetails() {
         location: data.society.location || '',
         presidentName: data.society.presidentName || '',
         contactPhone: data.society.contactPhone || '',
+        email: data.society.email || '',
         status: data.society.status || 'active'
       });
     }
@@ -374,6 +378,7 @@ export default function SocietyDetails() {
           location: data.society.location || '',
           presidentName: data.society.presidentName || '',
           contactPhone: data.society.contactPhone || '',
+          email: data.society.email || '',
           status: data.society.status || 'active'
         });
       }
@@ -414,6 +419,22 @@ export default function SocietyDetails() {
         }
       }
 
+      // Validate email before saving
+      if (!editFormData.email || !editFormData.email.trim()) {
+        setValidationErrors({ ...validationErrors, email: 'Email is required' });
+        setError('Please fix validation errors before saving');
+        setSaveLoading(false);
+        return;
+      }
+
+      const emailValidationError = validateEmailOnBlur(editFormData.email);
+      if (emailValidationError) {
+        setValidationErrors({ ...validationErrors, email: emailValidationError });
+        setError('Please fix validation errors before saving');
+        setSaveLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('authToken');
       if (!token) {
         router.push('/login');
@@ -426,6 +447,7 @@ export default function SocietyDetails() {
         location: string;
         presidentName: string;
         contactPhone: string;
+        email: string;
         status: 'active' | 'inactive' | 'maintenance';
         password?: string;
       } = {
@@ -434,6 +456,7 @@ export default function SocietyDetails() {
         location: editFormData.location,
         presidentName: editFormData.presidentName,
         contactPhone: editFormData.contactPhone,
+        email: editFormData.email,
         status: editFormData.status
       };
 
@@ -1205,6 +1228,40 @@ export default function SocietyDetails() {
                       </label>
                       <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                         <p className="text-gray-900 dark:text-white">{society.contactPhone || 'N/A'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Email */}
+                  {isEditing ? (
+                    <FormInput
+                      label="Email Address"
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(value) => {
+                        const formatted = formatEmailInput(value);
+                        setEditFormData({ ...editFormData, email: formatted });
+                        // Clear error when user starts typing
+                        if (validationErrors.email) {
+                          setValidationErrors({ ...validationErrors, email: '' });
+                        }
+                      }}
+                      onBlur={() => {
+                        const error = validateEmailOnBlur(editFormData.email);
+                        setValidationErrors({ ...validationErrors, email: error });
+                      }}
+                      placeholder={society.email ? `Current: ${society.email}` : "Enter email address"}
+                      error={validationErrors.email}
+                      required
+                      helperText="Current email address is pre-filled. Edit to change."
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Email Address
+                      </label>
+                      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <p className="text-gray-900 dark:text-white">{society.email || 'N/A'}</p>
                       </div>
                     </div>
                   )}

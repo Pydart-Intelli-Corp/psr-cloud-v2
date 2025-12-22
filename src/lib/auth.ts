@@ -11,8 +11,10 @@ export interface JWTPayload {
   id: number;
   uid: string;
   email: string;
-  role: UserRole;
+  role: UserRole | string; // Allow string for external auth entity types
   dbKey?: string;
+  entityType?: 'society' | 'farmer' | 'dairy' | 'bmc'; // For external auth
+  schemaName?: string; // For external auth
 }
 
 // Generate JWT tokens
@@ -22,7 +24,9 @@ export const generateTokens = (user: JWTPayload) => {
     uid: user.uid,
     email: user.email,
     role: user.role,
-    dbKey: user.dbKey
+    dbKey: user.dbKey,
+    entityType: user.entityType,
+    schemaName: user.schemaName
   };
 
   const token = jwt.sign(payload, JWT_SECRET as string, {

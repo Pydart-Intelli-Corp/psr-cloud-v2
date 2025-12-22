@@ -8,7 +8,9 @@ import {
   TrendingUp,
   BarChart3,
   RefreshCw,
-  Trash2
+  Trash2,
+  Mail,
+  X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +18,7 @@ import StatsCard from '@/components/management/StatsCard';
 import { FlowerSpinner } from '@/components';
 import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } from '@/components/management';
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
+import EmailReportModal from '@/components/dialogs/EmailReportModal';
 
 interface CollectionRecord {
   id: number;
@@ -145,12 +148,14 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
   const [bmcFilter, setBmcFilter] = useState<string[]>([]);
   const [societyFilter, setSocietyFilter] = useState<string[]>([]);
   const [machineFilter, setMachineFilter] = useState<string[]>([]);
+  const [farmerFilter, setFarmerFilter] = useState<string[]>([]);
   
   // Fetch dairies and BMCs
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
   const [machinesData, setMachinesData] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number; collectionCount?: number }>>([]);
+  const [farmersData, setFarmersData] = useState<Array<{ id: number; farmerId: string; farmerName: string; societyId?: number }>>([]);
 
   // Delete functionality
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -165,6 +170,10 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [bulkDeletePassword, setBulkDeletePassword] = useState('');
+
+  // Email modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
 
   // Initialize society filter from URL parameters
   useEffect(() => {
@@ -227,6 +236,30 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
     }
   }, [initialFromDate, initialToDate, initialBmcFilter]); // Re-run when props change
 
+  // Fetch admin email
+  useEffect(() => {
+    const fetchAdminEmail = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const response = await fetch('/api/user/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const email = data.email || '';
+          setAdminEmail(email);
+        }
+      } catch (error) {
+        console.error('Error fetching admin email:', error);
+      }
+    };
+
+    fetchAdminEmail();
+  }, []);
+
   // Debug: Log filter states
   useEffect(() => {
     console.log('Current filter states:', {
@@ -279,8 +312,17 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
           const machineData = await machineRes.json();
           setMachinesData(machineData.data || []);
         }
+
+        // Fetch Farmers
+        const farmerRes = await fetch('/api/user/farmer', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (farmerRes.ok) {
+          const farmerData = await farmerRes.json();
+          setFarmersData(farmerData.data || []);
+        }
       } catch (error) {
-        console.error('Error fetching dairies/BMCs/societies/machines:', error);
+        console.error('Error fetching dairies/BMCs/societies/machines/farmers:', error);
       }
     };
 
@@ -366,6 +408,18 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       collectionCount: records.filter(r => r.machine_id === machine.machineId).length
     }));
   }, [machinesData, records]);
+  
+  const farmers = useMemo(() => {
+    if (!farmersData.length || !records.length) return farmersData;
+    
+    const farmerIdsInCollections = new Set(
+      records
+        .filter(r => r.farmer_id)
+        .map(r => r.farmer_id)
+    );
+    
+    return farmersData.filter(farmer => farmerIdsInCollections.has(farmer.farmerId));
+  }, [farmersData, records]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -374,6 +428,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
     setBmcFilter([]);
     setSocietyFilter([]);
     setMachineFilter([]);
+    setFarmerFilter([]);
     setDateFilter('');
     setDateFromFilter('');
     setDateToFilter('');
@@ -659,6 +714,16 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       }
     }
 
+    // Farmer filter
+    if (farmerFilter.length > 0) {
+      const selectedFarmerIds = farmerFilter
+        .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
+        .filter(Boolean) as string[];
+      if (selectedFarmerIds.length > 0) {
+        filtered = filtered.filter(record => selectedFarmerIds.includes(record.farmer_id));
+      }
+    }
+
     // Channel filter
     if (channelFilter !== 'all') {
       filtered = filtered.filter(record => {
@@ -727,7 +792,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
     setFilteredRecords(filtered);
     calculateStats(filtered);
-  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, dairyFilter, bmcFilter, records, societies, machines, dairies, bmcs, calculateStats]);
+  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, farmerFilter, dairyFilter, bmcFilter, records, societies, machines, farmers, dairies, bmcs, calculateStats]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -905,6 +970,193 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
     doc.save(`collection-report-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
+  // Send email with CSV and PDF attachments
+  const handleSendEmail = async (email: string) => {
+    if (!email || !email.includes('@')) {
+      throw new Error('Please enter a valid email address');
+    }
+
+    try {
+      // Generate CSV content
+      const dateRange = dateFromFilter && dateToFilter 
+        ? `${dateFromFilter} To ${dateToFilter}`
+        : dateFilter || 'All Dates';
+      const currentDateTime = new Date().toLocaleString('en-IN', { 
+        year: 'numeric', month: '2-digit', day: '2-digit', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+      });
+
+      const dataRows = filteredRecords.map(record => [
+        record.collection_date,
+        record.collection_time,
+        record.channel,
+        record.shift_type,
+        `${record.machine_id} (${record.machine_type})`,
+        record.society_name || '',
+        record.farmer_id || '',
+        record.farmer_name || '',
+        record.fat_percentage,
+        record.snf_percentage,
+        record.clr_value,
+        record.water_percentage,
+        record.rate_per_liter,
+        record.quantity,
+        record.total_amount,
+        record.bonus
+      ]);
+
+      const csvContent = [
+        ['POORNASREE EQUIPMENTS MILK COLLECTION REPORT'],
+        ['Admin Report with Weighted Averages'],
+        [],
+        ['Report Generated:', currentDateTime],
+        ['Date Range:', dateRange],
+        ['Total Collections:', stats.totalCollections],
+        ['Total Quantity (L):', stats.totalQuantity.toFixed(2)],
+        ['Total Amount (₹):', stats.totalAmount.toFixed(2)],
+        ['Average Rate (₹/L):', stats.averageRate.toFixed(2)],
+        ['Weighted FAT (%):', stats.weightedFat.toFixed(2)],
+        ['Weighted SNF (%):', stats.weightedSnf.toFixed(2)],
+        ['Weighted CLR:', stats.weightedClr.toFixed(2)],
+        [],
+        ['Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate (₹/L)', 'Quantity (L)', 'Total Amount (₹)', 'Incentive'],
+        ...dataRows
+      ].map(row => row.join(',')).join('\n');
+
+      // Generate PDF as base64 - matching current PDF design exactly
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      
+      // Add Logo (same as current PDF)
+      const logoPath = '/fulllogo.png';
+      doc.addImage(logoPath, 'PNG', 14, 8, 0, 12);
+
+      // Logo and Header (same as current PDF)
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Daily Collection Report - LactoConnect Milk Collection System', 148.5, 15, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Date From ${dateRange}`, 148.5, 21, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DETAILED COLLECTION DATA', 148.5, 28, { align: 'center' });
+
+      // Detailed Data Table with SI No (same as current PDF)
+      const tableData = filteredRecords.map((record, index) => [
+        (index + 1).toString(),
+        record.collection_date,
+        record.collection_time,
+        getChannelDisplay(record.channel),
+        record.shift_type,
+        `${record.machine_id} (${record.machine_type})`,
+        `${record.society_name} (${record.society_id})`,
+        record.farmer_id,
+        record.farmer_name || '',
+        record.fat_percentage,
+        record.snf_percentage,
+        record.clr_value,
+        record.water_percentage,
+        record.rate_per_liter,
+        record.quantity,
+        record.total_amount,
+        record.bonus
+      ]);
+
+      autoTable(doc, {
+        startY: 32,
+        head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
+        body: tableData,
+        theme: 'grid',
+        styles: { fontSize: 6, cellPadding: 1, halign: 'center' },
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.5, lineColor: [0, 0, 0] },
+        bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          8: { halign: 'left' }
+        }
+      });
+
+      // Summary Section (same as current PDF)
+      const finalY = doc.lastAutoTable.finalY + 8;
+      
+      // Left side - Weighted Averages
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('WEIGHTED AVERAGES', 14, finalY);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      let leftY = finalY + 6;
+      doc.text(`Weighted Fat      : ${stats.weightedFat.toFixed(2)}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Weighted SNF      : ${stats.weightedSnf.toFixed(2)}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Weighted CLR      : ${stats.weightedClr.toFixed(2)}`, 14, leftY);
+      
+      leftY += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('OVERALL SUMMARY', 14, leftY);
+      doc.setFont('helvetica', 'normal');
+      leftY += 6;
+      doc.text(`Total Collections  : ${stats.totalCollections}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Total Quantity (L) : ${stats.totalQuantity.toFixed(2)}`, 14, leftY);
+      leftY += 5;
+      doc.text(`Total Amount       : ${stats.totalAmount.toFixed(2)}`, 14, leftY);
+
+      // Right side - Report Notes
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REPORT NOTES', 283, finalY, { align: 'right' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      let rightY = finalY + 6;
+      doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
+      rightY += 5;
+      doc.text('Contact: marketing@poornasree.com', 283, rightY, { align: 'right' });
+      
+      rightY += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      rightY += 5;
+      doc.text('Thank you for using LactoConnect', 283, rightY, { align: 'right' });
+      rightY += 5;
+      doc.text('For support, visit: www.poornasree.com', 283, rightY, { align: 'right' });
+
+      const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+      // Send email with attachments
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/reports/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: email,
+          csvContent,
+          pdfContent: pdfBase64,
+          reportType: 'Collection Report',
+          dateRange,
+          stats
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to send email');
+      }
+
+      setSuccessMessage(`Report sent successfully to ${email}`);
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw error;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -994,6 +1246,13 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
                 <FileDown className="w-4 h-4" />
                 <span className="hidden sm:inline">PDF</span>
               </button>
+              <button
+                onClick={() => setShowEmailModal(true)}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm hover:shadow-md"
+              >
+                <Mail className="w-4 h-4" />
+                <span className="hidden sm:inline">Send Mail</span>
+              </button>
             </div>
           </div>
 
@@ -1009,10 +1268,13 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
             onSocietyChange={(value) => setSocietyFilter(Array.isArray(value) ? value : [value])}
             machineFilter={machineFilter}
             onMachineChange={(value) => setMachineFilter(Array.isArray(value) ? value : [value])}
+            farmerFilter={farmerFilter}
+            onFarmerChange={(value) => setFarmerFilter(Array.isArray(value) ? value : [value])}
             dairies={dairiesWithCollections}
             bmcs={bmcsWithCollections}
             societies={societies}
             machines={machines}
+            farmers={farmers}
             filteredCount={filteredRecords.length}
             totalCount={records.length}
             searchQuery={searchQuery}
@@ -1205,6 +1467,16 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         message={isDeletingBulk ? `Deleting ${selectedRecords.size} Records` : "Deleting Record"}
         submessage="Verifying credentials and removing data..."
         showProgress={false}
+      />
+
+      {/* Email Modal */}
+      <EmailReportModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        onSend={handleSendEmail}
+        defaultEmail={adminEmail}
+        recordCount={filteredRecords.length}
+        reportType="Collection Report"
       />
 
       {/* Status Messages */}

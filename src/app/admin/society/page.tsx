@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
+import { validateEmailOnBlur, formatEmailInput } from '@/lib/validation/emailValidation';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -61,6 +62,7 @@ interface Society {
   location?: string;
   presidentName?: string;
   contactPhone?: string;
+  email: string;
   bmcId: number;
   bmcName?: string;
   status: 'active' | 'inactive' | 'maintenance' | 'suspended';
@@ -83,6 +85,7 @@ interface SocietyFormData {
   location: string;
   presidentName: string;
   contactPhone: string;
+  email: string;
   bmcId: string;
   status: 'active' | 'inactive' | 'maintenance' | 'suspended';
 }
@@ -94,6 +97,7 @@ const initialFormData: SocietyFormData = {
   location: '',
   presidentName: '',
   contactPhone: '',
+  email: '',
   bmcId: '',
   status: 'active'
 };
@@ -205,6 +209,7 @@ export default function SocietyManagement() {
         location?: string;
         president_name?: string;
         contact_phone?: string;
+        email?: string;
         bmc_id: number;
         bmc_name?: string;
         status: string;
@@ -224,6 +229,7 @@ export default function SocietyManagement() {
         location: society.location,
         presidentName: society.president_name,
         contactPhone: society.contact_phone,
+        email: society.email || '',
         bmcId: society.bmc_id,
         bmcName: society.bmc_name,
         status: society.status as 'active' | 'inactive' | 'maintenance',
@@ -544,6 +550,7 @@ export default function SocietyManagement() {
         location: string;
         presidentName: string;
         contactPhone: string;
+        email: string;
         bmcId?: number;
         status?: 'active' | 'inactive' | 'maintenance' | 'suspended';
         password?: string;
@@ -553,6 +560,7 @@ export default function SocietyManagement() {
         location: formData.location,
         presidentName: formData.presidentName,
         contactPhone: formData.contactPhone,
+        email: formData.email,
         bmcId: parseInt(formData.bmcId),
         status: formData.status
       };
@@ -693,6 +701,7 @@ export default function SocietyManagement() {
           location: society.location || '',
           presidentName: society.presidentName || '',
           contactPhone: society.contactPhone || '',
+          email: society.email || '',
           bmcId: society.bmcId?.toString() || '',
           status: society.status
         });
@@ -708,6 +717,7 @@ export default function SocietyManagement() {
           location: society.location || '',
           presidentName: society.presidentName || '',
           contactPhone: society.contactPhone || '',
+          email: society.email || '',
           bmcId: society.bmcId?.toString() || '',
           status: society.status
         });
@@ -722,6 +732,7 @@ export default function SocietyManagement() {
         location: society.location || '',
         presidentName: society.presidentName || '',
         contactPhone: society.contactPhone || '',
+        email: society.email || '',
         bmcId: society.bmcId?.toString() || '',
         status: society.status
       });
@@ -1501,6 +1512,28 @@ export default function SocietyManagement() {
               colSpan={1}
             />
 
+            <FormInput
+              label="Email Address"
+              type="email"
+              value={formData.email}
+              onChange={(value) => {
+                const formatted = formatEmailInput(value);
+                handleInputChange('email', formatted);
+              }}
+              onBlur={() => {
+                const error = validateEmailOnBlur(formData.email);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, email: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, email: undefined }));
+                }
+              }}
+              placeholder="Enter email address"
+              error={fieldErrors.email}
+              required
+              colSpan={1}
+            />
+
             <FormSelect
               label="Status"
               value={formData.status}
@@ -1632,6 +1665,29 @@ export default function SocietyManagement() {
               placeholder="Enter contact phone"
               error={fieldErrors.contactPhone}
               colSpan={1}
+            />
+
+            <FormInput
+              label="Email Address"
+              type="email"
+              value={formData.email}
+              onChange={(value) => {
+                const formatted = formatEmailInput(value);
+                handleInputChange('email', formatted);
+              }}
+              onBlur={() => {
+                const error = validateEmailOnBlur(formData.email);
+                if (error) {
+                  setFieldErrors(prev => ({ ...prev, email: error }));
+                } else {
+                  setFieldErrors(prev => ({ ...prev, email: undefined }));
+                }
+              }}
+              placeholder={selectedSociety?.email ? `Current: ${selectedSociety.email}` : "Enter email address"}
+              error={fieldErrors.email}
+              required
+              colSpan={1}
+              helperText="Current email address is pre-filled. Edit to change."
             />
 
             <FormSelect

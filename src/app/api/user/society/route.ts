@@ -3,6 +3,46 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
 
+// Helper function to check email uniqueness across all admin schemas
+async function checkGlobalEmailUniqueness(email: string, excludeSocietyId?: number, currentSchemaName?: string): Promise<{ isUnique: boolean; existingSchema?: string }> {
+  const { sequelize, User } = await import('@/models').then(m => m.getModels());
+  
+  // Get all admin schemas
+  const [schemas] = await sequelize.query(`
+    SELECT DISTINCT TABLE_SCHEMA 
+    FROM information_schema.TABLES 
+    WHERE (TABLE_SCHEMA LIKE 'db_%' OR TABLE_SCHEMA LIKE 'tester_%') 
+    AND TABLE_NAME = 'societies'
+    ORDER BY TABLE_SCHEMA
+  `);
+  
+  const adminSchemas = (schemas as Array<{ TABLE_SCHEMA: string }>).map(s => s.TABLE_SCHEMA);
+  
+  for (const schema of adminSchemas) {
+    try {
+      let query = `SELECT society_id, name FROM \`${schema}\`.\`societies\` WHERE email = ?`;
+      const replacements: any[] = [email.trim().toLowerCase()];
+      
+      // If checking for update (exclude current society)
+      if (excludeSocietyId && currentSchemaName && schema === currentSchemaName) {
+        query += ' AND id != ?';
+        replacements.push(excludeSocietyId);
+      }
+      
+      const [existingEmail] = await sequelize.query(query, { replacements });
+      
+      if (Array.isArray(existingEmail) && existingEmail.length > 0) {
+        return { isUnique: false, existingSchema: schema };
+      }
+    } catch (error) {
+      console.log(`⚠️ Schema ${schema} not accessible or doesn't have societies table`);
+      continue;
+    }
+  }
+  
+  return { isUnique: true };
+}
+
 interface SocietyData {
   name: string;
   password: string;
@@ -10,6 +50,7 @@ interface SocietyData {
   location?: string;
   presidentName?: string;
   contactPhone?: string;
+  email: string;
   bmcId?: number;
 }
 
@@ -26,10 +67,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, password, societyId, location, presidentName, contactPhone, bmcId }: SocietyData = body;
+    const { name, password, societyId, location, presidentName, contactPhone, email, bmcId }: SocietyData = body;
 
-    if (!name || !password || !societyId) {
-      return createErrorResponse('Name, password, and society ID are required', 400);
+    if (!name || !password || !societyId || !email) {
+      return createErrorResponse('Name, password, society ID, and email are required', 400);
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return createErrorResponse('Please enter a valid email address', 400);
     }
 
     await connectDB();
@@ -46,15 +93,22 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
+    // Check for global email uniqueness across all admin schemas
+    const emailCheck = await checkGlobalEmailUniqueness(email);
+    if (!emailCheck.isUnique) {
+      console.log(`📧 Global duplicate email detected: ${email} (exists in schema: ${emailCheck.existingSchema})`);
+      return createErrorResponse('Email address already exists in the system. Please use a different email.', 400);
+    }
+
     // Insert society data into admin's schema
     const insertQuery = `
       INSERT INTO \`${schemaName}\`.\`societies\` 
-      (name, society_id, password, location, president_name, contact_phone, bmc_id, status) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+      (name, society_id, password, location, president_name, contact_phone, email, bmc_id, status) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
     `;
 
     await sequelize.query(insertQuery, {
-      replacements: [name, societyId, password, location || null, presidentName || null, contactPhone || null, bmcId || null]
+      replacements: [name, societyId, password, location || null, presidentName || null, contactPhone || null, email.trim().toLowerCase(), bmcId || null]
     });
 
     console.log(`✅ Society added successfully to schema: ${schemaName}`);
@@ -62,6 +116,7 @@ export async function POST(request: NextRequest) {
     return createSuccessResponse('Society added successfully', {
       societyId,
       name,
+      email,
       location,
       presidentName
     });
@@ -106,7 +161,7 @@ export async function GET(request: NextRequest) {
     // Get all societies from admin's schema with BMC names and 30-day statistics
     const [societies] = await sequelize.query(`
       SELECT 
-        s.id, s.name, s.society_id, s.location, s.president_name, s.contact_phone, s.bmc_id, s.status,
+        s.id, s.name, s.society_id, s.location, s.president_name, s.contact_phone, s.email, s.bmc_id, s.status,
         b.name as bmc_name, s.created_at, s.updated_at,
         COALESCE(COUNT(DISTINCT mc.id), 0) as total_collections_30d,
         COALESCE(SUM(mc.quantity), 0) as total_quantity_30d,
@@ -380,10 +435,16 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, location, presidentName, contactPhone, bmcId, status, password } = body;
+    const { id, name, location, presidentName, contactPhone, email, bmcId, status, password } = body;
 
-    if (!id || !name) {
-      return createErrorResponse('Society ID and name are required', 400);
+    if (!id || !name || !email) {
+      return createErrorResponse('Society ID, name, and email are required', 400);
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return createErrorResponse('Please enter a valid email address', 400);
     }
 
     await connectDB();
@@ -411,9 +472,16 @@ export async function PUT(request: NextRequest) {
       return createErrorResponse('Society not found', 404);
     }
 
+    // Check for global email uniqueness across all admin schemas (exclude current society)
+    const emailCheck = await checkGlobalEmailUniqueness(email, id, schemaName);
+    if (!emailCheck.isUnique) {
+      console.log(`📧 Global duplicate email detected: ${email} (exists in schema: ${emailCheck.existingSchema})`);
+      return createErrorResponse('Email address already exists in the system. Please use a different email.', 400);
+    }
+
     // Build update query dynamically
-    const updateFields = ['name = ?'];
-    const replacements = [name];
+    const updateFields = ['name = ?', 'email = ?'];
+    const replacements = [name, email.trim().toLowerCase()];
 
     if (location !== undefined) {
       updateFields.push('location = ?');
@@ -461,6 +529,15 @@ export async function PUT(request: NextRequest) {
 
   } catch (error: unknown) {
     console.error('Error updating society:', error);
+    
+    // Check for unique constraint violations
+    if (error instanceof Error) {
+      const errorMessage = error.message;
+      if (errorMessage.includes('email') || errorMessage.includes('unique_society_email')) {
+        return createErrorResponse('Email address already exists. Please use a different email.', 400);
+      }
+    }
+    
     return createErrorResponse('Failed to update society', 500);
   }
 }

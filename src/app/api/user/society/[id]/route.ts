@@ -73,6 +73,7 @@ export async function GET(
           s.location,
           s.president_name as presidentName,
           s.contact_phone as contactPhone,
+          s.email,
           s.bmc_id as bmcId,
           b.name as bmcName,
           b.bmc_id as bmcIdentifier,
@@ -438,11 +439,21 @@ export async function PUT(
 
     // Parse request body
     const body = await request.json();
-    const { name, location, presidentName, contactPhone, status } = body;
+    const { name, location, presidentName, contactPhone, email, status } = body;
 
     // Validate required fields
     if (!name || !name.trim()) {
       return createErrorResponse('Society name is required', 400);
+    }
+
+    if (!email || !email.trim()) {
+      return createErrorResponse('Email is required', 400);
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return createErrorResponse('Please enter a valid email address', 400);
     }
 
     // Validate status
@@ -475,6 +486,20 @@ export async function PUT(
       return createErrorResponse('Society not found', 404);
     }
 
+    // Check for duplicate email (exclude current society)
+    const emailCheckQuery = `
+      SELECT society_id FROM \`${schemaName}\`.\`societies\`
+      WHERE email = ? AND id != ? LIMIT 1
+    `;
+    const [existingEmail] = await sequelize.query(emailCheckQuery, {
+      replacements: [email.trim().toLowerCase(), societyId]
+    });
+    
+    if (Array.isArray(existingEmail) && existingEmail.length > 0) {
+      console.log(`📧 Duplicate email detected: ${email}`);
+      return createErrorResponse('Email address already exists. Please use a different email.', 400);
+    }
+
     // Update society
     await sequelize.query(
       `UPDATE \`${schemaName}\`.\`societies\`
@@ -482,6 +507,7 @@ export async function PUT(
            location = ?,
            president_name = ?,
            contact_phone = ?,
+           email = ?,
            status = ?,
            updated_at = NOW()
        WHERE id = ?`,
@@ -491,6 +517,7 @@ export async function PUT(
           location || null,
           presidentName || null,
           contactPhone || null,
+          email.trim().toLowerCase(),
           status || 'active',
           societyId
         ]

@@ -14,10 +14,13 @@ interface FilterDropdownProps {
   onSocietyChange: (value: string | string[]) => void;
   machineFilter: string | string[];
   onMachineChange: (value: string | string[]) => void;
+  farmerFilter?: string | string[];
+  onFarmerChange?: (value: string | string[]) => void;
   dairies?: Array<{ id: number; name: string; dairyId: string }>;
   bmcs?: Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>;
   societies: Array<{ id: number; name: string; society_id: string; bmc_id?: number }>;
   machines: Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string; collectionCount?: number }>;
+  farmers?: Array<{ id: number; farmerId: string; farmerName: string; societyId?: number }>;
   filteredCount: number;
   totalCount: number;
   searchQuery?: string;
@@ -55,10 +58,13 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   onSocietyChange,
   machineFilter,
   onMachineChange,
+  farmerFilter,
+  onFarmerChange,
   dairies = [],
   bmcs = [],
   societies,
   machines,
+  farmers = [],
   filteredCount,
   totalCount,
   searchQuery,
@@ -87,6 +93,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   const [dairyDropdownOpen, setDairyDropdownOpen] = useState(false);
   const [bmcDropdownOpen, setBmcDropdownOpen] = useState(false);
   const [shiftDropdownOpen, setShiftDropdownOpen] = useState(false);
+  const [farmerDropdownOpen, setFarmerDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dateRangeRef = useRef<HTMLDivElement>(null);
   const societyDropdownRef = useRef<HTMLDivElement>(null);
@@ -95,6 +102,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   const dairyDropdownRef = useRef<HTMLDivElement>(null);
   const bmcDropdownRef = useRef<HTMLDivElement>(null);
   const shiftDropdownRef = useRef<HTMLDivElement>(null);
+  const farmerDropdownRef = useRef<HTMLDivElement>(null);
 
   // Deduplicate and filter machines by society selection
   const uniqueMachines = useMemo(() => {
@@ -144,6 +152,9 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
       if (shiftDropdownRef.current && !shiftDropdownRef.current.contains(event.target as Node)) {
         setShiftDropdownOpen(false);
       }
+      if (farmerDropdownRef.current && !farmerDropdownRef.current.contains(event.target as Node)) {
+        setFarmerDropdownOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -155,6 +166,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     (Array.isArray(bmcFilter) ? bmcFilter.length > 0 : (bmcFilter !== undefined && bmcFilter !== 'all')) || 
     (Array.isArray(societyFilter) ? societyFilter.length > 0 : societyFilter !== 'all') || 
     (Array.isArray(machineFilter) ? machineFilter.length > 0 : machineFilter !== 'all') || 
+    (Array.isArray(farmerFilter) ? farmerFilter.length > 0 : (farmerFilter !== undefined && farmerFilter !== 'all')) || 
     (dateFilter && dateFilter !== '') || 
     (dateFromFilter && dateFromFilter !== '') || 
     (dateToFilter && dateToFilter !== '') || 
@@ -818,6 +830,112 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   </button>
                   <button
                     onClick={() => setMachineDropdownOpen(false)}
+                    className="flex-1 px-3 py-2 text-sm text-white bg-psr-primary-600 rounded-md hover:bg-psr-primary-700 transition-colors"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* Farmer Filter Button */}
+        {farmers && farmers.length > 0 && onFarmerChange && (
+        <div className="relative" ref={farmerDropdownRef}>
+          <button
+            onClick={() => setFarmerDropdownOpen(!farmerDropdownOpen)}
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border transition-all ${
+              Array.isArray(farmerFilter) && farmerFilter.length > 0
+                ? 'bg-psr-primary-50 dark:bg-psr-primary-900/20 border-psr-primary-500 dark:border-psr-primary-400 text-psr-primary-700 dark:text-psr-primary-300'
+                : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              Farmer
+              {Array.isArray(farmerFilter) && farmerFilter.length > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 bg-psr-primary-600 dark:bg-psr-primary-500 text-white text-xs rounded-full min-w-[18px] text-center">
+                  {farmerFilter.length}
+                </span>
+              )}
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${farmerDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Farmer Dropdown Popup */}
+          {farmerDropdownOpen && (
+            <div className="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 p-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Select Farmers
+                    {Array.isArray(farmerFilter) && farmerFilter.length > 0 && (
+                      <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                        ({farmerFilter.length} selected)
+                      </span>
+                    )}
+                  </h3>
+                  <button
+                    onClick={() => setFarmerDropdownOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md">
+                  <div className="space-y-1 p-2">
+                    {farmers.length === 0 ? (
+                      <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                        No farmers available
+                      </div>
+                    ) : (
+                      farmers.map((farmer) => (
+                        <label
+                          key={farmer.id}
+                          className="flex items-center gap-3 px-4 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Array.isArray(farmerFilter) && farmerFilter.includes(farmer.id.toString())}
+                            onChange={(e) => {
+                              const currentFilter = Array.isArray(farmerFilter) ? farmerFilter : [];
+                              if (e.target.checked) {
+                                onFarmerChange([...currentFilter, farmer.id.toString()]);
+                              } else {
+                                onFarmerChange(currentFilter.filter(id => id !== farmer.id.toString()));
+                              }
+                            }}
+                            className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm text-gray-900 dark:text-gray-100 block">
+                              {farmer.farmerName}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {farmer.farmerId}
+                            </span>
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => {
+                      onFarmerChange([]);
+                      setFarmerDropdownOpen(false);
+                    }}
+                    className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    onClick={() => setFarmerDropdownOpen(false)}
                     className="flex-1 px-3 py-2 text-sm text-white bg-psr-primary-600 rounded-md hover:bg-psr-primary-700 transition-colors"
                   >
                     Apply

@@ -150,11 +150,13 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`location\` VARCHAR(255),
         \`president_name\` VARCHAR(255),
         \`contact_phone\` VARCHAR(20),
+        \`email\` VARCHAR(255) NOT NULL,
         \`bmc_id\` INT,
         \`status\` ENUM('active', 'inactive', 'maintenance', 'suspended') DEFAULT 'active',
         \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (\`bmc_id\`) REFERENCES \`${schemaName}\`.\`bmcs\`(\`id\`),
+        UNIQUE KEY \`unique_society_email\` (\`email\`),
         INDEX \`idx_society_id\` (\`society_id\`),
         INDEX \`idx_bmc_id\` (\`bmc_id\`),
         INDEX \`idx_status\` (\`status\`)
