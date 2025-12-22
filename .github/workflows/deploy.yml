@@ -105,7 +105,6 @@ jobs:
           envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
           command_timeout: 15m
           script: |
-            set -e
             echo "🚀 Starting Deployment"
             echo "================================================"
             
@@ -113,34 +112,17 @@ jobs:
             echo "💾 Available memory:"
             free -h | head -2
             
-            # Backup logs only
-            echo "📦 Backing up logs..."
-            mkdir -p /tmp/psr-logs-backup
-            [ -d "/var/www/psr-v4/logs" ] && cp -r /var/www/psr-v4/logs/* /tmp/psr-logs-backup/ 2>/dev/null || true
-            
-            # Clean directory in small batches
-            echo "🧹 Cleaning deployment directory..."
-            if [ -d "/var/www/psr-v4" ]; then
-              cd /var/www/psr-v4
-              rm -rf .next node_modules 2>/dev/null || true
-              find . -maxdepth 1 -type f -delete 2>/dev/null || true
-              cd $HOME
-            fi
+            # Create directory if not exists
             mkdir -p /var/www/psr-v4
             
-            # Extract new build
+            # Extract new build (overwrite existing)
             echo "📦 Extracting application..."
             tar -xzf $HOME/deploy.tar.gz -C /var/www/psr-v4 2>&1 || {
-              echo "❌ Extraction failed, checking disk space..."
+              echo "❌ Extraction failed"
               df -h /var/www
               exit 1
             }
             rm -f $HOME/deploy.tar.gz
-            
-            # Restore logs
-            mkdir -p /var/www/psr-v4/logs
-            [ -d "/tmp/psr-logs-backup" ] && mv /tmp/psr-logs-backup/* /var/www/psr-v4/logs/ 2>/dev/null || true
-            rm -rf /tmp/psr-logs-backup
             
             cd /var/www/psr-v4
             
