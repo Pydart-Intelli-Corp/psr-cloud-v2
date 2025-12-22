@@ -127,16 +127,15 @@ jobs:
             
             cd /var/www/psr-v4
             
-            # Install dependencies with extreme memory limits
-            echo "📦 Installing dependencies..."
-            export NODE_OPTIONS="--max-old-space-size=512 --max-semi-space-size=2"
-            
-            # Use npm ci (faster, less memory than install)
-            npm ci --production --prefer-offline --no-audit --no-fund 2>&1 | tail -20 || {
-              echo "⚠️ npm ci failed, trying minimal install..."
-              export NODE_OPTIONS="--max-old-space-size=256"
-              npm install --production --no-optional --ignore-scripts 2>&1 | tail -20
-            }
+            # Check if node_modules exists from previous deployment
+            echo "📦 Checking dependencies..."
+            if [ -d "node_modules" ]; then
+              echo "✅ Using existing node_modules"
+            else
+              echo "⚠️ node_modules missing - installing..."
+              export NODE_OPTIONS="--max-old-space-size=512"
+              npm ci --production --prefer-offline --no-audit --no-fund 2>&1 | tail -20
+            fi
             
             # Create environment file
             echo "⚙️ Configuring environment..."
