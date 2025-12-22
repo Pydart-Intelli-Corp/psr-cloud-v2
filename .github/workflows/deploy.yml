@@ -213,12 +213,19 @@ jobs:
             # ============================================
             echo "📦 Extracting deployment package..."
             
-            # Use pigz for parallel decompression if available, otherwise standard tar
-            if command -v pigz &> /dev/null; then
-              pigz -dc /root/deploy.tar.gz | tar -xf - -C /var/www/psr-v4
+            # Debug: Check file existence and size
+            if [ -f "/root/deploy.tar.gz" ]; then
+              echo "✅ Found package at /root/deploy.tar.gz"
+              ls -lh /root/deploy.tar.gz
             else
-              tar -xzf /root/deploy.tar.gz -C /var/www/psr-v4
+              echo "❌ Package NOT found at /root/deploy.tar.gz"
+              echo "📂 Listing /root/:"
+              ls -la /root/
+              exit 1
             fi
+            
+            # Extract using standard tar (more reliable for debugging)
+            tar -xzf /root/deploy.tar.gz -C /var/www/psr-v4
             
             rm -f /root/deploy.tar.gz
             echo "✅ Files extracted"
