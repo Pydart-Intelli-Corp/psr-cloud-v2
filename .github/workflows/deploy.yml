@@ -145,9 +145,10 @@ jobs:
             # ============================================
             echo "🧹 Clearing system memory and caches..."
             
-            # Stop PM2 applications immediately
-            pm2 stop all 2>/dev/null || true
-            pm2 delete all 2>/dev/null || true
+            # Kill PM2 to ensure clean slate (and free memory)
+            # We use kill instead of stop to avoid spawning daemon if it's dead
+            pm2 kill 2>/dev/null || true
+            sleep 2
             
             # Clear PageCache, dentries, and inodes
             sync
@@ -156,10 +157,6 @@ jobs:
             # Show memory before cleanup
             echo "💾 Memory status:"
             free -h
-            
-            # Kill any zombie processes
-            pkill -9 node 2>/dev/null || true
-            sleep 2
             
             echo "✅ Memory cleared, processes stopped"
             
