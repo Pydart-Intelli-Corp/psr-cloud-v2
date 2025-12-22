@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'psr-v4',
-      script: 'npm',
+      script: 'node_modules/.bin/next',
       args: 'start',
       cwd: '/var/www/psr-v4',
       instances: 1,
