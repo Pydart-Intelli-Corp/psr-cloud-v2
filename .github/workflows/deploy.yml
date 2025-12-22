@@ -161,18 +161,52 @@ jobs:
             echo "✅ Memory cleared, processes stopped"
             
             # ============================================
-            # STEP 2: CLEANUP (Standard rm)
+            # STEP 1.5: ENABLE SWAP (PREVENT OOM)
             # ============================================
-            echo "🗑️ Directory cleanup..."
+            echo "💾 Checking swap space..."
+            if [ $(swapon --show | wc -l) -eq 0 ]; then
+              echo "⚠️ No swap detected. Creating 4GB swap file..."
+              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo "✅ Swap created and enabled"
+              free -h
+            else
+              echo "✅ Swap already exists"
+              free -h
+            fi
+
+            # ============================================
+            # STEP 2: CLEANUP (Move & Recreate Strategy)
+            # ============================================
+            echo "🗑️ Preparing directory..."
             
-            cd /var/www/psr-v4 || exit 1
+            # Ensure target directory exists
+            if [ -d "/var/www/psr-v4" ]; then
+              echo "📦 Backing up logs and moving old app..."
+              
+              # 1. Preserve logs
+              mkdir -p /tmp/psr-logs-backup
+              if [ -d "/var/www/psr-v4/logs" ]; then
+                mv /var/www/psr-v4/logs/* /tmp/psr-logs-backup/ 2>/dev/null || true
+              fi
+              
+              # 2. Move old application out of the way (Instant)
+              # We move it to a temp folder to delete later
+              rm -rf /tmp/psr-v4-old 2>/dev/null || true
+              mv /var/www/psr-v4 /tmp/psr-v4-old
+            fi
             
-            # Remove files individually to save memory
-            # We exclude logs directory
-            # Using find + xargs rm is safer and lower memory than rsync for deletion on low-mem systems
-            find . -maxdepth 1 ! -name 'logs' ! -name '.' ! -name '..' -print0 | xargs -0 rm -rf
+            # 3. Create fresh directory
+            mkdir -p /var/www/psr-v4
             
-            echo "✅ Cleanup complete"
+            # 4. Restore logs
+            mkdir -p /var/www/psr-v4/logs
+            mv /tmp/psr-logs-backup/* /var/www/psr-v4/logs/ 2>/dev/null || true
+            rmdir /tmp/psr-logs-backup 2>/dev/null || true
+            
+            echo "✅ Directory prepared (Old app moved to /tmp/psr-v4-old)"
             
             # ============================================
             # STEP 3: EXTRACT NEW BUILD (FAST)
@@ -299,6 +333,10 @@ jobs:
             echo ""
             echo "💾 Final Memory Status:"
             free -h | head -2
+            
+            # Clean up the old app in background (low priority)
+            echo "🧹 Cleaning up old files in background..."
+            (ionice -c 3 rm -rf /tmp/psr-v4-old &) 2>/dev/null || rm -rf /tmp/psr-v4-old &
             
             echo ""
             echo "================================================"
