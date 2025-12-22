@@ -66,6 +66,27 @@ jobs:
           echo "✅ Deployment package created: $PACKAGE_SIZE"
           ls -lh deploy.tar.gz
 
+      - name: 🧹 Pre-deployment Cleanup (Free Memory)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            echo "🧹 Pre-upload cleanup..."
+            # Stop PM2 to free memory immediately
+            pm2 stop all 2>/dev/null || true
+            # Sync and drop caches
+            sync
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' || true
+            # Kill zombie node processes
+            pkill -9 node 2>/dev/null || true
+            # Remove old archive if exists
+            rm -f /root/deploy.tar.gz
+            echo "✅ Memory cleared for upload"
+            free -h
+
       - name: 📤 Upload Deployment Package to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -77,6 +98,9 @@ jobs:
           target: "/root/"
           overwrite: true
           strip_components: 0
+          timeout: 60s
+          command_timeout: 10m
+          debug: true
 
       - name: 🚀 Deploy to Production VPS (Memory Optimized)
         uses: appleboy/ssh-action@v1.0.0
