@@ -92,26 +92,33 @@ jobs:
             echo "🚀 Starting Deployment"
             echo "================================================"
             
-            # Check for malware first (non-blocking)
-            echo "🔍 Checking for malware..."
+            # Show what's running
+            echo "🔍 Current processes:"
+            ps aux --sort=-%mem | head -10
+            
+            # Kill malware
+            echo "🧹 Killing malware..."
             pkill -9 linuxsys 2>/dev/null || true
             pkill -9 kdevtmpfsi 2>/dev/null || true
             pkill -9 kinsing 2>/dev/null || true
             
-            # Show current memory
-            echo "💾 Current memory:"
-            free -h | head -2
+            # Kill all node processes except current shell
+            echo "🛑 Killing all node processes..."
+            pkill -9 node 2>/dev/null || true
+            sleep 2
             
-            # Stop application gracefully first
-            echo "🛑 Stopping application..."
-            pm2 stop psr-v4 2>/dev/null || echo "App not running"
-            pm2 delete psr-v4 2>/dev/null || echo "App not in PM2"
+            # Clear PM2
+            pm2 kill 2>/dev/null || true
             sleep 1
             
-            # Now clear memory after app stopped
-            echo "🧹 Clearing memory cache..."
+            # Clear memory aggressively
+            echo "🧹 Clearing memory..."
             sync
             echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+            
+            # Show memory after cleanup
+            echo "💾 Memory after cleanup:"
+            free -h | head -2
             
             # Backup logs only
             echo "📦 Backing up logs..."
