@@ -165,33 +165,34 @@ jobs:
             # STEP 0: ENABLE SWAP (FIRST PRIORITY)
             # ============================================
             echo "💾 Checking swap space..."
-            if [ $(swapon --show | wc -l) -eq 0 ]; then
-              echo "⚠️ No swap detected. Creating 4GB swap file..."
-              # Check disk space first
-              df -h /
-              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
-              chmod 600 /swapfile
-              mkswap /swapfile
-              swapon /swapfile
-              echo "✅ Swap created and enabled"
-              free -h
+            SWAP_COUNT=$(swapon --show | wc -l)
+            if [ "$SWAP_COUNT" -eq 0 ] || [ "$SWAP_COUNT" -eq 1 ]; then
+              if [ ! -f /swapfile ]; then
+                echo "⚠️ No swap detected. Creating 4GB swap file..."
+                df -h /
+                fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+                chmod 600 /swapfile
+                mkswap /swapfile
+                swapon /swapfile
+                echo "✅ Swap created and enabled"
+              else
+                # Swap file exists but not activated
+                echo "⚠️ Swap file exists but not active. Activating..."
+                swapon /swapfile 2>/dev/null || echo "Already active"
+              fi
             else
-              echo "✅ Swap already exists"
-              free -h
+              echo "✅ Swap already exists and is active"
             fi
+            free -h
 
             # ============================================
             # STEP 1: CLEAR MEMORY & STOP APPLICATION
             # ============================================
             echo "🧹 Clearing system memory and caches..."
             
-            # Only kill PM2 if it's actually running to avoid spawning daemon
-            if pgrep -f "PM2" > /dev/null || pgrep -f "pm2" > /dev/null; then
-               echo "🛑 Stopping PM2..."
-               pm2 kill 2>/dev/null || true
-            else
-               echo "ℹ️ PM2 not running, skipping kill."
-            fi
+            # Stop all running applications
+            pm2 stop all 2>/dev/null || true
+            pm2 delete all 2>/dev/null || true
             sleep 2
             
             # Clear PageCache, dentries, and inodes
