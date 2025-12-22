@@ -161,21 +161,18 @@ jobs:
             echo "✅ Memory cleared, processes stopped"
             
             # ============================================
-            # STEP 2: FAST CLEANUP (No rm -rf, use rsync trick)
+            # STEP 2: CLEANUP (Standard rm)
             # ============================================
-            echo "🗑️ Fast directory cleanup..."
+            echo "🗑️ Directory cleanup..."
             
             cd /var/www/psr-v4 || exit 1
             
-            # Keep logs, remove everything else
-            mkdir -p /tmp/empty_dir
-            rsync -a --delete --exclude 'logs/' /tmp/empty_dir/ /var/www/psr-v4/ 2>/dev/null || {
-              # Fallback to traditional method if rsync not available
-              find . -maxdepth 1 ! -name 'logs' ! -name '.' ! -name '..' -exec rm -rf {} + 2>/dev/null
-            }
-            rmdir /tmp/empty_dir 2>/dev/null || true
+            # Remove files individually to save memory
+            # We exclude logs directory
+            # Using find + xargs rm is safer and lower memory than rsync for deletion on low-mem systems
+            find . -maxdepth 1 ! -name 'logs' ! -name '.' ! -name '..' -print0 | xargs -0 rm -rf
             
-            echo "✅ Cleanup complete - $(du -sh . | cut -f1)"
+            echo "✅ Cleanup complete"
             
             # ============================================
             # STEP 3: EXTRACT NEW BUILD (FAST)
