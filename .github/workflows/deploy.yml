@@ -154,13 +154,36 @@ jobs:
             echo "================================================"
             
             # ============================================
+            # STEP 0: ENABLE SWAP (FIRST PRIORITY)
+            # ============================================
+            echo "💾 Checking swap space..."
+            if [ $(swapon --show | wc -l) -eq 0 ]; then
+              echo "⚠️ No swap detected. Creating 4GB swap file..."
+              # Check disk space first
+              df -h /
+              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo "✅ Swap created and enabled"
+              free -h
+            else
+              echo "✅ Swap already exists"
+              free -h
+            fi
+
+            # ============================================
             # STEP 1: CLEAR MEMORY & STOP APPLICATION
             # ============================================
             echo "🧹 Clearing system memory and caches..."
             
-            # Kill PM2 to ensure clean slate (and free memory)
-            # We use kill instead of stop to avoid spawning daemon if it's dead
-            pm2 kill 2>/dev/null || true
+            # Only kill PM2 if it's actually running to avoid spawning daemon
+            if pgrep -f "PM2" > /dev/null || pgrep -f "pm2" > /dev/null; then
+               echo "🛑 Stopping PM2..."
+               pm2 kill 2>/dev/null || true
+            else
+               echo "ℹ️ PM2 not running, skipping kill."
+            fi
             sleep 2
             
             # Clear PageCache, dentries, and inodes
@@ -172,23 +195,6 @@ jobs:
             free -h
             
             echo "✅ Memory cleared, processes stopped"
-            
-            # ============================================
-            # STEP 1.5: ENABLE SWAP (PREVENT OOM)
-            # ============================================
-            echo "💾 Checking swap space..."
-            if [ $(swapon --show | wc -l) -eq 0 ]; then
-              echo "⚠️ No swap detected. Creating 4GB swap file..."
-              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
-              chmod 600 /swapfile
-              mkswap /swapfile
-              swapon /swapfile
-              echo "✅ Swap created and enabled"
-              free -h
-            else
-              echo "✅ Swap already exists"
-              free -h
-            fi
 
             # ============================================
             # STEP 2: CLEANUP (Move & Recreate Strategy)
