@@ -1,0 +1,288 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: 📦 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '21.x'
+          cache: 'npm'
+
+      - name: 📥 Install Dependencies (Production Only)
+        run: npm ci --prefer-offline --omit=dev --no-audit --no-fund
+
+      - name: 🔨 Build Production Application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: 📦 Create Ultra-Optimized Deployment Package
+        run: |
+          echo "🎯 Creating minimal deployment package..."
+          mkdir -p deploy
+          
+          # Copy ONLY essential production files
+          echo "📁 Copying .next build output..."
+          cp -r .next deploy/
+          
+          echo "📁 Copying public assets..."
+          cp -r public deploy/
+          
+          echo "📁 Copying database migrations..."
+          cp -r database deploy/
+          
+          echo "📁 Copying configuration files..."
+          cp -r config deploy/
+          
+          echo "📁 Copying package files..."
+          cp package.json package-lock.json deploy/
+          
+          echo "📁 Copying config files..."
+          cp next.config.ts instrumentation.ts ecosystem.config.js deploy/
+          cp postcss.config.mjs tailwind.config.js deploy/ 2>/dev/null || true
+          
+          # Create highly compressed archive with pigz (parallel gzip) if available
+          echo "🗜️ Compressing deployment package..."
+          if command -v pigz &> /dev/null; then
+            tar -I pigz -cf deploy.tar.gz -C deploy .
+          else
+            tar -czf deploy.tar.gz -C deploy .
+          fi
+          
+          PACKAGE_SIZE=$(du -h deploy.tar.gz | cut -f1)
+          echo "✅ Deployment package created: $PACKAGE_SIZE"
+          ls -lh deploy.tar.gz
+
+      - name: 📤 Upload Deployment Package to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          source: "deploy.tar.gz"
+          target: "/root/"
+          overwrite: true
+          strip_components: 0
+
+      - name: 🚀 Deploy to Production VPS (Memory Optimized)
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SUPER_ADMIN_USERNAME: ${{ secrets.SUPER_ADMIN_USERNAME }}
+          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            set -e
+            
+            echo "🚀 ULTRA-FAST DEPLOYMENT PROCESS"
+            echo "================================================"
+            
+            # ============================================
+            # STEP 1: CLEAR MEMORY & STOP APPLICATION
+            # ============================================
+            echo "🧹 Clearing system memory and caches..."
+            
+            # Stop PM2 applications immediately
+            pm2 stop all 2>/dev/null || true
+            pm2 delete all 2>/dev/null || true
+            
+            # Clear PageCache, dentries, and inodes
+            sync
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' || true
+            
+            # Show memory before cleanup
+            echo "💾 Memory status:"
+            free -h
+            
+            # Kill any zombie processes
+            pkill -9 node 2>/dev/null || true
+            sleep 2
+            
+            echo "✅ Memory cleared, processes stopped"
+            
+            # ============================================
+            # STEP 2: FAST CLEANUP (No rm -rf, use rsync trick)
+            # ============================================
+            echo "🗑️ Fast directory cleanup..."
+            
+            cd /var/www/psr-v4 || exit 1
+            
+            # Keep logs, remove everything else
+            mkdir -p /tmp/empty_dir
+            rsync -a --delete --exclude 'logs/' /tmp/empty_dir/ /var/www/psr-v4/ 2>/dev/null || {
+              # Fallback to traditional method if rsync not available
+              find . -maxdepth 1 ! -name 'logs' ! -name '.' ! -name '..' -exec rm -rf {} + 2>/dev/null
+            }
+            rmdir /tmp/empty_dir 2>/dev/null || true
+            
+            echo "✅ Cleanup complete - $(du -sh . | cut -f1)"
+            
+            # ============================================
+            # STEP 3: EXTRACT NEW BUILD (FAST)
+            # ============================================
+            echo "📦 Extracting deployment package..."
+            
+            # Use pigz for parallel decompression if available, otherwise standard tar
+            if command -v pigz &> /dev/null; then
+              pigz -dc /root/deploy.tar.gz | tar -xf - -C /var/www/psr-v4
+            else
+              tar -xzf /root/deploy.tar.gz -C /var/www/psr-v4
+            fi
+            
+            rm -f /root/deploy.tar.gz
+            echo "✅ Files extracted"
+            
+            # ============================================
+            # STEP 4: INSTALL DEPENDENCIES (PRODUCTION ONLY)
+            # ============================================
+            echo "📦 Installing production dependencies..."
+            
+            # Use npm ci for clean install (faster than npm install)
+            NODE_ENV=production npm ci --prefer-offline --omit=dev --no-audit --no-fund --loglevel=error
+            
+            echo "✅ Dependencies installed"
+            
+            # ============================================
+            # STEP 5: CONFIGURE ENVIRONMENT (FAST)
+            # ============================================
+            echo "⚙️ Creating environment configuration..."
+            
+            cat > .env.production << 'ENV_EOF'
+DB_HOST=${DB_HOST}
+DB_PORT=${DB_PORT}
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_NAME=${DB_NAME}
+DB_SSL_CA=
+DB_REJECT_UNAUTHORIZED=false
+NODE_ENV=production
+PORT=3000
+NEXT_TELEMETRY_DISABLED=1
+JWT_SECRET=${JWT_SECRET}
+JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
+SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
+SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
+SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USERNAME=${EMAIL_USER}
+SMTP_PASSWORD=${EMAIL_PASSWORD}
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=${EMAIL_USER}
+EMAIL_PASSWORD=${EMAIL_PASSWORD}
+EMAIL_FROM=noreply@poornasreeequipments.com
+NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
+NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
+ENV_EOF
+            
+            # Expand variables in .env.production
+            eval "cat > .env.production << ENV_EOF2
+$(cat .env.production)
+ENV_EOF2"
+            
+            echo "✅ Environment configured"
+            
+            # ============================================
+            # STEP 6: SET PERMISSIONS (FAST)
+            # ============================================
+            echo "🔐 Setting permissions..."
+            chown -R root:root . 2>/dev/null || true
+            chmod -R 755 . 2>/dev/null || true
+            
+            # ============================================
+            # STEP 7: START APPLICATION (PM2)
+            # ============================================
+            echo "🚀 Starting application with PM2..."
+            
+            # Start only the main app (not pulse-scheduler yet)
+            pm2 start ecosystem.config.js --only psr-v4 --update-env
+            pm2 save --force
+            
+            # ============================================
+            # STEP 8: HEALTH CHECK
+            # ============================================
+            echo "⏳ Waiting for application startup..."
+            sleep 8
+            
+            # Quick health check with retries
+            RETRY=0
+            MAX_RETRY=3
+            
+            while [ $RETRY -lt $MAX_RETRY ]; do
+              if curl -sf -m 5 http://localhost:3000 > /dev/null 2>&1; then
+                echo "✅ Application is responding!"
+                break
+              else
+                RETRY=$((RETRY+1))
+                if [ $RETRY -lt $MAX_RETRY ]; then
+                  echo "⏳ Retry $RETRY/$MAX_RETRY..."
+                  sleep 3
+                fi
+              fi
+            done
+            
+            # ============================================
+            # STEP 9: STATUS REPORT
+            # ============================================
+            echo ""
+            echo "📊 PM2 Status:"
+            pm2 status
+            
+            echo ""
+            echo "💾 Final Memory Status:"
+            free -h | head -2
+            
+            echo ""
+            echo "================================================"
+            echo "✅ DEPLOYMENT COMPLETED SUCCESSFULLY!"
+            echo "🌍 Application: https://v4.poornasreecloud.com"
+            echo "⏰ Deployed at: $(date +'%Y-%m-%d %H:%M:%S %Z')"
+            echo "⚡ Fast deployment with memory optimization"
+            echo "================================================"
+
+      - name: ✅ Deployment Summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 Deployment completed successfully!"
+            echo "🌍 Live at: https://v4.poornasreecloud.com"
+            echo "⚡ Optimized for speed and memory efficiency"
+          else
+            echo "❌ Deployment failed. Check logs above."
+            exit 1
+          fi

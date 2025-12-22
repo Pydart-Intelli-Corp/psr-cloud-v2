@@ -1,6 +1,9 @@
 # External Authentication API Documentation
 
-**Base URL**: `http://v4.poornasreeequipments.com`
+**Base URL (Production)**: `https://v4.poornasreecloud.com`  
+**Base URL (Development)**: `http://localhost:3000`
+
+> **Note**: This documentation uses the production URL. If testing locally, replace the base URL with `http://localhost:3000`.
 
 This API allows external entities (Societies, Farmers, BMCs, Dairies) to authenticate via OTP and access their data.
 
