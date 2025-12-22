@@ -58,42 +58,15 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           timeout: 120s
-          command_timeout: 5m
+          command_timeout: 2m
           script: |
-            set -e
-            echo "🧹 VPS Cleanup Started"
-            echo "================================================"
-            
-            # Kill memory-hungry processes
-            echo "⏹️ Stopping memory-hungry processes..."
-            pkill -9 -f "apt-check" 2>/dev/null || true
-            pkill -9 -f "update-notifier" 2>/dev/null || true
-            
-            # Kill malware aggressively
-            echo "🦠 Removing malware..."
-            pkill -9 -f cX86 2>/dev/null || true
-            pkill -9 -f linuxsys 2>/dev/null || true
-            pkill -9 -f kdevtmpfsi 2>/dev/null || true
-            pkill -9 -f kinsing 2>/dev/null || true
-            
-            # Remove malware binaries
-            rm -f /etc/de/cX86 2>/dev/null || true
-            rm -rf /etc/de 2>/dev/null || true
-            
-            # Check for cron jobs
-            crontab -l 2>/dev/null | grep -v cX86 | grep -v linuxsys | crontab - 2>/dev/null || true
-            
-            # Kill all node processes
-            pkill -9 node 2>/dev/null || true
-            pm2 kill 2>/dev/null || true
-            
-            # Clear memory
-            sync
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            
-            echo "💾 Memory after cleanup:"
-            free -h | head -2
-            echo "✅ Cleanup completed"
+            echo "🧹 Quick cleanup...";
+            killall -9 cX86 node apt-check update-notifier 2>/dev/null;
+            rm -rf /etc/de 2>/dev/null;
+            pm2 kill 2>/dev/null;
+            sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null;
+            free -h | head -2;
+            echo "✅ Done"
 
       - name: 📤 Upload to VPS
         uses: appleboy/scp-action@v0.1.7
