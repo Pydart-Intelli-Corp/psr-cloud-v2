@@ -156,8 +156,6 @@ jobs:
           script_stop: true
           command_timeout: 15m
           script: |
-            set -e
-            
             echo "🚀 ULTRA-FAST DEPLOYMENT PROCESS"
             echo "================================================"
             
@@ -165,24 +163,23 @@ jobs:
             # STEP 0: ENABLE SWAP (FIRST PRIORITY)
             # ============================================
             echo "💾 Checking swap space..."
-            SWAP_COUNT=$(swapon --show | wc -l)
-            if [ "$SWAP_COUNT" -eq 0 ] || [ "$SWAP_COUNT" -eq 1 ]; then
-              if [ ! -f /swapfile ]; then
-                echo "⚠️ No swap detected. Creating 4GB swap file..."
-                df -h /
-                fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
-                chmod 600 /swapfile
-                mkswap /swapfile
-                swapon /swapfile
-                echo "✅ Swap created and enabled"
-              else
-                # Swap file exists but not activated
-                echo "⚠️ Swap file exists but not active. Activating..."
-                swapon /swapfile 2>/dev/null || echo "Already active"
-              fi
+            
+            # Check if swap is already active
+            if swapon --show | grep -q "/swapfile"; then
+              echo "✅ Swap already active"
+            elif [ -f /swapfile ]; then
+              echo "⚠️ Swap file exists but not active. Activating..."
+              swapon /swapfile || true
             else
-              echo "✅ Swap already exists and is active"
+              echo "⚠️ No swap detected. Creating 4GB swap file..."
+              df -h /
+              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo "✅ Swap created and enabled"
             fi
+            
             free -h
 
             # ============================================
