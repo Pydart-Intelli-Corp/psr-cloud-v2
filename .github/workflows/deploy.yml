@@ -78,42 +78,28 @@ jobs:
           script: |
             echo "🧹 Pre-upload cleanup..."
             
-            # 1. Enable Swap FIRST to prevent OOM during cleanup
-            echo "💾 Checking swap space..."
-            if [ $(swapon --show | wc -l) -eq 0 ]; then
-              echo "⚠️ No swap detected. Creating 4GB swap file..."
-              fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
-              chmod 600 /swapfile
-              mkswap /swapfile
-              swapon /swapfile
-              echo "✅ Swap created and enabled"
-            else
-              echo "✅ Swap already exists"
-            fi
+            # Kill suspicious processes first
+            echo "🔪 Killing suspicious processes..."
+            pkill -9 linuxsys 2>/dev/null || true
+            pkill -9 xmrig 2>/dev/null || true
+            sleep 1
             
-            # 2. Now safe to stop processes
-            # Only kill PM2 if it's actually running to avoid spawning daemon
-            if pgrep -f "PM2" > /dev/null || pgrep -f "pm2" > /dev/null; then
-               echo "🛑 Stopping PM2..."
-               # Try graceful stop first, then kill
-               pm2 kill 2>/dev/null || pkill -f PM2 || true
-            else
-               echo "ℹ️ PM2 not running, skipping kill."
-            fi
+            # Stop PM2 gracefully
+            echo "🛑 Stopping PM2..."
+            pm2 stop all 2>/dev/null || true
+            pm2 delete all 2>/dev/null || true
+            pm2 kill 2>/dev/null || true
+            sleep 1
             
-            # Wait a moment for processes to die
-            sleep 2
-            
-            # Sync filesystem
+            # Sync and clear caches
+            echo "💾 Clearing caches..."
             sync
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
             
-            # Drop caches to free RAM
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' || true
-            
-            # Remove old archive
+            # Remove old files
             rm -f /root/deploy.tar.gz
             
-            echo "✅ Memory cleared"
+            echo "✅ Pre-cleanup complete"
             free -h
 
       - name: 📤 Upload Deployment Package to VPS
