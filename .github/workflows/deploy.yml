@@ -73,6 +73,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
+          timeout: 60s
           command_timeout: 5m
           script: |
             echo "🧹 Pre-upload cleanup..."
@@ -144,6 +145,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
+          timeout: 60s
           envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
           script_stop: true
           command_timeout: 15m
