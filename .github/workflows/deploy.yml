@@ -50,6 +50,51 @@ jobs:
           echo "✅ Package created: $PACKAGE_SIZE"
           ls -lh deploy.tar.gz
 
+      - name: 🧹 Cleanup VPS (Kill Malware & Free Memory)
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          timeout: 120s
+          command_timeout: 5m
+          script: |
+            set -e
+            echo "🧹 VPS Cleanup Started"
+            echo "================================================"
+            
+            # Kill memory-hungry processes
+            echo "⏹️ Stopping memory-hungry processes..."
+            pkill -9 -f "apt-check" 2>/dev/null || true
+            pkill -9 -f "update-notifier" 2>/dev/null || true
+            
+            # Kill malware aggressively
+            echo "🦠 Removing malware..."
+            pkill -9 -f cX86 2>/dev/null || true
+            pkill -9 -f linuxsys 2>/dev/null || true
+            pkill -9 -f kdevtmpfsi 2>/dev/null || true
+            pkill -9 -f kinsing 2>/dev/null || true
+            
+            # Remove malware binaries
+            rm -f /etc/de/cX86 2>/dev/null || true
+            rm -rf /etc/de 2>/dev/null || true
+            
+            # Check for cron jobs
+            crontab -l 2>/dev/null | grep -v cX86 | grep -v linuxsys | crontab - 2>/dev/null || true
+            
+            # Kill all node processes
+            pkill -9 node 2>/dev/null || true
+            pm2 kill 2>/dev/null || true
+            
+            # Clear memory
+            sync
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+            
+            echo "💾 Memory after cleanup:"
+            free -h | head -2
+            echo "✅ Cleanup completed"
+
       - name: 📤 Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -91,42 +136,8 @@ jobs:
             echo "🚀 Starting Deployment"
             echo "================================================"
             
-            # Show what's running
-            echo "🔍 Current processes:"
-            ps aux --sort=-%mem | head -10
-            
-            # Kill malware
-            echo "🧹 Killing malware..."
-            pkill -9 -f linuxsys 2>/dev/null || true
-            pkill -9 -f kdevtmpfsi 2>/dev/null || true
-            pkill -9 -f kinsing 2>/dev/null || true
-            pkill -9 -f cX86 2>/dev/null || true
-            pkill -9 -f "/etc/de" 2>/dev/null || true
-            rm -f /etc/de/cX86 2>/dev/null || true
-            
-            # Kill by PID if still running
-            MALWARE_PID=$(ps aux | grep -E "cX86|linuxsys|kdevtmpfsi|kinsing" | grep -v grep | awk '{print $2}')
-            if [ ! -z "$MALWARE_PID" ]; then
-              echo "Killing malware PIDs: $MALWARE_PID"
-              kill -9 $MALWARE_PID 2>/dev/null || true
-            fi
-            
-            # Kill all node processes except current shell
-            echo "🛑 Killing all node processes..."
-            pkill -9 node 2>/dev/null || true
-            sleep 2
-            
-            # Clear PM2
-            pm2 kill 2>/dev/null || true
-            sleep 1
-            
-            # Clear memory aggressively
-            echo "🧹 Clearing memory..."
-            sync
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            
-            # Show memory after cleanup
-            echo "💾 Memory after cleanup:"
+            # Show memory
+            echo "💾 Available memory:"
             free -h | head -2
             
             # Backup logs only
