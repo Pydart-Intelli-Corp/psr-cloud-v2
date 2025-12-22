@@ -61,12 +61,13 @@ jobs:
           command_timeout: 2m
           script: |
             echo "🧹 Quick cleanup...";
-            killall -9 cX86 node apt-check update-notifier 2>/dev/null;
+            killall -9 cX86 apt-check update-notifier 2>/dev/null;
             rm -rf /etc/de 2>/dev/null;
-            pm2 kill 2>/dev/null;
+            pm2 delete all 2>/dev/null;
             sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null;
             free -h | head -2;
-            echo "✅ Done"
+            echo "✅ Done - waiting for system to stabilize...";
+            sleep 5
 
       - name: 📤 Upload to VPS
         uses: appleboy/scp-action@v0.1.7
