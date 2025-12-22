@@ -97,11 +97,19 @@ jobs:
             
             # Kill malware
             echo "🧹 Killing malware..."
-            pkill -9 linuxsys 2>/dev/null || true
-            pkill -9 kdevtmpfsi 2>/dev/null || true
-            pkill -9 kinsing 2>/dev/null || true
-            pkill -9 cX86 2>/dev/null || true
-            killall -9 cX86 2>/dev/null || true
+            pkill -9 -f linuxsys 2>/dev/null || true
+            pkill -9 -f kdevtmpfsi 2>/dev/null || true
+            pkill -9 -f kinsing 2>/dev/null || true
+            pkill -9 -f cX86 2>/dev/null || true
+            pkill -9 -f "/etc/de" 2>/dev/null || true
+            rm -f /etc/de/cX86 2>/dev/null || true
+            
+            # Kill by PID if still running
+            MALWARE_PID=$(ps aux | grep -E "cX86|linuxsys|kdevtmpfsi|kinsing" | grep -v grep | awk '{print $2}')
+            if [ ! -z "$MALWARE_PID" ]; then
+              echo "Killing malware PIDs: $MALWARE_PID"
+              kill -9 $MALWARE_PID 2>/dev/null || true
+            fi
             
             # Kill all node processes except current shell
             echo "🛑 Killing all node processes..."
@@ -154,11 +162,23 @@ jobs:
             
             # Install dependencies with memory limits
             echo "📦 Installing dependencies..."
-            export NODE_OPTIONS="--max-old-space-size=1024"
-            npm install --production --prefer-offline --no-audit --no-fund --maxsockets=1 2>&1 || {
-              echo "⚠️ npm install failed, retrying with cache clear..."
-              npm cache clean --force
-              npm install --production --prefer-offline --no-audit --no-fund --maxsockets=1
+            export NODE_OPTIONS="--max-old-space-size=768"
+            
+            # Clear npm cache first to save space
+            npm cache clean --force 2>/dev/null || true
+            
+            # Install with ultra-conservative settings
+            npm install --production \
+              --prefer-offline \
+              --no-audit \
+              --no-fund \
+              --maxsockets=1 \
+              --fetch-retries=1 \
+              --fetch-retry-mintimeout=1000 \
+              --loglevel=error 2>&1 | head -100 || {
+              echo "⚠️ npm install failed"
+              free -h
+              exit 1
             }
             
             # Create environment file
