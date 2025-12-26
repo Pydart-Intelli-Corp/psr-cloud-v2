@@ -6,7 +6,7 @@
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { startPulseScheduler } = await import('./src/lib/pulseSchedulerService');
+    const { startPulseScheduler } = await import('../src/lib/pulseSchedulerService');
     await startPulseScheduler();
   }
 }
