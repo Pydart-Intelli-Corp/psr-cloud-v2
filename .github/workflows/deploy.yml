@@ -1,4 +1,4 @@
-name: Fast FTP Deploy (Complete Package)
+name: Optimized FTP Deploy
 
 on:
   push:
@@ -20,10 +20,10 @@ jobs:
           node-version: '21.x'
           cache: 'npm'
 
-      - name: 📥 Install ALL Dependencies (Including Production)
+      - name: 📥 Install Dependencies (Production Only)
         run: |
-          echo "📥 Installing all dependencies..."
-          npm ci --prefer-offline --no-audit --no-fund
+          echo "📥 Installing production dependencies..."
+          npm ci --prefer-offline --omit=dev --no-audit --no-fund
           echo "✅ Dependencies installed"
 
       - name: 🔨 Build Application
@@ -32,14 +32,13 @@ jobs:
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: 1
 
-      - name: 📦 Create Complete Deployment Package
+      - name: 📦 Create Deployment Package
         run: |
-          echo "🎯 Creating complete deployment package with node_modules..."
+          echo "🎯 Creating deployment package (without node_modules)..."
           mkdir -p deploy
           
-          # Copy EVERYTHING including node_modules
+          # Copy ONLY built files and config (NO node_modules)
           cp -r .next deploy/
-          cp -r node_modules deploy/
           cp -r public deploy/
           cp -r database deploy/
           cp -r config deploy/
@@ -51,7 +50,7 @@ jobs:
           tar -czf deploy.tar.gz -C deploy .
           
           PACKAGE_SIZE=$(du -h deploy.tar.gz | cut -f1)
-          echo "✅ Complete package created: $PACKAGE_SIZE"
+          echo "✅ Package created: $PACKAGE_SIZE"
 
       - name: 📤 Upload via FTP
         run: |
@@ -101,16 +100,21 @@ jobs:
             pm2 stop psr-v4 2>/dev/null || true
             pm2 delete psr-v4 2>/dev/null || true
             
-            # Extract to temporary location with streaming
-            echo "📦 Extracting complete package..."
+            # Extract package
+            echo "📦 Extracting package..."
             rm -rf /var/www/psr-v4-new
             mkdir -p /var/www/psr-v4-new
             cd /var/www/psr-v4-new
-            
-            # Use standard tar with streaming to minimize memory usage
             tar -xzf /home/ftpuser/psr-cloud-v4/deploy.tar.gz
             
-            echo "✅ Everything extracted (including node_modules)"
+            echo "✅ Package extracted"
+            
+            # Install dependencies with VERY low memory settings
+            echo "📦 Installing dependencies (low memory mode)..."
+            export NODE_OPTIONS="--max-old-space-size=256"
+            npm install --production --prefer-offline --no-audit --no-fund --legacy-peer-deps --ignore-scripts 2>&1 | tail -50
+            
+            echo "✅ Dependencies installed"
             
             # Swap directories atomically
             rm -rf /var/www/psr-v4-old
@@ -185,7 +189,7 @@ jobs:
               nginx -t && systemctl reload nginx
             fi
             
-            # Start with PM2 (NO npm install needed!)
+            # Start with PM2
             echo "🚀 Starting application..."
             cd /var/www/psr-v4
             pm2 start ecosystem.config.js --env production
