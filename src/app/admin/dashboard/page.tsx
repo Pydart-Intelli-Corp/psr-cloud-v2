@@ -29,18 +29,25 @@ interface Entity {
   id: number;
   name: string;
   location?: string;
-  created_at: string;
+  createdAt?: string;
+  created_at?: string;
   // Type-specific fields
   dairy_id?: string;
+  dairyId?: string;
   bmc_id?: string;
+  bmcId?: string;
   society_id?: string;
+  societyId?: string;
   contact_person?: string;
+  contactPerson?: string;
   phone?: string;
   email?: string;
   capacity?: number;
+  status?: string;
   dairy_farm_name?: string;
   president_name?: string;
   contact_phone?: string;
+  contactPhone?: string;
   bmc_name?: string;
 }
 
@@ -194,7 +201,7 @@ export default function AdminDashboard() {
         
         <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
           <p className="text-xs text-gray-400 dark:text-gray-500">
-            Added {new Date(entity.created_at).toLocaleDateString()}
+            Added {new Date(entity.created_at || entity.createdAt || Date.now()).toLocaleDateString()}
           </p>
         </div>
       </motion.div>
@@ -282,7 +289,7 @@ export default function AdminDashboard() {
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Dairy Farms ({dairies.length})</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Dairy Farms ({dairies.data?.length || 0})</h3>
               <button
                 onClick={() => setActiveModal('dairy')}
                 className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
