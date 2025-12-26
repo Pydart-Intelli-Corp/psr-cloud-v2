@@ -1,4 +1,4 @@
-name: Complete FTP Deploy
+name: Fast FTP Deploy (Complete Package)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     
     steps:
       - name: 📦 Checkout Repository
@@ -20,8 +20,11 @@ jobs:
           node-version: '21.x'
           cache: 'npm'
 
-      - name: 📥 Install Dependencies
-        run: npm ci --prefer-offline --omit=dev --no-audit --no-fund
+      - name: 📥 Install ALL Dependencies (Including Production)
+        run: |
+          echo "📥 Installing all dependencies..."
+          npm ci --prefer-offline --no-audit --no-fund
+          echo "✅ Dependencies installed"
 
       - name: 🔨 Build Application
         run: npm run build
@@ -29,12 +32,14 @@ jobs:
           NODE_ENV: production
           NEXT_TELEMETRY_DISABLED: 1
 
-      - name: 📦 Create Deployment Package
+      - name: 📦 Create Complete Deployment Package
         run: |
-          echo "🎯 Creating deployment package..."
+          echo "🎯 Creating complete deployment package with node_modules..."
           mkdir -p deploy
           
+          # Copy EVERYTHING including node_modules
           cp -r .next deploy/
+          cp -r node_modules deploy/
           cp -r public deploy/
           cp -r database deploy/
           cp -r config deploy/
@@ -42,20 +47,21 @@ jobs:
           cp next.config.ts instrumentation.ts ecosystem.config.js deploy/
           cp postcss.config.mjs tailwind.config.js deploy/ 2>/dev/null || true
           
+          echo "📦 Compressing..."
           tar -czf deploy.tar.gz -C deploy .
           
           PACKAGE_SIZE=$(du -h deploy.tar.gz | cut -f1)
-          echo "✅ Package created: $PACKAGE_SIZE"
+          echo "✅ Complete package created: $PACKAGE_SIZE"
 
       - name: 📤 Upload via FTP
         run: |
-          echo "📤 Uploading to FTP..."
+          echo "📤 Uploading complete package to FTP..."
           curl -T deploy.tar.gz ftp://${{ secrets.VPS_HOST }}/psr-cloud-v4/ \
             --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
             --ftp-create-dirs -v
           echo "✅ Upload complete"
 
-      - name: 🚀 Deploy and Start
+      - name: 🚀 Deploy (Extract & Start)
         uses: appleboy/ssh-action@v1.0.0
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -75,36 +81,32 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
-          timeout: 600s
+          timeout: 300s
           envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
-          command_timeout: 20m
+          command_timeout: 10m
           script: |
             set -e
             
-            echo "🚀 Starting Complete Deployment"
+            echo "🚀 Fast Deployment - Extract & Start"
             echo "================================================"
             
-            # Stop and clean PM2
-            echo "🧹 Cleaning up old processes..."
-            pm2 delete all 2>/dev/null || true
-            pm2 kill 2>/dev/null || true
+            # Stop PM2
+            echo "🛑 Stopping app..."
+            pm2 stop psr-v4 2>/dev/null || true
+            pm2 delete psr-v4 2>/dev/null || true
             
             # Clean old deployment
             rm -rf /var/www/psr-v4
             mkdir -p /var/www/psr-v4
             
-            # Extract deployment
-            echo "📦 Extracting application..."
+            # Extract complete package (includes node_modules!)
+            echo "📦 Extracting complete package..."
             cd /var/www/psr-v4
             cp /home/ftpuser/psr-cloud-v4/deploy.tar.gz .
             tar -xzf deploy.tar.gz
             rm deploy.tar.gz
             
-            # Install dependencies with TypeScript
-            echo "📦 Installing dependencies..."
-            export NODE_OPTIONS="--max-old-space-size=1536"
-            npm ci --production --prefer-offline --no-audit --no-fund
-            npm install -D typescript 2>/dev/null || true
+            echo "✅ Everything extracted (including node_modules)"
             
             # Create environment file
             echo "⚙️ Creating environment..."
@@ -144,8 +146,8 @@ jobs:
             chmod 600 .env.production
             
             # Configure Nginx if not exists
-            echo "🌐 Configuring Nginx..."
             if [ ! -f /etc/nginx/sites-available/psr-v4 ]; then
+              echo "🌐 Configuring Nginx..."
               cat > /etc/nginx/sites-available/psr-v4 << 'NGINXEOF'
             server {
                 listen 80;
@@ -170,34 +172,32 @@ jobs:
               nginx -t && systemctl reload nginx
             fi
             
-            # Start with PM2
+            # Start with PM2 (NO npm install needed!)
             echo "🚀 Starting application..."
             cd /var/www/psr-v4
             pm2 start ecosystem.config.js --env production
             pm2 save
             
             # Wait and verify
-            echo "⏳ Waiting for startup (30s)..."
-            sleep 30
+            echo "⏳ Waiting for startup (20s)..."
+            sleep 20
             
-            # Check if it's responding
+            # Health check
             echo "🔍 Health check..."
             if curl -f http://localhost:3000 > /dev/null 2>&1; then
               echo "✅ Application is responding!"
             else
-              echo "⚠️ Application may still be starting..."
-              pm2 logs psr-v4 --lines 20 --nostream
+              echo "⚠️ App may still be starting, checking logs..."
+              pm2 logs psr-v4 --lines 30 --nostream || true
             fi
             
             echo ""
-            echo "📊 PM2 Status:"
             pm2 status
             echo ""
-            echo "💾 Memory:"
             free -h | head -2
             echo ""
             echo "================================================"
-            echo "✅ DEPLOYMENT COMPLETED!"
+            echo "✅ FAST DEPLOYMENT COMPLETED!"
             echo "🌍 https://v4.poornasreecloud.com"
             echo "================================================"
 
