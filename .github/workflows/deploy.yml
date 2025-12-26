@@ -1,4 +1,4 @@
-name: Deploy to VPS
+name: Build for Manual FTP Deploy
 
 on:
   push:
@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     
     steps:
       - name: 📦 Checkout Repository
@@ -50,168 +50,21 @@ jobs:
           echo "✅ Package created: $PACKAGE_SIZE"
           ls -lh deploy.tar.gz
 
-      - name: 🧹 Cleanup VPS (Kill Malware & Free Memory)
-        uses: appleboy/ssh-action@v1.0.0
+      - name: 📤 Upload Artifact for Manual Deploy
+        uses: actions/upload-artifact@v4
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          timeout: 120s
-          command_timeout: 2m
-          script: |
-            echo "🧹 Quick cleanup...";
-            killall -9 cX86 2>/dev/null || true;
-            killall -9 apt-check 2>/dev/null || true;
-            killall -9 update-notifier 2>/dev/null || true;
-            rm -rf /etc/de 2>/dev/null || true;
-            pm2 delete all 2>/dev/null || true;
-            sync;
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true;
-            free -h | head -2;
-            echo "✅ Done";
+          name: deployment-package
+          path: deploy.tar.gz
+          retention-days: 7
 
-      - name: 📤 Upload to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          source: "deploy.tar.gz"
-          target: "/root/"
-          overwrite: true
-          timeout: 60s
-          command_timeout: 10m
-
-      - name: 🚀 Deploy on VPS
-        uses: appleboy/ssh-action@v1.0.0
-        env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-          SUPER_ADMIN_USERNAME: ${{ secrets.SUPER_ADMIN_USERNAME }}
-          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD }}
-          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          port: 22
-          timeout: 60s
-          envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
-          command_timeout: 15m
-          script: |
-            echo "🚀 Starting Deployment"
-            echo "================================================"
-            
-            # Show memory
-            echo "💾 Available memory:"
-            free -h | head -2
-            
-            # Create directory if not exists
-            mkdir -p /var/www/psr-v4
-            
-            # Extract new build (overwrite existing)
-            echo "📦 Extracting application..."
-            tar -xzf $HOME/deploy.tar.gz -C /var/www/psr-v4 2>&1 || {
-              echo "❌ Extraction failed"
-              df -h /var/www
-              exit 1
-            }
-            rm -f $HOME/deploy.tar.gz
-            
-            cd /var/www/psr-v4
-            
-            # Check if node_modules exists from previous deployment
-            echo "📦 Checking dependencies..."
-            if [ -d "node_modules" ]; then
-              echo "✅ Using existing node_modules"
-            else
-              echo "⚠️ node_modules missing - installing..."
-              export NODE_OPTIONS="--max-old-space-size=512"
-              npm ci --production --prefer-offline --no-audit --no-fund 2>&1 | tail -20
-            fi
-            
-            # Create environment file
-            echo "⚙️ Configuring environment..."
-            cat > .env.production << EOF
-            DB_HOST=${DB_HOST}
-            DB_PORT=${DB_PORT}
-            DB_USER=${DB_USER}
-            DB_PASSWORD=${DB_PASSWORD}
-            DB_NAME=${DB_NAME}
-            DB_SSL_CA=
-            DB_REJECT_UNAUTHORIZED=false
-            NODE_ENV=production
-            PORT=3000
-            NEXT_TELEMETRY_DISABLED=1
-            JWT_SECRET=${JWT_SECRET}
-            JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-            JWT_EXPIRES_IN=1h
-            JWT_REFRESH_EXPIRES_IN=7d
-            SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
-            SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
-            SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
-            SMTP_HOST=smtp.gmail.com
-            SMTP_PORT=587
-            SMTP_SECURE=false
-            SMTP_USERNAME=${EMAIL_USER}
-            SMTP_PASSWORD=${EMAIL_PASSWORD}
-            EMAIL_HOST=smtp.gmail.com
-            EMAIL_PORT=587
-            EMAIL_SECURE=false
-            EMAIL_USER=${EMAIL_USER}
-            EMAIL_PASSWORD=${EMAIL_PASSWORD}
-            EMAIL_FROM=noreply@poornasreeequipments.com
-            NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
-            NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
-            EOF
-            
-            chmod 600 .env.production
-            
-            # Start application
-            echo "🚀 Starting application..."
-            pm2 start ecosystem.config.js --only psr-v4 --update-env
-            pm2 save
-            
-            # Health check
-            echo "⏳ Waiting for application startup..."
-            sleep 10
-            
-            # Verify application is running
-            if curl -sf http://localhost:3000 > /dev/null; then
-              echo "✅ Application is responding!"
-            else
-              echo "⚠️ Application may not be responding yet"
-            fi
-            
-            # Show status
-            echo ""
-            echo "📊 PM2 Status:"
-            pm2 status
-            echo ""
-            echo "💾 Memory Status:"
-            free -h | head -2
-            echo ""
-            echo "================================================"
-            echo "✅ DEPLOYMENT COMPLETED SUCCESSFULLY!"
-            echo "🌍 Application: https://v4.poornasreecloud.com"
-            echo "================================================"
-
-      - name: ✅ Deployment Summary
-        if: always()
+      - name: ✅ Build Complete
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Deployment completed successfully!"
-            echo "🌍 Live at: https://v4.poornasreecloud.com"
-          else
-            echo "❌ Deployment failed. Check logs above."
-            exit 1
+          echo "🎉 Build completed successfully!"
+          echo "📦 Download the artifact from GitHub Actions"
+          echo "📤 Upload deploy.tar.gz to VPS via FTP manually"
+          echo ""
+          echo "FTP Details:"
+          echo "  Host: 168.231.121.19"
+          echo "  User: ftpuser"
+          echo "  Directory: /ftp/files"
           fi
