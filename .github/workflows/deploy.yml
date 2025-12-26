@@ -96,32 +96,19 @@ jobs:
             echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
             free -h | head -2
             
-            # Install pigz if not available (faster parallel decompression)
-            if ! command -v pigz &> /dev/null; then
-              echo "Installing pigz for faster extraction..."
-              apt-get update -qq && apt-get install -y pigz -qq 2>/dev/null || true
-            fi
-            
             # Stop PM2
             echo "🛑 Stopping app..."
             pm2 stop psr-v4 2>/dev/null || true
             pm2 delete psr-v4 2>/dev/null || true
             
-            # Extract to temporary location with low memory usage
-            echo "📦 Extracting complete package (low memory mode)..."
+            # Extract to temporary location with streaming
+            echo "📦 Extracting complete package..."
             rm -rf /var/www/psr-v4-new
             mkdir -p /var/www/psr-v4-new
             cd /var/www/psr-v4-new
             
-            # Use pigz if available for parallel decompression, otherwise regular tar
-            # --use-compress-program forces streaming, reducing memory usage
-            if command -v pigz &> /dev/null; then
-              echo "Using pigz for faster extraction..."
-              tar -I pigz -xf /home/ftpuser/psr-cloud-v4/deploy.tar.gz
-            else
-              echo "Using standard tar with streaming..."
-              tar --use-compress-program="gzip -d" -xf /home/ftpuser/psr-cloud-v4/deploy.tar.gz
-            fi
+            # Use standard tar with streaming to minimize memory usage
+            tar -xzf /home/ftpuser/psr-cloud-v4/deploy.tar.gz
             
             echo "✅ Everything extracted (including node_modules)"
             
