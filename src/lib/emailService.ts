@@ -98,7 +98,7 @@ export const sendWelcomeEmail = async (
           </p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL}/login" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || process.env.CLIENT_URL}/login" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
               Login to Dashboard
             </a>
           </div>
@@ -173,7 +173,7 @@ export const sendAdminWelcomeEmail = async (
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL}/adminpanel" style="display: inline-block; padding: 15px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || process.env.CLIENT_URL}/adminpanel" style="display: inline-block; padding: 15px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
               🚀 Access Admin Dashboard
             </a>
           </div>
@@ -196,7 +196,7 @@ export const sendPasswordResetEmail = async (
   name: string, 
   resetToken: string
 ): Promise<void> => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+  const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
   
   const mailOptions = {
     from: `"Poornasree Equipments Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,

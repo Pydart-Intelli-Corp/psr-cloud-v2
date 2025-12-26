@@ -43,7 +43,7 @@ jobs:
           cp -r database deploy/
           cp -r config deploy/
           cp package.json package-lock.json deploy/
-          cp next.config.ts instrumentation.ts ecosystem.config.js deploy/
+          cp next.config.ts instrumentation.ts ecosystem.config.js pulse-scheduler.js deploy/
           cp postcss.config.mjs tailwind.config.js deploy/ 2>/dev/null || true
           
           echo "📦 Compressing..."
@@ -158,6 +158,7 @@ jobs:
             EMAIL_FROM=noreply@poornasreeequipments.com
             NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
             NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
+            CLIENT_URL=https://v4.poornasreecloud.com
             ENVEOF
             
             chmod 600 .env.production
