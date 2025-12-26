@@ -1,0 +1,3 @@
+{
+  "/api/user/bmc/password/route": "app/api/user/bmc/password/route.js"
+}

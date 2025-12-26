@@ -1,0 +1,11 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/[db-key]/Dispatch/SaveDispatchDetails/route.js")
+R.c("server/chunks/[root-of-the-server]__9e359e6c._.js")
+R.c("server/chunks/[root-of-the-server]__09c3bdaf._.js")
+R.c("server/chunks/src_lib_external-api_ba3ac1c3._.js")
+R.c("server/chunks/_772fcde2._.js")
+R.c("server/chunks/[root-of-the-server]__08251a34._.js")
+R.c("server/chunks/[root-of-the-server]__65b78757._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_a0320aac.js")
+R.c("server/chunks/ce889_server_app_api_[db-key]_Dispatch_SaveDispatchDetails_route_actions_c71f83b8.js")
+R.m(796963)
+module.exports=R.m(796963).exports

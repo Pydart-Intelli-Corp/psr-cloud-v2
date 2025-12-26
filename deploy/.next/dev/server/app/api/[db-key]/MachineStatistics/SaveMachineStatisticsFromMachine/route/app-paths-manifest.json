@@ -1,0 +1,3 @@
+{
+  "/api/[db-key]/MachineStatistics/SaveMachineStatisticsFromMachine/route": "app/api/[db-key]/MachineStatistics/SaveMachineStatisticsFromMachine/route.js"
+}

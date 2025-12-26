@@ -1,0 +1,3 @@
+{
+  "/api/[db-key]/Sales/SaveSalesDetails/route": "app/api/[db-key]/Sales/SaveSalesDetails/route.js"
+}

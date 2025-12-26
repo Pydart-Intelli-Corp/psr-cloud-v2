@@ -1,0 +1,11 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/[db-key]/MachineStatistics/SaveMachineStatisticsFromMachine/route.js")
+R.c("server/chunks/[root-of-the-server]__9e359e6c._.js")
+R.c("server/chunks/[root-of-the-server]__09c3bdaf._.js")
+R.c("server/chunks/src_lib_external-api_ba3ac1c3._.js")
+R.c("server/chunks/_772fcde2._.js")
+R.c("server/chunks/[root-of-the-server]__08251a34._.js")
+R.c("server/chunks/[root-of-the-server]__65b78757._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_2393ef1d.js")
+R.c("server/chunks/30257_MachineStatistics_SaveMachineStatisticsFromMachine_route_actions_299816a2.js")
+R.m(355122)
+module.exports=R.m(355122).exports

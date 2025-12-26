@@ -1,0 +1,3 @@
+{
+  "/api/user/ratechart/[id]/route": "app/api/user/ratechart/[id]/route.js"
+}

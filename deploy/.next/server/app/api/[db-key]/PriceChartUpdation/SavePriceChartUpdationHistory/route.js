@@ -1,0 +1,11 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/[db-key]/PriceChartUpdation/SavePriceChartUpdationHistory/route.js")
+R.c("server/chunks/[root-of-the-server]__1f0a4976._.js")
+R.c("server/chunks/[root-of-the-server]__65b78757._.js")
+R.c("server/chunks/src_lib_external-api_ba3ac1c3._.js")
+R.c("server/chunks/[root-of-the-server]__09c3bdaf._.js")
+R.c("server/chunks/[root-of-the-server]__08251a34._.js")
+R.c("server/chunks/_772fcde2._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_c25c7581.js")
+R.c("server/chunks/30257_PriceChartUpdation_SavePriceChartUpdationHistory_route_actions_bd69ed53.js")
+R.m(328448)
+module.exports=R.m(328448).exports

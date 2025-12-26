@@ -1,0 +1,3 @@
+{
+  "/api/user/machine/correction/[machineId]/route": "app/api/user/machine/correction/[machineId]/route.js"
+}

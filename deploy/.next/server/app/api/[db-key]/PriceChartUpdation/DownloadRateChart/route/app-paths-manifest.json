@@ -1,0 +1,3 @@
+{
+  "/api/[db-key]/PriceChartUpdation/DownloadRateChart/route": "app/api/[db-key]/PriceChartUpdation/DownloadRateChart/route.js"
+}

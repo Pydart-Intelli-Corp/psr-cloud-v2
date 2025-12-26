@@ -1,0 +1,3 @@
+{
+  "/api/user/dairy/send-delete-otp/route": "app/api/user/dairy/send-delete-otp/route.js"
+}

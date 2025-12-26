@@ -1,0 +1,10 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/[db-key]/MachineCorrection/GetLatestMachineCorrection/route.js")
+R.c("server/chunks/src_lib_external-api_ba3ac1c3._.js")
+R.c("server/chunks/[root-of-the-server]__65b78757._.js")
+R.c("server/chunks/[root-of-the-server]__5a868000._.js")
+R.c("server/chunks/_772fcde2._.js")
+R.c("server/chunks/[root-of-the-server]__09c3bdaf._.js")
+R.c("server/chunks/[root-of-the-server]__08251a34._.js")
+R.c("server/chunks/1a58a_[db-key]_MachineCorrection_GetLatestMachineCorrection_route_actions_fe9e57ff.js")
+R.m(261050)
+module.exports=R.m(261050).exports

@@ -1,0 +1,3 @@
+{
+  "/api/user/ratechart/cleanup/route": "app/api/user/ratechart/cleanup/route.js"
+}

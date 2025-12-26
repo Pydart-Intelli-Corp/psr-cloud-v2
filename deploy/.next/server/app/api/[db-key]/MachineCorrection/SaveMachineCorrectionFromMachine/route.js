@@ -1,0 +1,11 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/[db-key]/MachineCorrection/SaveMachineCorrectionFromMachine/route.js")
+R.c("server/chunks/[root-of-the-server]__1f0a4976._.js")
+R.c("server/chunks/[root-of-the-server]__65b78757._.js")
+R.c("server/chunks/src_lib_external-api_ba3ac1c3._.js")
+R.c("server/chunks/[root-of-the-server]__09c3bdaf._.js")
+R.c("server/chunks/[root-of-the-server]__08251a34._.js")
+R.c("server/chunks/_772fcde2._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_bf8db17f.js")
+R.c("server/chunks/30257_MachineCorrection_SaveMachineCorrectionFromMachine_route_actions_47f02ce9.js")
+R.m(31590)
+module.exports=R.m(31590).exports

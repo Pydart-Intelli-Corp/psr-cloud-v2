@@ -1,0 +1,3 @@
+{
+  "/api/user/ratechart/reset-download/route": "app/api/user/ratechart/reset-download/route.js"
+}
