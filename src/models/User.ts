@@ -90,7 +90,7 @@ class User extends Model<UserAttributes> implements UserAttributes {
     if (this.lockUntil && this.lockUntil < new Date()) {
       await this.update({
         loginAttempts: 1,
-        lockUntil: undefined
+        lockUntil: null
       });
       return;
     }
@@ -108,7 +108,7 @@ class User extends Model<UserAttributes> implements UserAttributes {
   public async resetLoginAttempts(): Promise<void> {
     await this.update({
       loginAttempts: 0,
-      lockUntil: undefined
+      lockUntil: null
     });
   }
 
@@ -277,10 +277,14 @@ export const initUserModel = (sequelize: Sequelize): typeof User => {
       timestamps: true,
       hooks: {
         beforeSave: async (user: User) => {
-          // Hash password if it's being modified
+          // Hash password if it's being modified AND not already hashed
           if (user.changed('password') && user.password) {
-            const salt = await bcrypt.genSalt(12);
-            user.password = await bcrypt.hash(user.password, salt);
+            // Check if password is already hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+            const isBcryptHash = /^\$2[aby]\$/.test(user.password);
+            if (!isBcryptHash) {
+              const salt = await bcrypt.genSalt(12);
+              user.password = await bcrypt.hash(user.password, salt);
+            }
           }
 
           // Generate UID if not provided
