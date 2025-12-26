@@ -67,4 +67,3 @@ jobs:
           echo "  Host: 168.231.121.19"
           echo "  User: ftpuser"
           echo "  Directory: /ftp/files"
-          fi
