@@ -1,4 +1,4 @@
-name: Build and Deploy via FTP
+name: Complete FTP Deploy
 
 on:
   push:
@@ -6,24 +6,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     
     steps:
       - name: 📦 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup Node.js Environment
+      - name: ⚙️ Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '21.x'
           cache: 'npm'
 
-      - name: 📥 Install Dependencies (Production Only)
+      - name: 📥 Install Dependencies
         run: npm ci --prefer-offline --omit=dev --no-audit --no-fund
 
-      - name: 🔨 Build Production Application
+      - name: 🔨 Build Application
         run: npm run build
         env:
           NODE_ENV: production
@@ -34,7 +34,6 @@ jobs:
           echo "🎯 Creating deployment package..."
           mkdir -p deploy
           
-          # Copy essential production files (NO node_modules)
           cp -r .next deploy/
           cp -r public deploy/
           cp -r database deploy/
@@ -43,23 +42,20 @@ jobs:
           cp next.config.ts instrumentation.ts ecosystem.config.js deploy/
           cp postcss.config.mjs tailwind.config.js deploy/ 2>/dev/null || true
           
-          # Create compressed archive
           tar -czf deploy.tar.gz -C deploy .
           
           PACKAGE_SIZE=$(du -h deploy.tar.gz | cut -f1)
           echo "✅ Package created: $PACKAGE_SIZE"
-          ls -lh deploy.tar.gz
 
-      - name: 📤 Upload to VPS via FTP
+      - name: 📤 Upload via FTP
         run: |
-          echo "📤 Uploading to FTP server..."
-          curl -T deploy.tar.gz ftp://${{ secrets.VPS_HOST }}/ftp/files/ \
+          echo "📤 Uploading to FTP..."
+          curl -T deploy.tar.gz ftp://${{ secrets.VPS_HOST }}/psr-cloud-v4/ \
             --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
-            --ftp-create-dirs \
-            -v
+            --ftp-create-dirs -v
           echo "✅ Upload complete"
 
-      - name: 🚀 Deploy on VPS
+      - name: 🚀 Deploy and Start
         uses: appleboy/ssh-action@v1.0.0
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -79,37 +75,40 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
-          timeout: 300s
+          timeout: 600s
           envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
-          command_timeout: 15m
+          command_timeout: 20m
           script: |
-            echo "🚀 Starting Deployment"
+            set -e
+            
+            echo "🚀 Starting Complete Deployment"
             echo "================================================"
             
-            # Copy from FTP directory to deployment location
-            echo "📦 Moving deployment package..."
-            cp /home/ftpuser/ftp/files/deploy.tar.gz /root/
+            # Stop and clean PM2
+            echo "🧹 Cleaning up old processes..."
+            pm2 delete all 2>/dev/null || true
+            pm2 kill 2>/dev/null || true
             
-            # Create directory if not exists
+            # Clean old deployment
+            rm -rf /var/www/psr-v4
             mkdir -p /var/www/psr-v4
             
-            # Stop existing PM2 processes
-            pm2 stop psr-v4 2>/dev/null || true
-            
-            # Extract new build
+            # Extract deployment
             echo "📦 Extracting application..."
             cd /var/www/psr-v4
-            tar -xzf /root/deploy.tar.gz
-            rm -f /root/deploy.tar.gz
+            cp /home/ftpuser/psr-cloud-v4/deploy.tar.gz .
+            tar -xzf deploy.tar.gz
+            rm deploy.tar.gz
             
-            # Install dependencies
+            # Install dependencies with TypeScript
             echo "📦 Installing dependencies..."
-            export NODE_OPTIONS="--max-old-space-size=1024"
+            export NODE_OPTIONS="--max-old-space-size=1536"
             npm ci --production --prefer-offline --no-audit --no-fund
+            npm install -D typescript 2>/dev/null || true
             
             # Create environment file
-            echo "⚙️ Configuring environment..."
-            cat > .env.production << EOF
+            echo "⚙️ Creating environment..."
+            cat > .env.production << 'ENVEOF'
             DB_HOST=${DB_HOST}
             DB_PORT=${DB_PORT}
             DB_USER=${DB_USER}
@@ -140,34 +139,75 @@ jobs:
             EMAIL_FROM=noreply@poornasreeequipments.com
             NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
             NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
-            EOF
+            ENVEOF
             
             chmod 600 .env.production
             
-            # Start application
+            # Configure Nginx if not exists
+            echo "🌐 Configuring Nginx..."
+            if [ ! -f /etc/nginx/sites-available/psr-v4 ]; then
+              cat > /etc/nginx/sites-available/psr-v4 << 'NGINXEOF'
+            server {
+                listen 80;
+                listen [::]:80;
+                server_name v4.poornasreecloud.com;
+            
+                location / {
+                    proxy_pass http://localhost:3000;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_cache_bypass $http_upgrade;
+                }
+            }
+            NGINXEOF
+              
+              ln -sf /etc/nginx/sites-available/psr-v4 /etc/nginx/sites-enabled/
+              nginx -t && systemctl reload nginx
+            fi
+            
+            # Start with PM2
             echo "🚀 Starting application..."
-            pm2 start ecosystem.config.js --update-env
+            cd /var/www/psr-v4
+            pm2 start ecosystem.config.js --env production
             pm2 save
             
-            # Health check
-            echo "⏳ Waiting for application startup..."
-            sleep 10
+            # Wait and verify
+            echo "⏳ Waiting for startup (30s)..."
+            sleep 30
             
-            # Verify
+            # Check if it's responding
+            echo "🔍 Health check..."
+            if curl -f http://localhost:3000 > /dev/null 2>&1; then
+              echo "✅ Application is responding!"
+            else
+              echo "⚠️ Application may still be starting..."
+              pm2 logs psr-v4 --lines 20 --nostream
+            fi
+            
+            echo ""
+            echo "📊 PM2 Status:"
             pm2 status
+            echo ""
+            echo "💾 Memory:"
+            free -h | head -2
             echo ""
             echo "================================================"
             echo "✅ DEPLOYMENT COMPLETED!"
-            echo "🌍 Application: https://v4.poornasreecloud.com"
+            echo "🌍 https://v4.poornasreecloud.com"
             echo "================================================"
 
-      - name: ✅ Deployment Summary
+      - name: ✅ Summary
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Deployment completed successfully!"
-            echo "🌍 Live at: https://v4.poornasreecloud.com"
+            echo "🎉 Deployment successful!"
+            echo "🌍 https://v4.poornasreecloud.com"
           else
-            echo "❌ Deployment failed. Check logs above."
+            echo "❌ Deployment failed"
             exit 1
           fi
