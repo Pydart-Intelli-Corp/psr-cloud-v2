@@ -90,23 +90,49 @@ jobs:
             echo "🚀 Fast Deployment - Extract & Start"
             echo "================================================"
             
+            # Free up memory
+            echo "💾 Freeing memory..."
+            sync
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+            free -h | head -2
+            
+            # Install pigz if not available (faster parallel decompression)
+            if ! command -v pigz &> /dev/null; then
+              echo "Installing pigz for faster extraction..."
+              apt-get update -qq && apt-get install -y pigz -qq 2>/dev/null || true
+            fi
+            
             # Stop PM2
             echo "🛑 Stopping app..."
             pm2 stop psr-v4 2>/dev/null || true
             pm2 delete psr-v4 2>/dev/null || true
             
-            # Clean old deployment
-            rm -rf /var/www/psr-v4
-            mkdir -p /var/www/psr-v4
+            # Extract to temporary location with low memory usage
+            echo "📦 Extracting complete package (low memory mode)..."
+            rm -rf /var/www/psr-v4-new
+            mkdir -p /var/www/psr-v4-new
+            cd /var/www/psr-v4-new
             
-            # Extract complete package (includes node_modules!)
-            echo "📦 Extracting complete package..."
-            cd /var/www/psr-v4
-            cp /home/ftpuser/psr-cloud-v4/deploy.tar.gz .
-            tar -xzf deploy.tar.gz
-            rm deploy.tar.gz
+            # Use pigz if available for parallel decompression, otherwise regular tar
+            # --use-compress-program forces streaming, reducing memory usage
+            if command -v pigz &> /dev/null; then
+              echo "Using pigz for faster extraction..."
+              tar -I pigz -xf /home/ftpuser/psr-cloud-v4/deploy.tar.gz
+            else
+              echo "Using standard tar with streaming..."
+              tar --use-compress-program="gzip -d" -xf /home/ftpuser/psr-cloud-v4/deploy.tar.gz
+            fi
             
             echo "✅ Everything extracted (including node_modules)"
+            
+            # Swap directories atomically
+            rm -rf /var/www/psr-v4-old
+            if [ -d /var/www/psr-v4 ]; then
+              mv /var/www/psr-v4 /var/www/psr-v4-old
+            fi
+            mv /var/www/psr-v4-new /var/www/psr-v4
+            
+            cd /var/www/psr-v4
             
             # Create environment file
             echo "⚙️ Creating environment..."
