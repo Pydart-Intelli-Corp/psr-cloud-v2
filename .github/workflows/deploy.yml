@@ -127,7 +127,7 @@ jobs:
             
             # Create environment file
             echo "⚙️ Creating environment..."
-            cat > .env.production << 'ENVEOF'
+            cat > .env.production << ENVEOF
             DB_HOST=168.231.121.19
             DB_PORT=3306
             DB_USER=${DB_USER}

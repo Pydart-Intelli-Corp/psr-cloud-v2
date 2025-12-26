@@ -79,7 +79,7 @@ chmod 600 .env.production
 
 # Start application
 echo "🚀 Starting application..."
-pm2 start ecosystem.config.js --env production
+pm2 restart ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
 pm2 save
 
 # Wait and check
