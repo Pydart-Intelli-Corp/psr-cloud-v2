@@ -1,4 +1,4 @@
-name: Build for Manual FTP Deploy
+name: Build and Deploy via FTP
 
 on:
   push:
@@ -50,20 +50,124 @@ jobs:
           echo "✅ Package created: $PACKAGE_SIZE"
           ls -lh deploy.tar.gz
 
-      - name: 📤 Upload Artifact for Manual Deploy
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-package
-          path: deploy.tar.gz
-          retention-days: 7
-
-      - name: ✅ Build Complete
+      - name: 📤 Upload to VPS via FTP
         run: |
-          echo "🎉 Build completed successfully!"
-          echo "📦 Download the artifact from GitHub Actions"
-          echo "📤 Upload deploy.tar.gz to VPS via FTP manually"
-          echo ""
-          echo "FTP Details:"
-          echo "  Host: 168.231.121.19"
-          echo "  User: ftpuser"
-          echo "  Directory: /ftp/files"
+          echo "📤 Uploading to FTP server..."
+          curl -T deploy.tar.gz ftp://${{ secrets.VPS_HOST }}/ftp/files/ \
+            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}" \
+            --ftp-create-dirs \
+            -v
+          echo "✅ Upload complete"
+
+      - name: 🚀 Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SUPER_ADMIN_USERNAME: ${{ secrets.SUPER_ADMIN_USERNAME }}
+          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          timeout: 300s
+          envs: EMAIL_USER,EMAIL_PASSWORD,DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_REFRESH_SECRET,SUPER_ADMIN_USERNAME,SUPER_ADMIN_PASSWORD,SUPER_ADMIN_EMAIL
+          command_timeout: 15m
+          script: |
+            echo "🚀 Starting Deployment"
+            echo "================================================"
+            
+            # Copy from FTP directory to deployment location
+            echo "📦 Moving deployment package..."
+            cp /home/ftpuser/ftp/files/deploy.tar.gz /root/
+            
+            # Create directory if not exists
+            mkdir -p /var/www/psr-v4
+            
+            # Stop existing PM2 processes
+            pm2 stop psr-v4 2>/dev/null || true
+            
+            # Extract new build
+            echo "📦 Extracting application..."
+            cd /var/www/psr-v4
+            tar -xzf /root/deploy.tar.gz
+            rm -f /root/deploy.tar.gz
+            
+            # Install dependencies
+            echo "📦 Installing dependencies..."
+            export NODE_OPTIONS="--max-old-space-size=1024"
+            npm ci --production --prefer-offline --no-audit --no-fund
+            
+            # Create environment file
+            echo "⚙️ Configuring environment..."
+            cat > .env.production << EOF
+            DB_HOST=${DB_HOST}
+            DB_PORT=${DB_PORT}
+            DB_USER=${DB_USER}
+            DB_PASSWORD=${DB_PASSWORD}
+            DB_NAME=${DB_NAME}
+            DB_SSL_CA=
+            DB_REJECT_UNAUTHORIZED=false
+            NODE_ENV=production
+            PORT=3000
+            NEXT_TELEMETRY_DISABLED=1
+            JWT_SECRET=${JWT_SECRET}
+            JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+            JWT_EXPIRES_IN=1h
+            JWT_REFRESH_EXPIRES_IN=7d
+            SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME}
+            SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD}
+            SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
+            SMTP_HOST=smtp.gmail.com
+            SMTP_PORT=587
+            SMTP_SECURE=false
+            SMTP_USERNAME=${EMAIL_USER}
+            SMTP_PASSWORD=${EMAIL_PASSWORD}
+            EMAIL_HOST=smtp.gmail.com
+            EMAIL_PORT=587
+            EMAIL_SECURE=false
+            EMAIL_USER=${EMAIL_USER}
+            EMAIL_PASSWORD=${EMAIL_PASSWORD}
+            EMAIL_FROM=noreply@poornasreeequipments.com
+            NEXT_PUBLIC_API_URL=https://v4.poornasreecloud.com
+            NEXT_PUBLIC_APP_URL=https://v4.poornasreecloud.com
+            EOF
+            
+            chmod 600 .env.production
+            
+            # Start application
+            echo "🚀 Starting application..."
+            pm2 start ecosystem.config.js --update-env
+            pm2 save
+            
+            # Health check
+            echo "⏳ Waiting for application startup..."
+            sleep 10
+            
+            # Verify
+            pm2 status
+            echo ""
+            echo "================================================"
+            echo "✅ DEPLOYMENT COMPLETED!"
+            echo "🌍 Application: https://v4.poornasreecloud.com"
+            echo "================================================"
+
+      - name: ✅ Deployment Summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 Deployment completed successfully!"
+            echo "🌍 Live at: https://v4.poornasreecloud.com"
+          else
+            echo "❌ Deployment failed. Check logs above."
+            exit 1
+          fi
