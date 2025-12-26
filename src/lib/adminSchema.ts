@@ -95,6 +95,22 @@ export async function createAdminSchema(adminUser: UserAttributes, dbKey: string
 
 /**
  * Creates the necessary tables in the admin's schema
+ * 
+ * PERFORMANCE INDEXES INCLUDED (Dec 26, 2024):
+ * - dairy_farms: idx_status
+ * - bmcs: idx_bmc_id, idx_dairy_farm_id, idx_status
+ * - societies: idx_society_id, idx_bmc_id, idx_status
+ * - machines: idx_machine_type, idx_society_id, idx_status, idx_is_master, idx_statusU, idx_statusS, idx_created_at
+ * - farmers: idx_farmer_id, idx_society_id, idx_machine_id, idx_status, idx_created_at
+ * - milk_collections: idx_farmer_id, idx_society_id, idx_machine_id, idx_collection_date, 
+ *                     idx_collection_time, idx_shift_type, idx_channel, idx_created_at,
+ *                     idx_society_date (composite: society_id + collection_date)
+ * 
+ * These indexes optimize:
+ * - Status filtering across all entities
+ * - Foreign key lookups (society_id, bmc_id, dairy_farm_id, machine_id)
+ * - Date-based queries (collection_date, created_at)
+ * - Analytics queries (society_date composite index for 30-day aggregations)
  */
 async function createAdminTables(schemaName: string): Promise<void> {
   try {
@@ -116,7 +132,8 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`status\` ENUM('active', 'inactive', 'maintenance', 'suspended') DEFAULT 'active',
         \`monthly_target\` INT DEFAULT 5000 COMMENT 'Monthly production target in liters',
         \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX \`idx_status\` (\`status\`)
       )`,
       
       // BMCs (Bulk Milk Cooling Centers) table
@@ -262,6 +279,7 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_shift_type\` (\`shift_type\`),
         INDEX \`idx_channel\` (\`channel\`),
         INDEX \`idx_created_at\` (\`created_at\`),
+        INDEX \`idx_society_date\` (\`society_id\`, \`collection_date\`),
         UNIQUE KEY \`unique_collection\` (\`farmer_id\`, \`society_id\`, \`machine_id\`, \`collection_date\`, \`collection_time\`, \`shift_type\`)
       )`,
 

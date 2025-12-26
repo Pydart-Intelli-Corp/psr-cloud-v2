@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useUser } from '@/contexts/UserContext';
+import { useDashboardData } from '@/hooks/useEntityData';
 import AddEntityModal from '@/components/forms/AddEntityModal';
 import { 
   Building2, 
@@ -45,125 +46,36 @@ interface Entity {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user } = useUser(); // Use centralized user context
+  const { user } = useUser();
   
-  const [stats, setStats] = useState<DashboardStats>({
-    totalDairies: 0,
-    totalBMCs: 0,
-    totalSocieties: 0,
-    totalFarmers: 0
-  });
-  
-  const [dairies, setDairies] = useState<Entity[]>([]);
-  const [bmcs, setBMCs] = useState<Entity[]>([]);
-  const [societies, setSocieties] = useState<Entity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState<'dairy' | 'bmc' | 'society' | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'dairies' | 'bmcs' | 'societies'>('overview');
 
-  // Load dashboard data - defined before useEffect to avoid dependency issues
-  const loadData = useCallback(async () => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      console.error('No auth token found');
-      setLoading(false);
-      return;
-    }
+  // Use React Query hooks for cached data fetching
+  const { dairies, bmcs, societies, isLoading, isError, error } = useDashboardData();
 
-    try {
-      setLoading(true);
-      console.log('🔄 Loading dashboard data...');
-      console.log('🔑 Token preview:', token.substring(0, 50) + '...');
-      
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-      
-      // Load dairy data first to check authentication
-      console.log('📡 Fetching dairy data...');
-      const dairyRes = await fetch('/api/user/dairy', { headers });
-      console.log('🏪 Dairy response:', dairyRes.status, dairyRes.statusText);
-      
-      if (!dairyRes.ok) {
-        const errorData = await dairyRes.text();
-        console.error('❌ Dairy API error:', errorData);
-        
-        if (dairyRes.status === 401 || dairyRes.status === 403) {
-          console.log('Authentication failed, redirecting to login');
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userData');
-          router.push('/login');
-          return;
-        }
-        
-        if (dairyRes.status === 404) {
-          console.error('❌ Admin schema not found - admin may not be approved yet');
-          alert('Your admin account is not fully activated yet. Please contact super admin.');
-          setLoading(false);
-          return;
-        }
-        
-        throw new Error(`Dairy API failed: ${dairyRes.status} - ${errorData}`);
-      }
-
-      // Load all entities in parallel if dairy request succeeded
-      console.log('📡 Fetching all entity data...');
-      const [bmcRes, societyRes] = await Promise.all([
-        fetch('/api/user/bmc', { headers }),
-        fetch('/api/user/society', { headers })
-      ]);
-
-      console.log('📈 All API responses:', {
-        dairy: dairyRes.status,
-        bmc: bmcRes.status,
-        society: societyRes.status
-      });
-
-      const [dairyData, bmcData, societyData] = await Promise.all([
-        dairyRes.json(),
-        bmcRes.json(),
-        societyRes.json()
-      ]);
-
-      console.log('✅ API data received:', { dairyData, bmcData, societyData });
-
-      if (dairyData.success) setDairies(dairyData.data || []);
-      if (bmcData.success) setBMCs(bmcData.data || []);
-      if (societyData.success) setSocieties(societyData.data || []);
-
-      // Update stats
-      setStats({
-        totalDairies: dairyData.data?.length || 0,
-        totalBMCs: bmcData.data?.length || 0,
-        totalSocieties: societyData.data?.length || 0,
-        totalFarmers: 0 // TODO: Add farmers API
-      });
-
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      // Still set loading to false even if there's an error
-      setStats({
-        totalDairies: 0,
-        totalBMCs: 0,
-        totalSocieties: 0,
-        totalFarmers: 0
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
-
-  // Load data when user is available
+  // Redirect if not authenticated
   useEffect(() => {
-    if (user) {
-      console.log('✅ User loaded from context, loading dashboard data');
-      loadData();
+    if (!user) {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.push('/login');
+      }
     }
-  }, [user, loadData]);
+  }, [user, router]);
 
   const handleEntityAdded = () => {
-    loadData(); // Reload data after adding new entity
+    // Invalidate queries to refetch data
+    dairies.refetch();
+    bmcs.refetch();
+    societies.refetch();
+  };
+
+  const stats = {
+    totalDairies: dairies.data?.length || 0,
+    totalBMCs: bmcs.data?.length || 0,
+    totalSocieties: societies.data?.length || 0,
+    totalFarmers: 0
   };
 
   const statCards = [
@@ -380,9 +292,9 @@ export default function AdminDashboard() {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {dairies.map(dairy => renderEntityCard(dairy, 'dairy'))}
+              {dairies.data?.map(dairy => renderEntityCard(dairy, 'dairy'))}
             </div>
-            {dairies.length === 0 && (
+            {(dairies.data?.length || 0) === 0 && (
               <div className="text-center py-12">
                 <Building2 className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No dairy farms yet</h3>
@@ -402,7 +314,7 @@ export default function AdminDashboard() {
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">BMCs ({bmcs.length})</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">BMCs ({bmcs.data?.length || 0})</h3>
               <button
                 onClick={() => setActiveModal('bmc')}
                 className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
@@ -412,9 +324,9 @@ export default function AdminDashboard() {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {bmcs.map(bmc => renderEntityCard(bmc, 'bmc'))}
+              {bmcs.data?.map(bmc => renderEntityCard(bmc, 'bmc'))}
             </div>
-            {bmcs.length === 0 && (
+            {(bmcs.data?.length || 0) === 0 && (
               <div className="text-center py-12">
                 <Milk className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No BMCs yet</h3>
@@ -434,7 +346,7 @@ export default function AdminDashboard() {
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Societies ({societies.length})</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Societies ({societies.data?.length || 0})</h3>
               <button
                 onClick={() => setActiveModal('society')}
                 className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
@@ -444,9 +356,9 @@ export default function AdminDashboard() {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {societies.map(society => renderEntityCard(society, 'society'))}
+              {societies.data?.map(society => renderEntityCard(society, 'society'))}
             </div>
-            {societies.length === 0 && (
+            {(societies.data?.length || 0) === 0 && (
               <div className="text-center py-12">
                 <Users className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No societies yet</h3>
@@ -468,13 +380,13 @@ export default function AdminDashboard() {
   };
 
   // Don't render until user is loaded
-  if (!user || loading) {
+  if (!user || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="flex flex-col items-center">
           <FlowerSpinner />
           <span className="mt-4 text-gray-600 dark:text-gray-400">
-            {loading ? 'Loading dashboard data...' : 'Loading user profile...'}
+            {isLoading ? 'Loading dashboard data...' : 'Loading user profile...'}
           </span>
         </div>
       </div>
@@ -495,10 +407,14 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center space-x-4">
             <button
-              onClick={loadData}
+              onClick={() => {
+                dairies.refetch();
+                bmcs.refetch();
+                societies.refetch();
+              }}
               className="bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
             >
-              <span>Load Data</span>
+              <span>Refresh Data</span>
             </button>
             <div className="text-sm text-gray-500 dark:text-gray-400">
               DB: {user?.dbKey || 'N/A'}

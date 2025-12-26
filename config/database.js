@@ -58,10 +58,10 @@ module.exports = {
       } : false,
     },
     pool: {
-      max: parseInt(process.env.DB_POOL_MAX || '15'),
-      min: parseInt(process.env.DB_POOL_MIN || '1'),
-      acquire: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30') * 1000,
-      idle: parseInt(process.env.DB_CONNECTION_LIFETIME || '300') * 1000,
+      max: parseInt(process.env.DB_POOL_MAX || '30'),
+      min: parseInt(process.env.DB_POOL_MIN || '2'),
+      acquire: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10') * 1000,
+      idle: parseInt(process.env.DB_CONNECTION_LIFETIME || '180') * 1000,
     },
     logging: false,
     migrationStorageTableName: 'sequelize_meta'

@@ -192,7 +192,7 @@ export default function AnalyticsComponent() {
         }
 
         // Fetch BMCs
-        const bmcRes = await fetch('/api/user/bmc', {
+        const bmcRes = await fetch('/api/user/bmc/list', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (bmcRes.ok) {
@@ -201,7 +201,7 @@ export default function AnalyticsComponent() {
         }
 
         // Fetch Societies
-        const societyRes = await fetch('/api/user/society', {
+        const societyRes = await fetch('/api/user/society/list', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (societyRes.ok) {

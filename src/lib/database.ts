@@ -157,10 +157,10 @@ export const getAdminConnection = (dbKey: string): Sequelize => {
         timeout: parseInt(process.env.DB_COMMAND_TIMEOUT || '60') * 1000,
       },
       pool: {
-        max: parseInt(process.env.DB_POOL_MAX || '10'),
-        min: parseInt(process.env.DB_POOL_MIN || '0'),
-        acquire: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30') * 1000,
-        idle: parseInt(process.env.DB_CONNECTION_LIFETIME || '300') * 1000,
+        max: parseInt(process.env.DB_POOL_MAX || '30'),
+        min: parseInt(process.env.DB_POOL_MIN || '2'),
+        acquire: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10') * 1000,
+        idle: parseInt(process.env.DB_CONNECTION_LIFETIME || '180') * 1000,
       },
       logging: process.env.NODE_ENV === 'development' ? console.log : false,
     }

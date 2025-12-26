@@ -1,8 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserRole } from '@/types/user';
+import { useUserProfile } from '@/hooks/useEntityData';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
   id: number;
@@ -29,48 +31,16 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const queryClient = useQueryClient();
+  
+  // Use React Query hook for cached profile data
+  const { data: user, isLoading: loading, error: queryError, refetch } = useUserProfile();
+  const error = queryError ? String(queryError) : null;
 
   const fetchUser = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch('/api/user/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        cache: 'no-store'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.data);
-      } else if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('authToken');
-        setUser(null);
-        router.push('/login');
-      } else {
-        setError('Failed to fetch user data');
-      }
-    } catch (err) {
-      console.error('Error fetching user:', err);
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+    await refetch();
+  }, [refetch]);
 
   const logout = useCallback(async () => {
     try {
@@ -82,18 +52,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('authToken');
-      setUser(null);
+      // Clear all cached queries on logout
+      queryClient.clear();
       router.push('/login');
     }
-  }, [router]);
+  }, [router, queryClient]);
 
   const updateUser = useCallback((userData: Partial<User>) => {
-    setUser(prev => prev ? { ...prev, ...userData } : null);
-  }, []);
+    // Update cache with new user data
+    queryClient.setQueryData(['userProfile'], (old: User | undefined) => 
+      old ? { ...old, ...userData } : undefined
+    );
+  }, [queryClient]);
 
+  // Redirect to login if authentication fails
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    if (error && error.includes('Authentication failed')) {
+      router.push('/login');
+    }
+  }, [error, router]);
 
   return (
     <UserContext.Provider value={{ user, loading, error, fetchUser, logout, updateUser }}>
