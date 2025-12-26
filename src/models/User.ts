@@ -90,7 +90,7 @@ class User extends Model<UserAttributes> implements UserAttributes {
     if (this.lockUntil && this.lockUntil < new Date()) {
       await this.update({
         loginAttempts: 1,
-        lockUntil: null
+        lockUntil: null as any
       });
       return;
     }
@@ -108,7 +108,7 @@ class User extends Model<UserAttributes> implements UserAttributes {
   public async resetLoginAttempts(): Promise<void> {
     await this.update({
       loginAttempts: 0,
-      lockUntil: null
+      lockUntil: null as any
     });
   }
 

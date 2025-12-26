@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
     // Update user password and clear reset token
     await user.update({
       password: hashedPassword,
-      passwordResetToken: null,
-      passwordResetExpires: null,
+      passwordResetToken: null as any,
+      passwordResetExpires: null as any,
       // Reset login attempts on successful password change
       loginAttempts: 0,
-      lockUntil: null
+      lockUntil: null as any
     });
 
     // Return success response
