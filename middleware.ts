@@ -15,6 +15,7 @@ const publicRoutes = [
   '/splash',
   '/color-system',
   '/diagnostic',
+  '/superadmin',
 ];
 
 // API routes that should be excluded from middleware checks
@@ -28,6 +29,7 @@ const apiRouteExclusions = [
   '/api/auth/resend-verification',
   '/api/auth/resend-otp',
   '/api/auth/verify-session',
+  '/api/superadmin/auth/login',
   '/api/pincode',
   '/api/external',
   '/api/debug',

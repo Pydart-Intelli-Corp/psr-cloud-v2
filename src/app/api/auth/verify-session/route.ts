@@ -20,7 +20,22 @@ export async function GET(request: NextRequest) {
       return createErrorResponse('Invalid or expired token', 401);
     }
 
-    // Verify user still exists in database and is active
+    // Handle super admin tokens separately (they don't exist in User table)
+    if (decoded.type === 'admin' && decoded.role === 'super_admin') {
+      console.log('Verifying super admin token');
+      return createSuccessResponse({
+        user: {
+          id: decoded.id,
+          uid: decoded.uid || 'super-admin',
+          email: decoded.email,
+          fullName: 'Super Admin',
+          role: 'super_admin',
+          dbKey: decoded.dbKey || 'master'
+        }
+      }, 'Super admin session valid');
+    }
+
+    // Verify regular user still exists in database and is active
     const { User } = getModels();
     const user = await User.findOne({ 
       where: { 

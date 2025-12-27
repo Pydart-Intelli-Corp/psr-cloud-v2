@@ -91,26 +91,42 @@ export async function POST(request: NextRequest) {
 
     // Generate tokens
     const tokenPayload = { 
-      userId: adminUser.id,
-      username: adminUser.username,
+      id: adminUser.id,  // Use 'id' instead of 'userId' to match JWTPayload interface
+      uid: 'super-admin',
+      email: adminUser.email,
       role: adminUser.role,
+      dbKey: 'master',
       type: 'admin'
     };
 
     const refreshTokenPayload = { 
-      userId: adminUser.id,
-      username: adminUser.username,
+      id: adminUser.id,  // Use 'id' instead of 'userId' 
+      uid: 'super-admin',
+      email: adminUser.email,
       type: 'admin_refresh'
     };
 
-    // Generate JWT tokens (simplified for now to avoid TypeScript issues)
-    const token = jwt.sign(tokenPayload, jwtSecret as string, { expiresIn: '7d' });
-    const refreshToken = jwt.sign(refreshTokenPayload, jwtRefreshSecret as string, { expiresIn: '30d' });
+    // Generate JWT tokens with proper options
+    const jwtOptions = {
+      expiresIn: '7d',
+      issuer: 'poornasree-equipments-cloud',
+      audience: 'psr-client'
+    };
+    
+    const refreshJwtOptions = {
+      expiresIn: '30d',
+      issuer: 'poornasree-equipments-cloud',
+      audience: 'psr-client'
+    };
+    
+    const token = jwt.sign(tokenPayload, jwtSecret as string, jwtOptions);
+    const refreshToken = jwt.sign(refreshTokenPayload, jwtRefreshSecret as string, refreshJwtOptions);
 
     // Log successful login
     console.log(`Super admin login successful: ${username} at ${new Date().toISOString()}`);
 
-    return NextResponse.json({
+    // Create response with cookies for middleware compatibility
+    const response = NextResponse.json({
       success: true,
       message: 'Login successful',
       data: {
@@ -119,6 +135,23 @@ export async function POST(request: NextRequest) {
         refreshToken
       }
     });
+
+    // Set HTTP-only cookies for middleware authentication
+    response.cookies.set('authToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    response.cookies.set('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+
+    return response;
 
   } catch (error) {
     console.error('Admin login error:', error);

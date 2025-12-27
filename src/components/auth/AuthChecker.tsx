@@ -16,6 +16,7 @@ const publicRoutes = [
   '/splash',
   '/color-system',
   '/diagnostic',
+  '/superadmin',
 ];
 
 export default function AuthChecker({ children }: { children: React.ReactNode }) {
@@ -38,7 +39,11 @@ export default function AuthChecker({ children }: { children: React.ReactNode })
 
     // Check if user has valid token
     const checkAuth = async () => {
-      const token = localStorage.getItem('authToken');
+      // Check for both regular and admin tokens
+      let token = localStorage.getItem('authToken');
+      if (!token) {
+        token = localStorage.getItem('adminToken');
+      }
       
       if (!token) {
         console.log('🔒 AuthChecker: No token in localStorage, redirecting to login');
@@ -65,6 +70,10 @@ export default function AuthChecker({ children }: { children: React.ReactNode })
           localStorage.removeItem('authToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('userData');
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('adminRefreshToken');
+          localStorage.removeItem('adminUser');
+          localStorage.removeItem('userRole');
           setIsChecking(false);
           router.push('/login');
         } else {

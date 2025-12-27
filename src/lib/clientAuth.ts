@@ -15,7 +15,15 @@ interface UserData {
  */
 export async function verifyUserSession(): Promise<{ isValid: boolean; user?: UserData }> {
   try {
-    const token = localStorage.getItem('authToken');
+    // Check for both regular and admin tokens
+    let token = localStorage.getItem('authToken');
+    let userData = localStorage.getItem('userData');
+    
+    // Fallback to admin token if regular token not found
+    if (!token) {
+      token = localStorage.getItem('adminToken');
+      userData = localStorage.getItem('adminUser');
+    }
     
     if (!token) {
       console.log('🔍 verifyUserSession: No token found');
@@ -40,6 +48,10 @@ export async function verifyUserSession(): Promise<{ isValid: boolean; user?: Us
       if (data.success && data.data && data.data.user) {
         // Update localStorage with fresh user data
         localStorage.setItem('userData', JSON.stringify(data.data.user));
+        // Also update admin storage if this is an admin user
+        if (data.data.user.role === 'super_admin' || data.data.user.role === 'admin') {
+          localStorage.setItem('adminUser', JSON.stringify(data.data.user));
+        }
         console.log('✅ verifyUserSession: Session valid, user:', data.data.user);
         return { isValid: true, user: data.data.user };
       }
@@ -49,11 +61,19 @@ export async function verifyUserSession(): Promise<{ isValid: boolean; user?: Us
     console.log('❌ verifyUserSession: Session invalid, clearing storage');
     localStorage.removeItem('authToken');
     localStorage.removeItem('userData');
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminRefreshToken');
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('userRole');
     return { isValid: false };
   } catch (error) {
     console.error('❌ verifyUserSession: Session verification failed:', error);
     localStorage.removeItem('authToken');
     localStorage.removeItem('userData');
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminRefreshToken');
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('userRole');
     return { isValid: false };
   }
 }

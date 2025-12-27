@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Shield, Eye, EyeOff, AlertCircle, CheckCircle, Settings, Lock, Mail, Milk } from 'lucide-react';
 import Link from 'next/link';
 import { FlowerSpinner } from '@/components';
-import { checkAuthAndRedirect, getDashboardRoute } from '@/lib/clientAuth';
+import { getDashboardRoute } from '@/lib/clientAuth';
 
 // Custom CSS to force text visibility
 const inputStyle = `
@@ -109,8 +109,9 @@ const AdminLoginPage = () => {
 
   // Check if already logged in as admin
   useEffect(() => {
-    // Check if user has valid session and redirect to dashboard if so
-    checkAuthAndRedirect(router).catch(console.error);
+    // Don't auto-redirect on superadmin page - allow manual superadmin login
+    // even if user is logged in with a different role
+    console.log('SuperAdmin page loaded - allowing manual login');
   }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,7 +145,11 @@ const AdminLoginPage = () => {
           return;
         }
 
-        // Store tokens and user info
+        // Store tokens and user info using consistent keys
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('userData', JSON.stringify(user));
+        // Keep admin-specific keys for backward compatibility
         localStorage.setItem('adminToken', token);
         localStorage.setItem('adminRefreshToken', refreshToken);
         localStorage.setItem('userRole', user.role);
