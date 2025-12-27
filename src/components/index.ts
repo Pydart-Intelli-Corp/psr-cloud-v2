@@ -15,6 +15,7 @@ export { default as LoadingDemo } from './loading/LoadingDemo';
 export { default as LoadingOverlay } from './loading/LoadingOverlay';
 export { default as PageLoading } from './loading/PageLoading';
 export { LoadingProvider, useLoading } from './loading/LoadingProvider';
+export { PageLoader } from './common/PageLoader';
 
 // Page Components
 export { default as LandingPage } from './pages/LandingPage';

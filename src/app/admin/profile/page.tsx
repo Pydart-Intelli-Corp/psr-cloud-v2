@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useUser } from '@/contexts/UserContext';
-import { FlowerSpinner } from '@/components';
+import { PageLoader, FlowerSpinner } from '@/components';
 import { 
   User, 
   Mail, 
@@ -192,20 +192,11 @@ export default function AdminProfile() {
   };
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <FlowerSpinner />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <FlowerSpinner size={32} />
-        <span className="ml-4 text-gray-600 dark:text-gray-400">Loading profile...</span>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!currentUser) {

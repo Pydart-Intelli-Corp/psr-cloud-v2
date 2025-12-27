@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useUser } from '@/contexts/UserContext';
 import EntityManager from '@/components/management/EntityManager';
 import { Building2, Milk, Users, BarChart3, TrendingUp, Calendar } from 'lucide-react';
-import { FlowerSpinner } from '@/components';
+import { FlowerSpinner, PageLoader } from '@/components';
 
 type TabType = 'overview' | 'dairy' | 'bmc' | 'society';
 
@@ -65,11 +65,7 @@ export default function AdminDashboard() {
   const { user } = useUser();
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <FlowerSpinner />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   const renderTabContent = () => {

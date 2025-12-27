@@ -34,7 +34,7 @@ export const en = {
 
   // Navigation
   nav: {
-    dashboard: 'Dashboard',
+    dashboard: 'Overview',
     analytics: 'Analytics',
     userManagement: 'User Management',
     dairyManagement: 'Dairy Management',

@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { QueryProvider } from "@/contexts/QueryProvider";
+import AuthChecker from "@/components/auth/AuthChecker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,7 +49,9 @@ export default function RootLayout({
         <QueryProvider>
           <ThemeProvider>
             <LanguageProvider>
-              {children}
+              <AuthChecker>
+                {children}
+              </AuthChecker>
             </LanguageProvider>
           </ThemeProvider>
         </QueryProvider>

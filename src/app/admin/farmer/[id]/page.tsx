@@ -32,7 +32,7 @@ import FormSelect from '@/components/forms/FormSelect';
 import FormTextarea from '@/components/forms/FormTextarea';
 
 import FormGrid from '@/components/forms/FormGrid';
-import { LoadingOverlay } from '@/components';
+import { LoadingOverlay, PageLoader } from '@/components';
 import StatusDropdown from '@/components/management/StatusDropdown';
 import StatusMessage from '@/components/management/StatusMessage';
 import { ConfirmDeleteModal } from '@/components/management';
@@ -476,7 +476,7 @@ const FarmerDetails = () => {
   ];
 
   if (loading) {
-    return <LoadingOverlay isLoading={true} />;
+    return <PageLoader />;
   }
 
   if (!farmer) {

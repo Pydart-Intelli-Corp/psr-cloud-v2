@@ -34,6 +34,7 @@ import {
   X
 } from 'lucide-react';
 import { 
+  PageLoader,
   FlowerSpinner, 
   LoadingSpinner,
   FormModal, 
@@ -866,11 +867,7 @@ export default function SocietyManagement() {
 
   // Don't render until user is loaded from context
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <FlowerSpinner size={48} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

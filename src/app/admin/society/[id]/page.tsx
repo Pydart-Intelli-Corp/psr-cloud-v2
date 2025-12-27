@@ -14,6 +14,7 @@ import { validateEmailOnBlur, formatEmailInput } from '@/lib/validation/emailVal
 import { validateEmailQuick } from '@/lib/emailValidation';
 import { 
   LoadingSpinner, 
+  PageLoader,
   EmptyState,
   StatusMessage,
   FormInput,
@@ -555,7 +556,7 @@ export default function SocietyDetails() {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PageLoader />;
   }
 
   if (error || !data) {

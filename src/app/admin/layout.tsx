@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserProvider, useUser } from '@/contexts/UserContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { FlowerSpinner } from '@/components';
+import { PageLoader } from '@/components';
 import { UserRole } from '@/types/user';
 
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
@@ -21,14 +21,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   }, [user, loading, router]);
 
   if (loading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50">
-        <div className="text-center">
-          <FlowerSpinner size={64} />
-          <p className="mt-4 text-gray-600">Loading your workspace...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!user) {

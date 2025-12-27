@@ -15,7 +15,7 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import StatsCard from '@/components/management/StatsCard';
-import { FlowerSpinner } from '@/components';
+import { FlowerSpinner, PageLoader } from '@/components';
 import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } from '@/components/management';
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
 import EmailReportModal from '@/components/dialogs/EmailReportModal';
@@ -1158,11 +1158,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <FlowerSpinner size={48} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

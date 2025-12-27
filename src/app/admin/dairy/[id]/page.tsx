@@ -31,6 +31,7 @@ import {
 import { 
   FlowerSpinner,
   LoadingSpinner,
+  PageLoader,
   StatusMessage,
   EmptyState,
   FormInput,
@@ -583,7 +584,7 @@ export default function DairyDetails() {
   }
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PageLoader />;
   }
 
   if (error || !dairyData) {

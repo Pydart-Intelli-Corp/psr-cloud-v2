@@ -58,16 +58,20 @@ export async function POST(request: NextRequest) {
       response.cookies.set('authToken', tokens.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 // 7 days
       });
 
       response.cookies.set('refreshToken', tokens.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
+        path: '/',
         maxAge: 30 * 24 * 60 * 60 // 30 days
       });
+
+      console.log('✅ Super Admin Login: Cookies set successfully');
 
       return response;
     }
@@ -146,16 +150,20 @@ export async function POST(request: NextRequest) {
     response.cookies.set('authToken', tokens.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax', // Changed from 'strict' to 'lax' for better compatibility
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 // 7 days
     });
 
     response.cookies.set('refreshToken', tokens.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
+      path: '/',
       maxAge: 30 * 24 * 60 * 60 // 30 days
     });
+
+    console.log('✅ Login: Cookies set successfully');
 
     return response;
 

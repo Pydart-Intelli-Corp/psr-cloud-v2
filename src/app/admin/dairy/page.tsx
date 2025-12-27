@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useEntityData } from '@/hooks/useEntityData';
 import { formatPhoneInput, validatePhoneOnBlur } from '@/lib/validation/phoneValidation';
 import { validateEmailQuick } from '@/lib/emailValidation';
 import {
@@ -38,6 +39,7 @@ import {
   X
 } from 'lucide-react';
 import { 
+  PageLoader,
   FlowerSpinner, 
   LoadingSpinner,
   FormModal, 
@@ -132,9 +134,10 @@ export default function DairyManagement() {
   const { user } = useUser();
   const { t } = useLanguage();
   
+  // Use React Query for cached data fetching (lightweight for list, full for details)
+  const { data: dairiesData, isLoading: isDairiesLoading, isError: isDairiesError, error: dairiesError, refetch: refetchDairies } = useEntityData<Dairy[]>('dairy', false); // Use full endpoint with stats
+  
   // State management
-  const [dairies, setDairies] = useState<Dairy[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -162,42 +165,21 @@ export default function DairyManagement() {
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
 
-
-  // Fetch dairies
-  const fetchDairies = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await fetch('/api/user/dairy', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          localStorage.removeItem('authToken');
-          router.push('/login');
-          return;
-        }
-        throw new Error('Failed to fetch dairies');
-      }
-
-      const result = await response.json();
-      setDairies(result.data || []);
-    } catch (error) {
-      console.error('Error fetching dairies:', error);
-      setError('Failed to load dairy data');
-    } finally {
-      setLoading(false);
+  // Derive data from React Query
+  const dairies = dairiesData || [];
+  const loading = isDairiesLoading;
+  
+  // Set error from React Query
+  useEffect(() => {
+    if (isDairiesError && dairiesError) {
+      setError(dairiesError.message || 'Failed to load dairy data');
     }
-  }, [router]);
+  }, [isDairiesError, dairiesError]);
+
+  // Fetch dairies - now using React Query cache (instant from cache!)
+  const fetchDairies = useCallback(async () => {
+    await refetchDairies();
+  }, [refetchDairies]);
 
   // Add new dairy
   const handleAddDairy = async (e: React.FormEvent) => {
@@ -594,11 +576,7 @@ export default function DairyManagement() {
 
   // Don't render until user is loaded from context
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <FlowerSpinner />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

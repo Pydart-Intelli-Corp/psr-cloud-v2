@@ -3,16 +3,31 @@ import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
 import { verifyToken } from '@/lib/auth';
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle preflight requests
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      return createErrorResponse('Authentication required', 401);
+      return createErrorResponse('Authentication required', 401, undefined, corsHeaders);
     }
 
     const payload = verifyToken(token);
     if (!payload || !payload.entityType) {
-      return createErrorResponse('Invalid authentication token', 401);
+      return createErrorResponse('Invalid authentication token', 401, undefined, corsHeaders);
     }
 
     await connectDB();
@@ -174,15 +189,15 @@ export async function GET(request: NextRequest) {
 
       console.log(`✅ Dashboard data fetched for ${entityType}: ${payload.uid}`);
 
-      return createSuccessResponse('Dashboard data retrieved successfully', dashboardData);
+      return createSuccessResponse('Dashboard data retrieved successfully', dashboardData, 200, corsHeaders);
 
     } catch (queryError) {
       console.error('Database query error:', queryError);
-      return createErrorResponse('Failed to fetch dashboard data', 500);
+      return createErrorResponse('Failed to fetch dashboard data', 500, undefined, corsHeaders);
     }
 
   } catch (error: unknown) {
     console.error('Error fetching dashboard:', error);
-    return createErrorResponse('Failed to fetch dashboard data', 500);
+    return createErrorResponse('Failed to fetch dashboard data', 500, undefined, corsHeaders);
   }
 }

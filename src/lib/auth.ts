@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import { UserRole } from '@/models/User';
 
 // JWT configuration
@@ -13,7 +12,7 @@ export interface JWTPayload {
   email: string;
   role: UserRole | string; // Allow string for external auth entity types
   dbKey?: string;
-  entityType?: 'society' | 'farmer' | 'dairy' | 'bmc'; // For external auth
+  entityType?: 'society' | 'farmer' | 'dairy' | 'bmc' | 'admin'; // For external auth
   schemaName?: string; // For external auth
 }
 
@@ -74,7 +73,16 @@ export const verifyRefreshToken = (token: string): JWTPayload | null => {
 
 // Generate random token
 export const generateRandomToken = (length: number = 32): string => {
-  return crypto.randomBytes(length).toString('hex');
+  const array = new Uint8Array(length);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(array);
+  } else {
+    // Fallback for environments without crypto
+    for (let i = 0; i < length; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 };
 
 // Generate OTP
@@ -87,9 +95,16 @@ export const generateOTP = (length: number = 6): string => {
   return otp;
 };
 
-// Hash token for database storage
+// Hash token for database storage (simple hash for edge compatibility)
 export const hashToken = (token: string): string => {
-  return crypto.createHash('sha256').update(token).digest('hex');
+  // Simple hash function for edge runtime compatibility
+  let hash = 0;
+  for (let i = 0; i < token.length; i++) {
+    const char = token.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
 };
 
 // Role hierarchy checker
@@ -174,7 +189,7 @@ export const validatePassword = (password: string): {
 
 // Generate secure session ID
 export const generateSessionId = (): string => {
-  return crypto.randomBytes(64).toString('hex');
+  return generateRandomToken(64);
 };
 
 const authUtils = {

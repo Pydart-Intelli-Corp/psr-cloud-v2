@@ -40,6 +40,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { 
+  PageLoader,
   FlowerSpinner, 
   LoadingSpinner,
   FormModal, 
@@ -662,11 +663,7 @@ export default function BMCManagement() {
   }, [searchParams, dairies]);
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <FlowerSpinner />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

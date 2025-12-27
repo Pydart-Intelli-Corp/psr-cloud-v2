@@ -21,7 +21,7 @@ import {
   Plus,
   Radio
 } from 'lucide-react';
-import { FlowerSpinner, MachineManager } from '@/components';
+import { PageLoader, FlowerSpinner, MachineManager } from '@/components';
 
 interface User {
   id: number;

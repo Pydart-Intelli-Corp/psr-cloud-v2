@@ -36,7 +36,7 @@ export const hi: TranslationKeys = {
 
   // नेविगेशन
   nav: {
-    dashboard: 'डैशबोर्ड',
+    dashboard: 'अवलोकन',
     analytics: 'विश्लेषण',
     userManagement: 'उपयोगकर्ता प्रबंधन',
     dairyManagement: 'डेयरी प्रबंधन',

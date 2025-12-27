@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Droplet, Truck, DollarSign } from 'lucide-react';
+import { PageLoader } from '@/components';
 import CollectionReports from '@/components/reports/CollectionReports';
 import DispatchReports from '@/components/reports/DispatchReports';
 import SalesReports from '@/components/reports/SalesReports';
@@ -191,11 +192,7 @@ function ReportsPage() {
 // Wrapper component with Suspense boundary for useSearchParams
 export default function ReportsPageWrapper() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-      </div>
-    }>
+    <Suspense fallback={<PageLoader />}>
       <ReportsPage />
     </Suspense>
   );

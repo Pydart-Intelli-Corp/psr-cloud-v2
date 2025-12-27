@@ -35,6 +35,7 @@ import {
 import { 
   FlowerSpinner,
   LoadingSpinner,
+  PageLoader,
   StatusMessage,
   EmptyState,
   ConfirmDeleteModal,
@@ -1205,7 +1206,7 @@ export default function MachineDetails() {
   }
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PageLoader />;
   }
 
   if (error || !machine) {

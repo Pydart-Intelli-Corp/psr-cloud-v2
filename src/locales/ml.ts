@@ -36,7 +36,7 @@ export const ml: TranslationKeys = {
 
   // നാവിഗേഷൻ
   nav: {
-    dashboard: 'ഡാഷ്‌ബോർഡ്',
+    dashboard: 'അവലോകനം',
     analytics: 'വിശകലനം',
     userManagement: 'ഉപയോക്തൃ മാനേജ്‌മെന്റ്',
     dairyManagement: 'ഡയറി മാനേജ്‌മെന്റ്',

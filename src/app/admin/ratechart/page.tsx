@@ -6,6 +6,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Receipt, Trash2, Eye, FileText, Upload } from 'lucide-react';
 import { 
+  PageLoader,
   FlowerSpinner,
   StatusMessage,
   StatsCard,
@@ -833,11 +834,7 @@ export default function RatechartManagement() {
   const mixCharts = allMasterCharts.filter(c => c.channel === 'MIX').length;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <FlowerSpinner size={48} isLoading={true} />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

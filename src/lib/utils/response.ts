@@ -10,7 +10,8 @@ export interface ApiResponse<T = unknown> {
 export function createSuccessResponse<T = unknown>(
   message: string,
   data?: T,
-  status: number = 200
+  status: number = 200,
+  headers?: Record<string, string>
 ): NextResponse<ApiResponse<T>> {
   return NextResponse.json(
     {
@@ -18,14 +19,15 @@ export function createSuccessResponse<T = unknown>(
       message,
       data,
     },
-    { status }
+    { status, headers }
   );
 }
 
 export function createErrorResponse<T = unknown>(
   error: string,
   status: number = 400,
-  data?: T
+  data?: T,
+  headers?: Record<string, string>
 ): NextResponse<ApiResponse<T>> {
   return NextResponse.json(
     {
@@ -34,7 +36,7 @@ export function createErrorResponse<T = unknown>(
       error,
       data,
     },
-    { status }
+    { status, headers }
   );
 }
 
