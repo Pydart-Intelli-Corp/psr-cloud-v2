@@ -18,7 +18,11 @@
     "db:init": "tsx scripts/migrate.mjs init",
     "db:status": "tsx scripts/migrate.mjs migrate status",
     "migration:up": "tsx scripts/migrate.mjs migrate up",
-    "migration:down": "tsx scripts/migrate.mjs migrate down"
+    "migration:down": "tsx scripts/migrate.mjs migrate down",
+    "db:backup": "node scripts/backup-database.js",
+    "db:reset-all": "node scripts/reset-database.js",
+    "db:indexes": "node scripts/add-admin-schema-indexes.js",
+    "db:check": "node scripts/check-database-state.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

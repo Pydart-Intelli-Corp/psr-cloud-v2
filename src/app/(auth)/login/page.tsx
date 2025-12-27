@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, AlertCircle, CheckCircle, Mail, Lock } from 'lucide-react';
 import EmailVerificationPrompt from '@/components/auth/EmailVerificationPrompt';
 import { FlowerSpinner } from '@/components';
-import { checkAuthAndRedirect, getDashboardRoute } from '@/lib/clientAuth';
+import { checkAuthAndRedirect, getDashboardRoute, verifyUserSession } from '@/lib/clientAuth';
 
 // Custom CSS to force text visibility and styling
 const inputStyle = `
@@ -127,6 +127,7 @@ const LoginPage = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [showEmailVerificationPrompt, setShowEmailVerificationPrompt] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
+  const [currentUser, setCurrentUser] = useState<{ fullName: string; role: string; email: string } | null>(null);
 
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
@@ -151,19 +152,28 @@ const LoginPage = () => {
     };
   }, []);
 
-  // Check if already logged in - Only redirect if user session is valid in database
+  // Check if already logged in - Allow access to login page without auto-redirect
   useEffect(() => {
     console.log('🔍 Login useEffect: Checking user session validity');
     
-    // Check if user has valid session in database and redirect accordingly
-    checkAuthAndRedirect(router).then((redirected) => {
-      if (redirected) {
-        console.log('✅ Login: User has valid session, redirected to dashboard');
+    // Check if user has valid session but DON'T auto-redirect
+    // This allows users to access login page even if they're already logged in
+    verifyUserSession().then(({ isValid, user }) => {
+      if (isValid && user) {
+        console.log('ℹ️ Login: User has valid session but staying on login page for independent access');
+        // Store current user info to show notification
+        setCurrentUser({
+          fullName: user.fullName,
+          role: user.role,
+          email: user.email
+        });
       } else {
         console.log('ℹ️ Login: No valid session found, staying on login page');
+        setCurrentUser(null);
       }
     }).catch((error) => {
       console.error('❌ Login: Session verification failed:', error);
+      setCurrentUser(null);
     });
   }, [router]);
 
@@ -429,6 +439,34 @@ const LoginPage = () => {
                   <span className="text-sm text-gray-700 font-medium">User Login</span>
                 </div>
               </div>
+
+              {/* Current User Notification */}
+              {currentUser && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 flex items-start space-x-3 rounded-xl p-4 bg-blue-50 border border-blue-200"
+                >
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-blue-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-800">
+                      Already logged in as <strong>{currentUser.fullName}</strong> ({currentUser.role})
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      You can continue to login with different credentials or{' '}
+                      <button
+                        onClick={() => {
+                          const dashboardRoute = getDashboardRoute(currentUser.role);
+                          router.push(dashboardRoute);
+                        }}
+                        className="font-medium hover:underline focus:outline-none"
+                      >
+                        go to your dashboard
+                      </button>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Email Field */}

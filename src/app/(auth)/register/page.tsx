@@ -7,7 +7,7 @@ import { Eye, EyeOff, Mail, Lock, User, MapPin, AlertCircle, CheckCircle, Buildi
 import Link from 'next/link';
 import { lookupPincode } from '@/lib/pincodeService';
 import { FlowerSpinner } from '@/components';
-import { checkAuthAndRedirect } from '@/lib/clientAuth';
+import { checkAuthAndRedirect, verifyUserSession, getDashboardRoute } from '@/lib/clientAuth';
 
 // Custom CSS to force text visibility and styling (matching login form)
 const inputStyle = `
@@ -96,6 +96,7 @@ export default function RegisterPage() {
   // Form completion state
   const [canShowFullForm, setCanShowFullForm] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ fullName: string; role: string; email: string } | null>(null);
 
   // Inject styles and set document title
   useEffect(() => {
@@ -112,9 +113,29 @@ export default function RegisterPage() {
     };
   }, []);
 
-  // Check if already logged in - Only redirect if user session is valid in database
+  // Check if already logged in - Allow access to register page without auto-redirect
   useEffect(() => {
-    checkAuthAndRedirect(router).catch(console.error);
+    console.log('🔍 Register useEffect: Checking user session validity');
+    
+    // Check if user has valid session but DON'T auto-redirect
+    // This allows users to access register page even if they're already logged in
+    verifyUserSession().then(({ isValid, user }) => {
+      if (isValid && user) {
+        console.log('ℹ️ Register: User has valid session but staying on register page for independent access');
+        // Store current user info to show notification
+        setCurrentUser({
+          fullName: user.fullName,
+          role: user.role,
+          email: user.email
+        });
+      } else {
+        console.log('ℹ️ Register: No valid session found, staying on register page');
+        setCurrentUser(null);
+      }
+    }).catch((error) => {
+      console.error('❌ Register: Session verification failed:', error);
+      setCurrentUser(null);
+    });
   }, [router]);
 
   // Email validation function
@@ -485,6 +506,34 @@ export default function RegisterPage() {
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Registration</h1>
               <p className="text-gray-600">Create your admin account</p>
             </div>
+
+        {/* Current User Notification */}
+        {currentUser && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 flex items-start space-x-3 rounded-xl p-4 bg-blue-50 border border-blue-200"
+          >
+            <AlertCircle className="h-5 w-5 flex-shrink-0 text-blue-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-800">
+                Already logged in as <strong>{currentUser.fullName}</strong> ({currentUser.role})
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                You can continue to register a new admin account or{' '}
+                <button
+                  onClick={() => {
+                    const dashboardRoute = getDashboardRoute(currentUser.role);
+                    router.push(dashboardRoute);
+                  }}
+                  className="font-medium hover:underline focus:outline-none"
+                >
+                  go to your dashboard
+                </button>
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Error Display */}
         {error && (

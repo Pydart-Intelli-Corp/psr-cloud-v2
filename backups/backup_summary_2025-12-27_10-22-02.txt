@@ -1,0 +1,17 @@
+PSR Cloud V2 Database Backup Summary
+=====================================
+
+Backup Date: 27/12/2025, 3:52:03 pm
+Total Files: 1
+Total Size: 0.02 MB
+
+Files:
+- psr_v4_main_2025-12-27_10-22-02.sql
+
+Database Configuration:
+- Host: 168.231.121.19
+- Port: 3306
+- Database: psr_v4_main
+- User: psr_admin
+
+Backup Location: P:\psr-cloud-v2\backups
