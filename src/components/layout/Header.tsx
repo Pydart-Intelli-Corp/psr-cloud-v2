@@ -33,6 +33,7 @@ interface HeaderProps {
     lastName: string;
     email: string;
     role: UserRole;
+    dbKey?: string;
   };
   onLogout: () => void;
   onSearch?: (query: string) => void;
@@ -349,8 +350,8 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 flex items-center justify-between shadow-sm">
-      {/* Search Bar - Hidden on mobile and on analytics page */}
-      {!pathname?.includes('/analytics') ? (
+      {/* Search Bar - Hidden on mobile, dashboard, and analytics pages */}
+      {!pathname?.includes('/analytics') && !pathname?.includes('/dashboard') ? (
         <div className="hidden lg:flex items-center space-x-4 flex-1 max-w-2xl">
           <div className="flex-1 max-w-md">
           <form onSubmit={handleSearch} className="relative">
@@ -383,6 +384,21 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
 
       {/* Right Side Actions */}
       <div className="flex items-center space-x-2 sm:space-x-4">
+        {/* DB Key Badge - Admin only */}
+        {user.role === UserRole.ADMIN && user.dbKey && (
+          <div className="hidden lg:flex items-center px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-700 rounded-lg shadow-sm">
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-center w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded-md">
+                <span className="text-white text-xs font-bold">DB</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium leading-tight">Database Key</span>
+                <span className="text-sm font-bold text-green-700 dark:text-green-400 leading-tight tracking-wide">{user.dbKey}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Theme Toggle - Desktop only */}
         <div className="hidden lg:block">
           <ThemeToggle />
@@ -639,9 +655,16 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
                           {user.firstName} {user.lastName}
                         </p>
                         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user.email}</p>
-                        <span className={`inline-block px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium text-white rounded-full bg-gradient-to-r ${roleColors[user.role]} mt-1`}>
-                          {getRoleDisplayName(user.role)}
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`inline-block px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium text-white rounded-full bg-gradient-to-r ${roleColors[user.role]}`}>
+                            {getRoleDisplayName(user.role)}
+                          </span>
+                          {user.role === UserRole.ADMIN && user.dbKey && (
+                            <span className="inline-flex items-center px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-full">
+                              DB: {user.dbKey}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

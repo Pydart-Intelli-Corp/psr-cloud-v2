@@ -36,7 +36,8 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
         firstName: user.fullName.split(' ')[0] || user.fullName,
         lastName: user.fullName.split(' ').slice(1).join(' ') || '',
         email: user.email,
-        role: user.role
+        role: user.role,
+        dbKey: user.dbKey
       }}
     >
       {children}

@@ -14,6 +14,7 @@ interface DashboardLayoutProps {
     lastName: string;
     email: string;
     role: UserRole;
+    dbKey?: string;
   };
 }
 
