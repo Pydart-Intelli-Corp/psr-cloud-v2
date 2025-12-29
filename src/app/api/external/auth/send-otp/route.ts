@@ -60,15 +60,17 @@ async function findEntityByEmail(email: string): Promise<{
     };
   }
   
-  // Get all admin schemas
+  // Get all admin schemas - match format: {name}_{dbKey} where dbKey is 3 letters + 4 digits (lowercase)
   const [schemas] = await sequelize.query(`
     SELECT DISTINCT TABLE_SCHEMA 
     FROM information_schema.TABLES 
-    WHERE (TABLE_SCHEMA LIKE 'db_%' OR TABLE_SCHEMA LIKE 'tester_%' OR TABLE_SCHEMA LIKE 'tishnu_%') 
+    WHERE TABLE_SCHEMA REGEXP '^[a-z0-9]+_[a-z]{3}[0-9]{4}$'
+      AND TABLE_NAME IN ('dairy_farms', 'bmcs', 'societies', 'farmers')
     ORDER BY TABLE_SCHEMA
   `);
   
   const adminSchemas = (schemas as Array<{ TABLE_SCHEMA: string }>).map(s => s.TABLE_SCHEMA);
+  console.log(`🔍 Found ${adminSchemas.length} admin schemas:`, adminSchemas);
   
   // Get admin info for each schema
   const [allAdmins] = await sequelize.query(`
@@ -99,8 +101,9 @@ async function findEntityByEmail(email: string): Promise<{
         const society = societies[0] as any;
         try {
           const [extras] = await sequelize.query(`
-            SELECT b.name as bmc_name
+            SELECT b.name as bmc_name, b.dairy_farm_id as dairy_id, d.name as dairy_name
             FROM \`${schema}\`.bmcs b
+            LEFT JOIN \`${schema}\`.dairy_farms d ON b.dairy_farm_id = d.id
             WHERE b.id = ?
           `, { replacements: [society.bmc_id] });
           if (Array.isArray(extras) && extras.length > 0) Object.assign(society, extras[0]);
@@ -127,9 +130,10 @@ async function findEntityByEmail(email: string): Promise<{
         try {
           const [extras] = await sequelize.query(`
             SELECT s.name as society_name, s.society_id as society_identifier,
-                   b.name as bmc_name
+                   b.name as bmc_name, b.dairy_farm_id as dairy_id, d.name as dairy_name
             FROM \`${schema}\`.societies s
             LEFT JOIN \`${schema}\`.bmcs b ON s.bmc_id = b.id
+            LEFT JOIN \`${schema}\`.dairy_farms d ON b.dairy_farm_id = d.id
             WHERE s.id = ?
           `, { replacements: [farmer.society_id] });
           if (Array.isArray(extras) && extras.length > 0) Object.assign(farmer, extras[0]);
@@ -146,14 +150,22 @@ async function findEntityByEmail(email: string): Promise<{
       
       // Check BMCs
       const [bmcs] = await sequelize.query(`
-        SELECT b.id, b.name, b.bmc_id, b.email, b.location, b.status
+        SELECT b.id, b.name, b.bmc_id, b.email, b.location, b.status, b.dairy_farm_id
         FROM \`${schema}\`.bmcs b
         WHERE b.email = ?
       `, { replacements: [email.trim().toLowerCase()] });
       
       if (Array.isArray(bmcs) && bmcs.length > 0) {
         const bmc = bmcs[0] as any;
-        // BMC table doesn't have dairy_id column in current schema
+        try {
+          const [extras] = await sequelize.query(`
+            SELECT d.name as dairy_name, d.dairy_id as dairy_identifier, d.id as dairy_id
+            FROM \`${schema}\`.dairy_farms d
+            WHERE d.id = ?
+          `, { replacements: [bmc.dairy_farm_id] });
+          if (Array.isArray(extras) && extras.length > 0) Object.assign(bmc, extras[0]);
+        } catch (e) { /* Ignore missing tables */ }
+        
         return {
           found: true,
           entityType: 'bmc',
