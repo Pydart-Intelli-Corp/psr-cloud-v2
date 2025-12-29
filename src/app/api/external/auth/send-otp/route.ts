@@ -235,6 +235,9 @@ export async function POST(request: NextRequest) {
     const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
+    // Debug: Log the generated OTP
+    console.log(`🔐 DEBUG - Generated OTP for ${email}: ${otp} (expires in 10 minutes)`);
+
     // Store OTP in a temporary session storage (you might want to use Redis in production)
     // For now, using a simple in-memory store
     global.otpStore = global.otpStore || new Map();
