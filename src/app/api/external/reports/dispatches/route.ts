@@ -56,14 +56,14 @@ export async function GET(request: NextRequest) {
           d.channel,
           d.rate_per_liter,
           d.total_amount,
+          d.machine_id,
           d.machine_type,
           d.machine_version,
           d.created_at,
-          s.name as society_name,
-          m.machine_id as machine_number
+          d.society_id,
+          s.name as society_name
         FROM \`${schemaName}\`.milk_dispatches d
         LEFT JOIN \`${schemaName}\`.societies s ON d.society_id = s.id
-        LEFT JOIN \`${schemaName}\`.machines m ON d.machine_id = m.machine_id
         WHERE d.society_id = ?
         ORDER BY d.dispatch_date DESC, d.dispatch_time DESC, d.created_at DESC
         LIMIT ? OFFSET ?

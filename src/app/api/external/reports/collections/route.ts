@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
           mc.collection_date,
           mc.collection_time,
           mc.machine_id,
-          m.machine_type,
+          mc.machine_type,
           mc.shift_type,
           mc.channel,
           mc.quantity,
@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
         FROM \`${schemaName}\`.milk_collections mc
         LEFT JOIN \`${schemaName}\`.farmers f ON mc.farmer_id = f.id
         LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
-        LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.machine_id
         WHERE mc.society_id = ?
         ORDER BY mc.collection_date DESC, mc.collection_time DESC
         LIMIT ? OFFSET ?
