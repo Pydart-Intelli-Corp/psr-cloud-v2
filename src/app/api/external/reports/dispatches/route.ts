@@ -56,14 +56,21 @@ export async function GET(request: NextRequest) {
           d.channel,
           d.rate_per_liter,
           d.total_amount,
-          d.machine_id,
           d.machine_type,
           d.machine_version,
           d.created_at,
-          d.society_id,
-          s.name as society_name
+          s.society_id,
+          s.name as society_name,
+          s.bmc_id,
+          b.name as bmc_name,
+          b.dairy_farm_id as dairy_id,
+          df.name as dairy_name,
+          m.machine_id
         FROM \`${schemaName}\`.milk_dispatches d
         LEFT JOIN \`${schemaName}\`.societies s ON d.society_id = s.id
+        LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+        LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+        LEFT JOIN \`${schemaName}\`.machines m ON d.machine_id = m.id
         WHERE d.society_id = ?
         ORDER BY d.dispatch_date DESC, d.dispatch_time DESC, d.created_at DESC
         LIMIT ? OFFSET ?

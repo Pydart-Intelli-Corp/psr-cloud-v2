@@ -47,12 +47,15 @@ export async function GET(request: NextRequest) {
           mc.id,
           mc.farmer_id,
           COALESCE(f.name, 'Unknown') as farmer_name,
-          mc.society_id,
+          s.society_id,
           s.name as society_name,
+          s.bmc_id,
+          b.name as bmc_name,
+          b.dairy_farm_id as dairy_id,
+          df.name as dairy_name,
+          m.machine_id,
           mc.collection_date,
           mc.collection_time,
-          mc.machine_id,
-          mc.machine_type,
           mc.shift_type,
           mc.channel,
           mc.quantity,
@@ -67,10 +70,15 @@ export async function GET(request: NextRequest) {
           mc.rate_per_liter,
           mc.bonus,
           mc.total_amount,
+          mc.machine_type,
+          mc.machine_version,
           mc.created_at
         FROM \`${schemaName}\`.milk_collections mc
-        LEFT JOIN \`${schemaName}\`.farmers f ON mc.farmer_id = f.id
+        LEFT JOIN \`${schemaName}\`.farmers f ON mc.farmer_id = f.farmer_id AND f.society_id = mc.society_id
         LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
+        LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+        LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
+        LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
         WHERE mc.society_id = ?
         ORDER BY mc.collection_date DESC, mc.collection_time DESC
         LIMIT ? OFFSET ?
