@@ -13,7 +13,8 @@ import {
   Check,
   X,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 import { FlowerSpinner } from '@/components';
 
@@ -23,6 +24,7 @@ interface Machine {
   description?: string;
   isActive: boolean;
   status?: 'active' | 'inactive' | 'maintenance' | 'suspended';
+  imageUrl?: string;
 }
 
 interface MachineManagerProps {
@@ -38,8 +40,14 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showImageUploadModal, setShowImageUploadModal] = useState(false);
+  const [selectedMachineForImage, setSelectedMachineForImage] = useState<Machine | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUploadLoading, setImageUploadLoading] = useState(false);
   const [openStatusDropdown, setOpenStatusDropdown] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     machineType: '',
@@ -236,6 +244,70 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
     setFormData({ machineType: '', description: '', isActive: true, status: 'active' as 'active' | 'inactive' | 'maintenance' | 'suspended' });
   };
 
+  const handleImageUpload = async () => {
+    if (!imageFile || !selectedMachineForImage) {
+      alert('Please select an image');
+      return;
+    }
+
+    setImageUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      formData.append('machineId', selectedMachineForImage.id.toString());
+
+      const response = await fetch('/api/superadmin/machines/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('Image uploaded successfully!');
+        await fetchMachines();
+        setShowImageUploadModal(false);
+        setSelectedMachineForImage(null);
+        setImageFile(null);
+        setImagePreview(null);
+      } else {
+        alert('Failed to upload image: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Error uploading image. Please try again.');
+    } finally {
+      setImageUploadLoading(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB');
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const openImageUpload = (machine: Machine) => {
+    setSelectedMachineForImage(machine);
+    setShowImageUploadModal(true);
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   const getStatusInfo = (machine: Machine) => {
     const status = machine.status || (machine.isActive ? 'active' : 'inactive');
     switch (status) {
@@ -352,6 +424,9 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Image
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Machine Type
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -368,7 +443,7 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredMachines.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">No machines found</p>
                   </td>
@@ -381,6 +456,28 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
                     animate={{ opacity: 1 }}
                     className="hover:bg-gray-50"
                   >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        {machine.imageUrl ? (
+                          <img 
+                            src={machine.imageUrl} 
+                            alt={machine.machineType}
+                            className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                            <ImageIcon className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => openImageUpload(machine)}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                          title="Upload image"
+                        >
+                          {machine.imageUrl ? 'Change' : 'Upload'}
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900">{machine.machineType}</div>
                     </td>
@@ -634,6 +731,122 @@ const MachineManager: React.FC<MachineManagerProps> = () => {
                     className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors"
                   >
                     Download Template
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Upload Modal */}
+      <AnimatePresence>
+        {showImageUploadModal && selectedMachineForImage && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 50 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 50 }}
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Upload Machine Image</h2>
+                <button
+                  onClick={() => {
+                    setShowImageUploadModal(false);
+                    setSelectedMachineForImage(null);
+                    setImageFile(null);
+                    setImagePreview(null);
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <strong>Machine Type:</strong> {selectedMachineForImage.machineType}
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      className="w-full h-64 object-cover rounded-lg border-2 border-gray-200"
+                    />
+                    <button
+                      onClick={() => {
+                        setImageFile(null);
+                        setImagePreview(null);
+                        if (imageInputRef.current) {
+                          imageInputRef.current.value = '';
+                        }
+                      }}
+                      className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <ImageIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-sm text-gray-600 mb-2">
+                      Click to upload machine image
+                    </p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      PNG, JPG or WEBP (max 5MB)
+                    </p>
+                    
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                    
+                    <button
+                      onClick={() => imageInputRef.current?.click()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Select Image
+                    </button>
+                  </div>
+                )}
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowImageUploadModal(false);
+                      setSelectedMachineForImage(null);
+                      setImageFile(null);
+                      setImagePreview(null);
+                    }}
+                    className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                    disabled={imageUploadLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleImageUpload}
+                    disabled={imageUploadLoading || !imageFile}
+                    className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {imageUploadLoading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Upload Image
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

@@ -5,6 +5,7 @@ export interface MachineAttributes {
   machineType: string;
   description?: string;
   isActive: boolean;
+  imageUrl?: string;
 }
 
 export class Machine extends Model<MachineAttributes> implements MachineAttributes {
@@ -12,6 +13,7 @@ export class Machine extends Model<MachineAttributes> implements MachineAttribut
   public machineType!: string;
   public description?: string;
   public isActive!: boolean;
+  public imageUrl?: string;
 }
 
 export const initMachineModel = (sequelize: Sequelize) => {
@@ -44,6 +46,12 @@ export const initMachineModel = (sequelize: Sequelize) => {
         defaultValue: true,
         field: 'is_active',
         comment: 'Whether this machine type is active'
+      },
+      imageUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        field: 'image_url',
+        comment: 'URL path to machine image'
       }
     },
     {

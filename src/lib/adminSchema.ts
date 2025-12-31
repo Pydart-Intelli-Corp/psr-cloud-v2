@@ -459,6 +459,22 @@ async function createAdminTables(schemaName: string): Promise<void> {
         INDEX \`idx_downloaded_at\` (\`downloaded_at\`)
       )`,
 
+      // Machine Access Requests table
+      `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`machine_access_requests\` (
+        \`id\` INT PRIMARY KEY AUTO_INCREMENT,
+        \`machine_id\` INT NOT NULL COMMENT 'Reference to machines table',
+        \`user_id\` INT NOT NULL COMMENT 'User requesting access (from main users table)',
+        \`access_token\` TEXT NOT NULL COMMENT 'JWT token for 15-minute access',
+        \`expires_at\` DATETIME NOT NULL COMMENT 'When the access expires',
+        \`status\` ENUM('pending', 'approved', 'rejected', 'active') DEFAULT 'pending' COMMENT 'Request status: pending=waiting, approved=admin approved (needs user to start), active=timer running, rejected=denied',
+        \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'When request was created',
+        \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update',
+        FOREIGN KEY (\`machine_id\`) REFERENCES \`${schemaName}\`.\`machines\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+        UNIQUE KEY \`unique_machine_user\` (\`machine_id\`, \`user_id\`),
+        INDEX \`idx_status\` (\`status\`),
+        INDEX \`idx_expires\` (\`expires_at\`)
+      ) COMMENT='Stores temporary access requests for master machine changes with 15-minute validity'`,
+
       // Machine Statistics table
       `CREATE TABLE IF NOT EXISTS \`${schemaName}\`.\`machine_statistics\` (
         \`id\` INT PRIMARY KEY AUTO_INCREMENT,

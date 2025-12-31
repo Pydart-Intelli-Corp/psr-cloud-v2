@@ -37,25 +37,69 @@ export async function PUT(
     }
 
     const payload = verifyToken(token);
-    if (!payload || payload.role !== 'admin') {
-      return createErrorResponse('Admin access required', 403);
+    if (!payload) {
+      return createErrorResponse('Invalid or expired token', 401);
+    }
+
+    // Allow admin or society (after access approval) to change master
+    if (payload.role !== 'admin' && payload.role !== 'society') {
+      return createErrorResponse('Admin or Society access required', 403);
     }
 
     const { id: machineId } = await params;
+
+    // For society role, verify machine ownership
+    if (payload.role === 'society') {
+      const { getModels } = await import('@/models');
+      const { sequelize } = getModels();
+      
+      // Get schema name from payload
+      const schemaName = payload.schemaName;
+      if (!schemaName) {
+        return createErrorResponse('Schema not found in token', 400);
+      }
+
+      // Check if machine exists and belongs to this society
+      const [machineCheck] = await sequelize!.query(
+        `SELECT society_id FROM \`${schemaName}\`.machines WHERE id = ?`,
+        { replacements: [machineId] }
+      );
+
+      if (!machineCheck || (machineCheck as any[]).length === 0) {
+        return createErrorResponse('Machine not found', 404);
+      }
+
+      const societyId = (machineCheck as any[])[0].society_id;
+      
+      // Verify this society owns the machine
+      if (societyId !== payload.id) {
+        return createErrorResponse('Permission denied. You can only change master for machines in your society', 403);
+      }
+    }
     const { setForAll } = await request.json();
 
     await connectDB();
     const { getModels } = await import('@/models');
     const { sequelize, User } = getModels();
 
-    // Get admin user and schema name
-    const admin = await User.findByPk(payload.id);
-    if (!admin || !admin.dbKey) {
-      return createErrorResponse('Admin schema not found', 404);
+    // Get schema name based on role
+    let schemaName: string;
+    
+    if (payload.role === 'admin') {
+      // For admin, get schema from admin user
+      const admin = await User.findByPk(payload.id);
+      if (!admin || !admin.dbKey) {
+        return createErrorResponse('Admin schema not found', 404);
+      }
+      const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+    } else {
+      // For society and other roles, schema name is in the token payload
+      if (!payload.schemaName) {
+        return createErrorResponse('Schema not found in token', 400);
+      }
+      schemaName = payload.schemaName;
     }
-
-    const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
     if (!sequelize) {
       return createErrorResponse('Database connection failed', 500);

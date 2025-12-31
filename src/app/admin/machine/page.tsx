@@ -94,8 +94,11 @@ interface Machine {
   createdAt: string;
   activeChartsCount?: number;
   chartDetails?: string; // Format: "channel:filename:status|||channel:filename:status"
+  activeCorrectionsCount?: number;
+  correctionDetails?: string; // Format: "pending:X corrections"
   totalCollections30d?: number;
   totalQuantity30d?: number;
+  imageUrl?: string;
 }
 
 interface MachineFormData {
@@ -291,6 +294,20 @@ function MachineManagement() {
     });
     
     return { pending, downloaded };
+  };
+
+  // Parse correction details from string
+  const parseCorrectionDetails = (correctionDetails?: string) => {
+    if (!correctionDetails) return 0;
+    
+    // Format: "pending:X corrections"
+    const parts = correctionDetails.split(':');
+    if (parts.length >= 2) {
+      const countPart = parts[1].trim().split(' ')[0];
+      return parseInt(countPart) || 0;
+    }
+    
+    return 0;
   };
 
   // Check master machine status for selected society
@@ -1337,56 +1354,31 @@ function MachineManagement() {
     const hasUserPassword = userPassword && userPassword.trim() !== '';
     const hasSupervisorPassword = supervisorPassword && supervisorPassword.trim() !== '';
     
-    // Build status messages based on what's set
-    const statuses: string[] = [];
-    let icon = <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-    let className = 'text-red-600 dark:text-red-400';
+    const details = [];
     
-    // Check user password
+    // User password detail
     if (hasUserPassword) {
-      if (statusU === 1) {
-        statuses.push('User');
-        className = 'text-amber-600 dark:text-amber-400';
-        icon = <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-      } else {
-        statuses.push('User ✓');
-        className = 'text-green-600 dark:text-green-400';
-        icon = <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-      }
+      const userStatus = statusU === 0 ? '✓' : '';
+      const userClassName = statusU === 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400';
+      details.push({
+        icon: <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+        text: `User ${userStatus}`,
+        className: userClassName
+      });
     }
     
-    // Check supervisor password
+    // Supervisor password detail
     if (hasSupervisorPassword) {
-      if (statusS === 1) {
-        statuses.push('Supervisor');
-        className = 'text-amber-600 dark:text-amber-400';
-        icon = hasUserPassword ? <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-      } else {
-        statuses.push('Supervisor ✓');
-        className = 'text-green-600 dark:text-green-400';
-        icon = hasUserPassword ? <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-      }
+      const supervisorStatus = statusS === 0 ? '✓' : '';
+      const supervisorClassName = statusS === 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400';
+      details.push({
+        icon: <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+        text: `Supervisor ${supervisorStatus}`,
+        className: supervisorClassName
+      });
     }
     
-    // If both are set to inject, use amber color
-    if (hasUserPassword && hasSupervisorPassword && statusU === 1 && statusS === 1) {
-      className = 'text-amber-600 dark:text-amber-400';
-      icon = <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-    }
-    // If both are injected, use green color
-    else if (hasUserPassword && hasSupervisorPassword && statusU === 0 && statusS === 0) {
-      className = 'text-green-600 dark:text-green-400';
-      icon = <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-    }
-    // If mixed statuses, use amber (waiting for injection)
-    else if (hasUserPassword && hasSupervisorPassword && (statusU === 1 || statusS === 1)) {
-      className = 'text-amber-600 dark:text-amber-400';
-      icon = <KeyRound className="w-3.5 h-3.5 sm:w-4 sm:h-4" />;
-    }
-    
-    const text = statuses.length > 0 ? statuses.join(' | ') : 'No passwords';
-    
-    return { icon, text, className };
+    return details;
   };
 
   // Modal management
@@ -2136,6 +2128,7 @@ function MachineManagement() {
                                 status={machine.status}
                                 icon={<Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
                                 showStatus={true}
+                                imageUrl={machine.imageUrl}
                                 badge={machine.isMasterMachine ? {
                                   text: 'Master',
                                   color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
@@ -2225,28 +2218,45 @@ function MachineManagement() {
                                     
                                     return details;
                                   })(),
-                                  // Password Status Display
+                                  // Correction Information
                                   (() => {
-                                    const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword);
-                                    const hasAnyPassword = (machine.userPassword && machine.userPassword.trim() !== '') || (machine.supervisorPassword && machine.supervisorPassword.trim() !== '');
-                                    return { 
-                                      icon: passwordDisplay.icon, 
-                                      text: hasAnyPassword ? (
+                                    const pendingCount = parseCorrectionDetails(machine.correctionDetails);
+                                    return {
+                                      icon: (
+                                        <div className="flex items-center gap-1">
+                                          <div className={`w-2 h-2 rounded-full ${pendingCount > 0 ? 'bg-amber-500 dark:bg-amber-400 animate-pulse' : 'bg-green-500 dark:bg-green-400'}`} />
+                                        </div>
+                                      ),
+                                      text: (
                                         <div className="flex items-center gap-2">
-                                          <span>{passwordDisplay.text}</span>
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleShowPasswordClick(machine);
-                                            }}
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                                          >
+                                          <span className={`text-xs font-medium ${pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                                            {pendingCount > 0 ? `Pending: ${pendingCount} correction${pendingCount > 1 ? 's' : ''}` : 'Corrections: Up to date'}
+                                          </span>
+                                        </div>
+                                      ),
+                                      className: pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
+                                    };
+                                  })(),
+                                  // User and Supervisor password status in separate rows
+                                  ...getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword),
+                                  // Password Status Display - Show button
+                                  (() => {
+                                    const hasAnyPassword = (machine.userPassword && machine.userPassword.trim() !== '') || (machine.supervisorPassword && machine.supervisorPassword.trim() !== '');
+                                    return {
+                                      icon: <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                                      text: hasAnyPassword ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleShowPasswordClick(machine);
+                                          }}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                                        >
                                             <Eye className="w-3 h-3" />
                                             Show
                                           </button>
-                                        </div>
-                                      ) : passwordDisplay.text,
-                                      className: passwordDisplay.className
+                                      ) : 'No passwords set',
+                                      className: hasAnyPassword ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
                                     };
                                   })()
                                 ]}
@@ -2278,6 +2288,7 @@ function MachineManagement() {
                   status={machine.status}
                   icon={<Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
                   showStatus={true}
+                  imageUrl={machine.imageUrl}
                   badge={machine.isMasterMachine ? {
                     text: 'Master',
                     color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
@@ -2374,28 +2385,45 @@ function MachineManagement() {
                       
                       return details;
                     })(),
-                    // Password Status Display
+                    // Correction Information
                     (() => {
-                      const passwordDisplay = getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword);
-                      const hasAnyPassword = (machine.userPassword && machine.userPassword.trim() !== '') || (machine.supervisorPassword && machine.supervisorPassword.trim() !== '');
-                      return { 
-                        icon: passwordDisplay.icon, 
-                        text: hasAnyPassword ? (
+                      const pendingCount = parseCorrectionDetails(machine.correctionDetails);
+                      return {
+                        icon: (
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${pendingCount > 0 ? 'bg-amber-500 dark:bg-amber-400 animate-pulse' : 'bg-green-500 dark:bg-green-400'}`} />
+                          </div>
+                        ),
+                        text: (
                           <div className="flex items-center gap-2">
-                            <span>{passwordDisplay.text}</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleShowPasswordClick(machine);
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                            >
+                            <span className={`text-xs font-medium ${pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                              {pendingCount > 0 ? `Pending: ${pendingCount} correction${pendingCount > 1 ? 's' : ''}` : 'Corrections: Up to date'}
+                            </span>
+                          </div>
+                        ),
+                        className: pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
+                      };
+                    })(),
+                    // User and Supervisor password status in separate rows
+                    ...getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword),
+                    // Password Status Display - Show button
+                    (() => {
+                      const hasAnyPassword = (machine.userPassword && machine.userPassword.trim() !== '') || (machine.supervisorPassword && machine.supervisorPassword.trim() !== '');
+                      return {
+                        icon: <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
+                        text: hasAnyPassword ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowPasswordClick(machine);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                          >
                               <Eye className="w-3 h-3" />
                               Show
                             </button>
-                          </div>
-                        ) : passwordDisplay.text,
-                        className: passwordDisplay.className
+                        ) : 'No passwords set',
+                        className: hasAnyPassword ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
                       };
                     })()
                   ]}

@@ -11,7 +11,7 @@ export async function GET() {
 
     const machines = await Machine.findAll({
       order: [['machineType', 'ASC']],
-      attributes: ['id', 'machineType', 'description', 'isActive']
+      attributes: ['id', 'machineType', 'description', 'isActive', 'imageUrl']
     });
 
     return createSuccessResponse({

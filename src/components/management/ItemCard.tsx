@@ -62,6 +62,9 @@ interface ItemCardProps {
   searchQuery?: string;
   // Display options
   showStatus?: boolean;
+  // Image support
+  imageUrl?: string;
+  onImageClick?: () => void;
 }
 
 /**
@@ -90,8 +93,13 @@ const ItemCard: React.FC<ItemCardProps> = ({
   selected = false,
   onSelect,
   searchQuery = '',
-  showStatus = true
+  showStatus = true,
+  imageUrl,
+  onImageClick
 }) => {
+  const [imageLoading, setImageLoading] = React.useState(true);
+  const [imageError, setImageError] = React.useState(false);
+
   return (
     <motion.div
       key={id}
@@ -150,25 +158,72 @@ const ItemCard: React.FC<ItemCardProps> = ({
         </div>
 
         {/* Details */}
-        <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4 flex-1">
-          {details.map((detail, index) => (
-            detail.show !== false && (
-              <div key={index} className={`flex items-center text-xs sm:text-sm ${
-                detail.highlight 
-                  ? 'text-green-600 dark:text-green-400 font-medium' 
-                  : detail.className || 'text-gray-600 dark:text-gray-400'
-              }`}>
-                <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 flex-shrink-0 ${
-                  detail.highlight ? 'text-green-600 dark:text-green-400' : ''
-                }`}>
-                  {detail.icon}
+        <div className="mb-3 sm:mb-4 flex-1">
+          <div className="flex gap-4">
+            {/* Details list - left side */}
+            <div className="flex-1 space-y-2 sm:space-y-3">
+              {details.map((detail, index) => (
+                detail.show !== false && (
+                  <div key={index} className={`flex items-center text-xs sm:text-sm ${
+                    detail.highlight 
+                      ? 'text-green-600 dark:text-green-400 font-medium' 
+                      : detail.className || 'text-gray-600 dark:text-gray-400'
+                  }`}>
+                    <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 mr-2 flex-shrink-0 ${
+                      detail.highlight ? 'text-green-600 dark:text-green-400' : ''
+                    }`}>
+                      {detail.icon}
+                    </div>
+                    <span className={typeof detail.text === 'string' && (detail.text.includes('@') || detail.text.length > 30) ? 'truncate' : ''}>
+                      {typeof detail.text === 'string' ? highlightText(detail.text, searchQuery) : detail.text}
+                    </span>
+                  </div>
+                )
+              ))}
+            </div>
+
+            {/* Machine Image - right side */}
+            {imageUrl && (
+              <motion.div
+                className="flex-shrink-0"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95, rotate: 2 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div 
+                  className={`relative w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-xl overflow-hidden bg-transparent ${onImageClick ? 'cursor-pointer' : ''}`}
+                  onClick={onImageClick}
+                  style={{ transform: 'translateY(-20px)' }}
+                >
+                  {imageLoading && !imageError && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800/50 rounded-xl">
+                      <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                  {imageError ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800/50 rounded-xl">
+                      <div className="text-gray-400 dark:text-gray-500">
+                        <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : (
+                    <img
+                      src={imageUrl}
+                      alt="Machine"
+                      className={`w-full h-full object-contain transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                      onLoad={() => setImageLoading(false)}
+                      onError={() => {
+                        setImageLoading(false);
+                        setImageError(true);
+                      }}
+                    />
+                  )}
                 </div>
-                <span className={typeof detail.text === 'string' && (detail.text.includes('@') || detail.text.length > 30) ? 'truncate' : ''}>
-                  {typeof detail.text === 'string' ? highlightText(detail.text, searchQuery) : detail.text}
-                </span>
-              </div>
-            )
-          ))}
+              </motion.div>
+            )}
+          </div>
         </div>
 
         {/* Actions */}
