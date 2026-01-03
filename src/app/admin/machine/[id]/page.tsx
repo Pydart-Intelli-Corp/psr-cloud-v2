@@ -219,6 +219,13 @@ export default function MachineDetails() {
     channel3_protein: ''
   });
 
+  // Original correction data to track changes (for per-channel status)
+  const [originalCorrectionData, setOriginalCorrectionData] = useState<{
+    channel1_fat: string; channel1_snf: string; channel1_clr: string; channel1_temp: string; channel1_water: string; channel1_protein: string;
+    channel2_fat: string; channel2_snf: string; channel2_clr: string; channel2_temp: string; channel2_water: string; channel2_protein: string;
+    channel3_fat: string; channel3_snf: string; channel3_clr: string; channel3_temp: string; channel3_water: string; channel3_protein: string;
+  } | null>(null);
+
   // State for machine correction data
   const [machineCorrection, setMachineCorrection] = useState<any>(null);
   const [showMachineCorrection, setShowMachineCorrection] = useState(false);
@@ -674,7 +681,7 @@ export default function MachineDetails() {
         
         // Convert database values to strings for form display
         // Convert 0 or null to empty string for better UX
-        setCorrectionData({
+        const correctionValues = {
           channel1_fat: data.channel1_fat ? String(data.channel1_fat) : '',
           channel1_snf: data.channel1_snf ? String(data.channel1_snf) : '',
           channel1_clr: data.channel1_clr ? String(data.channel1_clr) : '',
@@ -693,7 +700,10 @@ export default function MachineDetails() {
           channel3_temp: data.channel3_temp ? String(data.channel3_temp) : '',
           channel3_water: data.channel3_water ? String(data.channel3_water) : '',
           channel3_protein: data.channel3_protein ? String(data.channel3_protein) : ''
-        });
+        };
+        setCorrectionData(correctionValues);
+        // Store original values for comparison when saving
+        setOriginalCorrectionData(correctionValues);
       }
     } catch (error) {
       console.error('Error fetching correction data:', error);
@@ -969,29 +979,53 @@ export default function MachineDetails() {
     try {
       const token = localStorage.getItem('authToken');
       
+      // Helper to check if a channel's values changed from original
+      const hasChannelChanged = (channelNum: 1 | 2 | 3): boolean => {
+        if (!originalCorrectionData) return true; // No original data means all are new
+        const fields = ['fat', 'snf', 'clr', 'temp', 'water', 'protein'] as const;
+        return fields.some(field => {
+          const key = `channel${channelNum}_${field}` as keyof typeof correctionData;
+          const newVal = parseFloat(correctionData[key] || '0');
+          const origVal = parseFloat(originalCorrectionData[key] || '0');
+          return Math.abs(newVal - origVal) > 0.001; // Compare with small tolerance
+        });
+      };
+
+      // Determine which channels have changed
+      const channel1Changed = hasChannelChanged(1);
+      const channel2Changed = hasChannelChanged(2);
+      const channel3Changed = hasChannelChanged(3);
+
       // Convert empty strings to "0" before sending
+      // Only include values for channels that actually changed
+      // Unchanged channels get "0" values (won't show as pending in correction_details)
       const dataToSend = {
         machineId: machine.id,
         societyId: machine.societyId,
-        channel1_fat: correctionData.channel1_fat || '0',
-        channel1_snf: correctionData.channel1_snf || '0',
-        channel1_clr: correctionData.channel1_clr || '0',
-        channel1_temp: correctionData.channel1_temp || '0',
-        channel1_water: correctionData.channel1_water || '0',
-        channel1_protein: correctionData.channel1_protein || '0',
-        channel2_fat: correctionData.channel2_fat || '0',
-        channel2_snf: correctionData.channel2_snf || '0',
-        channel2_clr: correctionData.channel2_clr || '0',
-        channel2_temp: correctionData.channel2_temp || '0',
-        channel2_water: correctionData.channel2_water || '0',
-        channel2_protein: correctionData.channel2_protein || '0',
-        channel3_fat: correctionData.channel3_fat || '0',
-        channel3_snf: correctionData.channel3_snf || '0',
-        channel3_clr: correctionData.channel3_clr || '0',
-        channel3_temp: correctionData.channel3_temp || '0',
-        channel3_water: correctionData.channel3_water || '0',
-        channel3_protein: correctionData.channel3_protein || '0'
+        // Channel 1 (Cow) - only include if changed
+        channel1_fat: channel1Changed ? (correctionData.channel1_fat || '0') : '0',
+        channel1_snf: channel1Changed ? (correctionData.channel1_snf || '0') : '0',
+        channel1_clr: channel1Changed ? (correctionData.channel1_clr || '0') : '0',
+        channel1_temp: channel1Changed ? (correctionData.channel1_temp || '0') : '0',
+        channel1_water: channel1Changed ? (correctionData.channel1_water || '0') : '0',
+        channel1_protein: channel1Changed ? (correctionData.channel1_protein || '0') : '0',
+        // Channel 2 (Buffalo) - only include if changed
+        channel2_fat: channel2Changed ? (correctionData.channel2_fat || '0') : '0',
+        channel2_snf: channel2Changed ? (correctionData.channel2_snf || '0') : '0',
+        channel2_clr: channel2Changed ? (correctionData.channel2_clr || '0') : '0',
+        channel2_temp: channel2Changed ? (correctionData.channel2_temp || '0') : '0',
+        channel2_water: channel2Changed ? (correctionData.channel2_water || '0') : '0',
+        channel2_protein: channel2Changed ? (correctionData.channel2_protein || '0') : '0',
+        // Channel 3 (Mix) - only include if changed
+        channel3_fat: channel3Changed ? (correctionData.channel3_fat || '0') : '0',
+        channel3_snf: channel3Changed ? (correctionData.channel3_snf || '0') : '0',
+        channel3_clr: channel3Changed ? (correctionData.channel3_clr || '0') : '0',
+        channel3_temp: channel3Changed ? (correctionData.channel3_temp || '0') : '0',
+        channel3_water: channel3Changed ? (correctionData.channel3_water || '0') : '0',
+        channel3_protein: channel3Changed ? (correctionData.channel3_protein || '0') : '0'
       };
+
+      console.log('📊 Channel change detection:', { channel1Changed, channel2Changed, channel3Changed });
       
       const response = await fetch('/api/user/machine-correction', {
         method: 'POST',

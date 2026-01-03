@@ -96,17 +96,48 @@ export async function GET(request: NextRequest) {
       ) rc_info ON m.id = rc_info.machine_id
     `;
 
-    // Subquery for machine corrections (pending corrections per machine)
+    // Subquery for machine corrections with channel details and download status
     const correctionSubquery = (schemaName: string) => `
       LEFT JOIN (
         SELECT 
           machine_id,
           COUNT(*) as active_corrections_count,
-          CASE WHEN COUNT(*) > 0 THEN CONCAT('pending:', COUNT(*), ' corrections') ELSE NULL END as correction_details
-        FROM \`${schemaName}\`.machine_corrections
-        WHERE status = 1
+          GROUP_CONCAT(DISTINCT CONCAT(
+            NULLIF(CONCAT_WS(',',
+              CASE WHEN mc.channel1_fat != 0 OR mc.channel1_snf != 0 THEN '1' ELSE NULL END,
+              CASE WHEN mc.channel2_fat != 0 OR mc.channel2_snf != 0 THEN '2' ELSE NULL END,
+              CASE WHEN mc.channel3_fat != 0 OR mc.channel3_snf != 0 THEN '3' ELSE NULL END
+            ), ''),
+            ':',
+            CASE WHEN mc.status = 1 THEN 'pending' ELSE 'downloaded' END
+          ) SEPARATOR '|||') as correction_details
+        FROM \`${schemaName}\`.machine_corrections mc
+        WHERE (mc.channel1_fat != 0 OR mc.channel1_snf != 0 OR mc.channel2_fat != 0 OR mc.channel2_snf != 0 OR mc.channel3_fat != 0 OR mc.channel3_snf != 0)
         GROUP BY machine_id
       ) corr_info ON m.id = corr_info.machine_id
+    `;
+
+    // Subquery for latest ESP32 machine statistics (from machine_statistics table)
+    const machineStatsSubquery = (schemaName: string) => `
+      LEFT JOIN (
+        SELECT 
+          ms1.machine_id,
+          ms1.total_test,
+          ms1.daily_cleaning,
+          ms1.weekly_cleaning,
+          ms1.cleaning_skip,
+          ms1.gain,
+          ms1.auto_channel,
+          ms1.version,
+          ms1.statistics_date,
+          ms1.statistics_time
+        FROM \`${schemaName}\`.machine_statistics ms1
+        INNER JOIN (
+          SELECT machine_id, MAX(created_at) as max_created
+          FROM \`${schemaName}\`.machine_statistics
+          GROUP BY machine_id
+        ) ms2 ON ms1.machine_id = ms2.machine_id AND ms1.created_at = ms2.max_created
+      ) ms_info ON m.id = ms_info.machine_id
     `;
 
     try {
@@ -127,7 +158,16 @@ export async function GET(request: NextRequest) {
               rc_info.chart_details,
               COALESCE(rc_info.active_charts_count, 0) as active_charts_count,
               corr_info.correction_details,
-              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count
+              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count,
+              COALESCE(ms_info.total_test, 0) as total_test,
+              COALESCE(ms_info.daily_cleaning, 0) as daily_cleaning,
+              COALESCE(ms_info.weekly_cleaning, 0) as weekly_cleaning,
+              COALESCE(ms_info.cleaning_skip, 0) as cleaning_skip,
+              COALESCE(ms_info.gain, 0) as gain,
+              ms_info.auto_channel,
+              ms_info.version,
+              ms_info.statistics_date,
+              ms_info.statistics_time
             FROM \`${schemaName}\`.machines m
             ${machineImageJoin}
             JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
@@ -136,6 +176,7 @@ export async function GET(request: NextRequest) {
             ${collectionStatsSubquery(schemaName)}
             ${rateChartSubquery(schemaName)}
             ${correctionSubquery(schemaName)}
+            ${machineStatsSubquery(schemaName)}
             ORDER BY b.name, s.society_id, m.is_master_machine DESC, m.machine_id ASC
           `);
           
@@ -157,7 +198,16 @@ export async function GET(request: NextRequest) {
               rc_info.chart_details,
               COALESCE(rc_info.active_charts_count, 0) as active_charts_count,
               corr_info.correction_details,
-              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count
+              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count,
+              COALESCE(ms_info.total_test, 0) as total_test,
+              COALESCE(ms_info.daily_cleaning, 0) as daily_cleaning,
+              COALESCE(ms_info.weekly_cleaning, 0) as weekly_cleaning,
+              COALESCE(ms_info.cleaning_skip, 0) as cleaning_skip,
+              COALESCE(ms_info.gain, 0) as gain,
+              ms_info.auto_channel,
+              ms_info.version,
+              ms_info.statistics_date,
+              ms_info.statistics_time
             FROM \`${schemaName}\`.machines m
             ${machineImageJoin}
             JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
@@ -165,6 +215,7 @@ export async function GET(request: NextRequest) {
             ${collectionStatsSubquery(schemaName)}
             ${rateChartSubquery(schemaName)}
             ${correctionSubquery(schemaName)}
+            ${machineStatsSubquery(schemaName)}
             WHERE s.id = ?
             ORDER BY m.is_master_machine DESC, m.machine_id ASC
           `, { replacements: [id] });
@@ -187,7 +238,16 @@ export async function GET(request: NextRequest) {
               rc_info.chart_details,
               COALESCE(rc_info.active_charts_count, 0) as active_charts_count,
               corr_info.correction_details,
-              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count
+              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count,
+              COALESCE(ms_info.total_test, 0) as total_test,
+              COALESCE(ms_info.daily_cleaning, 0) as daily_cleaning,
+              COALESCE(ms_info.weekly_cleaning, 0) as weekly_cleaning,
+              COALESCE(ms_info.cleaning_skip, 0) as cleaning_skip,
+              COALESCE(ms_info.gain, 0) as gain,
+              ms_info.auto_channel,
+              ms_info.version,
+              ms_info.statistics_date,
+              ms_info.statistics_time
             FROM \`${schemaName}\`.machines m
             ${machineImageJoin}
             JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
@@ -195,6 +255,7 @@ export async function GET(request: NextRequest) {
             ${collectionStatsSubquery(schemaName)}
             ${rateChartSubquery(schemaName)}
             ${correctionSubquery(schemaName)}
+            ${machineStatsSubquery(schemaName)}
             WHERE b.id = ?
             ORDER BY s.society_id, m.is_master_machine DESC, m.machine_id ASC
           `, { replacements: [id] });
@@ -218,7 +279,16 @@ export async function GET(request: NextRequest) {
               rc_info.chart_details,
               COALESCE(rc_info.active_charts_count, 0) as active_charts_count,
               corr_info.correction_details,
-              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count
+              COALESCE(corr_info.active_corrections_count, 0) as active_corrections_count,
+              COALESCE(ms_info.total_test, 0) as total_test,
+              COALESCE(ms_info.daily_cleaning, 0) as daily_cleaning,
+              COALESCE(ms_info.weekly_cleaning, 0) as weekly_cleaning,
+              COALESCE(ms_info.cleaning_skip, 0) as cleaning_skip,
+              COALESCE(ms_info.gain, 0) as gain,
+              ms_info.auto_channel,
+              ms_info.version,
+              ms_info.statistics_date,
+              ms_info.statistics_time
             FROM \`${schemaName}\`.machines m
             ${machineImageJoin}
             JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
@@ -227,6 +297,7 @@ export async function GET(request: NextRequest) {
             ${collectionStatsSubquery(schemaName)}
             ${rateChartSubquery(schemaName)}
             ${correctionSubquery(schemaName)}
+            ${machineStatsSubquery(schemaName)}
             WHERE d.id = ?
             ORDER BY b.name, s.society_id, m.is_master_machine DESC, m.machine_id ASC
           `, { replacements: [id] });
@@ -292,6 +363,16 @@ export async function GET(request: NextRequest) {
         activeCorrectionsCount: parseInt(m.active_corrections_count) || 0,
         // Machine image
         imageUrl: m.image_url,
+        // ESP32 Machine Statistics
+        totalTests: parseInt(m.total_test) || 0,
+        dailyCleaning: parseInt(m.daily_cleaning) || 0,
+        weeklyCleaning: parseInt(m.weekly_cleaning) || 0,
+        cleaningSkip: parseInt(m.cleaning_skip) || 0,
+        gain: parseInt(m.gain) || 0,
+        autoChannel: m.auto_channel,
+        machineVersion: m.version,
+        statisticsDate: m.statistics_date,
+        statisticsTime: m.statistics_time,
       }));
 
       console.log(`✅ Machines data fetched for ${entityType}: ${payload.uid} - ${transformedMachines.length} machines`);

@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
+import { sendMachineUpdateEmail } from '@/lib/emailService';
+import { QueryTypes } from 'sequelize';
 
 interface CSVRow {
   CLR: string;
@@ -302,20 +304,54 @@ export async function POST(request: NextRequest) {
 
       console.log(`📊 Rate chart uploaded: ${rateData.length} records for ${channel} channel, ${societyIds.length} societies`);
 
-      return createSuccessResponse('Rate chart uploaded successfully', {
-        recordCount: rateData.length,
-        channel,
-        societyCount: societyIds.length,
-        societyIds
-      });
+      // Send email notifications to societies with machines (non-blocking)
+      // Get society details and their machines
+      const [societyMachines] = await sequelize.query<{
+        society_id: number;
+        society_name: string;
+        society_email: string;
+        machine_type: string;
+        machine_id: string;
+      }>(`
+        SELECT s.id as society_id, s.name as society_name, s.email as society_email,
+               m.machine_type, m.machine_id
+        FROM ${schemaName}.societies s
+        INNER JOIN ${schemaName}.machines m ON m.society_id = s.id
+        WHERE s.id IN (${societyIds.join(',')}) AND s.email IS NOT NULL AND s.email != ''
+      `, { type: QueryTypes.SELECT });
 
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+      if (Array.isArray(societyMachines) && societyMachines.length > 0) {
+        // Group by society to send one email per society
+        const societyMap = new Map<string, { societyName: string; email: string; machines: Array<{ type: string; id: string }> }>();
+        
+        for (const row of societyMachines) {
+          if (!societyMap.has(row.society_email)) {
+            societyMap.set(row.society_email, {
+              societyName: row.society_name,
+              email: row.society_email,
+              machines: []
+            });
+          }
+          societyMap.get(row.society_email)!.machines.push({
+            type: row.machine_type,
+            id: row.machine_id
+          });
+        }
 
-  } catch (error) {
-    console.error('CSV upload error:', error);
-    return createErrorResponse('Failed to process CSV upload', 500);
-  }
+        // Send emails to each society
+        for (const [email, data] of societyMap) {
+          for (const machine of data.machines) {
+            sendMachineUpdateEmail(email, {
+              machineName: machine.type || `Machine ${machine.id}`,
+              machineId: machine.id,
+              societyName: data.societyName,
+              updateType: 'ratechart',
+              channel,
+              recordCount: rateData.length,
+              updatedBy: user.fullName
+            }).catch(err => console.error(`Failed to send rate chart email to ${email}:`, err));
+          }
+        }
+      }
+
 }

@@ -550,4 +550,232 @@ export const sendMilkCollectionEmail = async (
   }
 };
 
+// Machine update notification email types
+export type MachineUpdateType = 'password' | 'ratechart' | 'correction';
+
+export interface MachineUpdateDetails {
+  machineName: string;
+  machineId: string;
+  societyName: string;
+  updateType: MachineUpdateType;
+  channel?: string; // For rate chart: COW, BUF, MIX
+  channels?: string[]; // For corrections: which channels were updated
+  passwordType?: 'user' | 'supervisor' | 'both'; // For password updates
+  updatedBy: string;
+  recordCount?: number; // For rate chart
+}
+
+// Send machine update notification email to society
+export const sendMachineUpdateEmail = async (
+  email: string,
+  details: MachineUpdateDetails
+): Promise<void> => {
+  const updateTypeConfig: Record<MachineUpdateType, { icon: string; title: string; color: string; lightColor: string }> = {
+    password: { icon: '🔐', title: 'Password Updated', color: '#f59e0b', lightColor: '#fef3c7' },
+    ratechart: { icon: '📊', title: 'Rate Chart Uploaded', color: '#3b82f6', lightColor: '#dbeafe' },
+    correction: { icon: '⚙️', title: 'Correction Updated', color: '#10b981', lightColor: '#d1fae5' }
+  };
+
+  const config = updateTypeConfig[details.updateType];
+  
+  // Generate update-specific details
+  let updateDetails = '';
+  
+  if (details.updateType === 'password') {
+    const passwordTypes = details.passwordType === 'both' 
+      ? 'User & Supervisor' 
+      : details.passwordType === 'user' ? 'User' : 'Supervisor';
+    updateDetails = `<span style="color: ${config.color}; font-weight: 600;">${passwordTypes} Password</span>`;
+  } else if (details.updateType === 'ratechart') {
+    const channelNames: Record<string, string> = { 'COW': 'C1', 'BUF': 'C2', 'MIX': 'C3' };
+    const channelDisplay = channelNames[details.channel || ''] || details.channel;
+    updateDetails = `<span style="color: ${config.color}; font-weight: 600;">Channel ${channelDisplay}</span>${details.recordCount ? ` (${details.recordCount} entries)` : ''}`;
+  } else if (details.updateType === 'correction') {
+    const channelNames: Record<string, string> = { '1': 'C1', '2': 'C2', '3': 'C3' };
+    const channelsDisplay = (details.channels || []).map(c => channelNames[c] || c).join(', ');
+    updateDetails = `<span style="color: ${config.color}; font-weight: 600;">${channelsDisplay || 'All Channels'}</span>`;
+  }
+
+  const mailOptions = {
+    from: `"Poornasree Cloud" <${process.env.SMTP_USERNAME || process.env.EMAIL_USER}>`,
+    to: email,
+    subject: `${config.icon} ${config.title} - ${details.machineName} | Action Required`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 480px; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+          
+          <!-- Header with Icon -->
+          <tr>
+            <td style="background: linear-gradient(135deg, ${config.color} 0%, ${config.color}dd 100%); padding: 32px 24px; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 12px;">${config.icon}</div>
+              <h1 style="margin: 0; color: white; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">${config.title}</h1>
+              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Please update your machine</p>
+            </td>
+          </tr>
+          
+          <!-- Main Content -->
+          <tr>
+            <td style="padding: 32px 24px;">
+              
+              <!-- Machine Info Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 12px; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                          <span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Machine</span>
+                          <div style="color: #1e293b; font-size: 18px; font-weight: 700; margin-top: 4px;">${details.machineName}</div>
+                          <div style="color: #64748b; font-size: 13px; margin-top: 2px;">ID: ${details.machineId}</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top: 12px;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td width="50%">
+                                <span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Society</span>
+                                <div style="color: #1e293b; font-size: 14px; font-weight: 600; margin-top: 4px;">${details.societyName}</div>
+                              </td>
+                              <td width="50%">
+                                <span style="color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Updated</span>
+                                <div style="color: #1e293b; font-size: 14px; font-weight: 600; margin-top: 4px;">${updateDetails}</div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Update Instructions -->
+              <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 16px; color: #1e293b; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">How to Update</h3>
+                
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                      <table cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="width: 36px; vertical-align: top;">
+                            <div style="width: 28px; height: 28px; background: ${config.lightColor}; color: ${config.color}; border-radius: 8px; text-align: center; line-height: 28px; font-weight: 700; font-size: 13px;">1</div>
+                          </td>
+                          <td style="vertical-align: top;">
+                            <div style="color: #1e293b; font-size: 14px; font-weight: 600;">Connect WiFi</div>
+                            <div style="color: #64748b; font-size: 13px; margin-top: 2px;">Ensure machine is connected to network</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                      <table cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="width: 36px; vertical-align: top;">
+                            <div style="width: 28px; height: 28px; background: ${config.lightColor}; color: ${config.color}; border-radius: 8px; text-align: center; line-height: 28px; font-weight: 700; font-size: 13px;">2</div>
+                          </td>
+                          <td style="vertical-align: top;">
+                            <div style="color: #1e293b; font-size: 14px; font-weight: 600;">Press UP Arrow ↑</div>
+                            <div style="color: #64748b; font-size: 13px; margin-top: 2px;">Navigate to update option</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 0;">
+                      <table cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="width: 36px; vertical-align: top;">
+                            <div style="width: 28px; height: 28px; background: ${config.lightColor}; color: ${config.color}; border-radius: 8px; text-align: center; line-height: 28px; font-weight: 700; font-size: 13px;">3</div>
+                          </td>
+                          <td style="vertical-align: top;">
+                            <div style="color: #1e293b; font-size: 14px; font-weight: 600;">Press OK ✓</div>
+                            <div style="color: #64748b; font-size: 13px; margin-top: 2px;">Confirm to download updates</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+              
+              <!-- Alert Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: #fef3c7; border-radius: 10px;">
+                <tr>
+                  <td style="padding: 14px 16px;">
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="vertical-align: top; padding-right: 10px;">⚡</td>
+                        <td>
+                          <div style="color: #92400e; font-size: 13px; line-height: 1.5;">
+                            <strong>Update soon!</strong> Changes take effect only after machine downloads the update.
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f8fafc; padding: 20px 24px; border-top: 1px solid #e2e8f0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="text-align: center;">
+                    <div style="color: #64748b; font-size: 12px; margin-bottom: 4px;">Updated by <strong>${details.updatedBy}</strong></div>
+                    <div style="color: #94a3b8; font-size: 11px;">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+        </table>
+        
+        <!-- Bottom Text -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 480px; margin-top: 24px;">
+          <tr>
+            <td style="text-align: center;">
+              <p style="margin: 0; color: #94a3b8; font-size: 11px;">
+                Poornasree Equipments Cloud<br>
+                <span style="color: #cbd5e1;">This is an automated notification</span>
+              </p>
+            </td>
+          </tr>
+        </table>
+        
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Machine update email sent to ${email} for ${details.updateType}`);
+  } catch (error) {
+    console.error(`❌ Failed to send machine update email to ${email}:`, error);
+    throw error;
+  }
+};
+
 export default transporter;

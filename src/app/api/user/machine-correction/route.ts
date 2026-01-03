@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import getSequelize from '@/lib/database';
 import { QueryTypes } from 'sequelize';
 import { UserRole } from '@/models/User';
+import { sendMachineUpdateEmail } from '@/lib/emailService';
 
 /**
  * POST /api/user/machine-correction
@@ -93,11 +94,28 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Get machine_type from machines table
-    const [machineResult] = await sequelize.query<{ machine_type: string }>(
-      `SELECT machine_type FROM \`${schemaName}\`.\`machines\` WHERE id = :machineId LIMIT 1`,
+    // Get machine_type and details from machines table for email notification
+    const [machineResult] = await sequelize.query<{ 
+      machine_type: string;
+      machine_id: string;
+    }>(
+      `SELECT m.machine_type, m.machine_id
+       FROM \`${schemaName}\`.\`machines\` m
+       WHERE m.id = :machineId LIMIT 1`,
       {
         replacements: { machineId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    // Get society details for email notification
+    const [societyResult] = await sequelize.query<{
+      name: string;
+      email: string;
+    }>(
+      `SELECT name, email FROM \`${schemaName}\`.\`societies\` WHERE id = :societyId LIMIT 1`,
+      {
+        replacements: { societyId },
         type: QueryTypes.SELECT
       }
     );
@@ -244,6 +262,28 @@ export async function POST(request: NextRequest) {
 
       // Commit transaction
       await transaction.commit();
+
+      // Determine which channels were updated (have non-zero values)
+      const updatedChannels: string[] = [];
+      const ch1HasValue = convertValue(channel1_fat) !== 0 || convertValue(channel1_snf) !== 0 || convertValue(channel1_clr) !== 0;
+      const ch2HasValue = convertValue(channel2_fat) !== 0 || convertValue(channel2_snf) !== 0 || convertValue(channel2_clr) !== 0;
+      const ch3HasValue = convertValue(channel3_fat) !== 0 || convertValue(channel3_snf) !== 0 || convertValue(channel3_clr) !== 0;
+      
+      if (ch1HasValue) updatedChannels.push('1');
+      if (ch2HasValue) updatedChannels.push('2');
+      if (ch3HasValue) updatedChannels.push('3');
+
+      // Send email notification to society (non-blocking)
+      if (societyResult?.email) {
+        sendMachineUpdateEmail(societyResult.email, {
+          machineName: machineResult?.machine_type || `Machine ${machineResult?.machine_id || machineId}`,
+          machineId: machineResult?.machine_id || String(machineId),
+          societyName: societyResult.name || 'Unknown Society',
+          updateType: 'correction',
+          channels: updatedChannels,
+          updatedBy: admin.fullName
+        }).catch(err => console.error('Failed to send correction update email:', err));
+      }
 
       return NextResponse.json({
         success: true,

@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/database';
 import { verifyToken } from '@/lib/auth';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
 import { QueryTypes } from 'sequelize';
+import { sendMachineUpdateEmail } from '@/lib/emailService';
 
 export async function PUT(
   request: Request,
@@ -47,6 +48,24 @@ export async function PUT(
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
+    // Get machine details including society info for email notification
+    const [machineDetails] = await sequelize.query<{
+      machine_id: string;
+      machine_type: string;
+      society_name: string;
+      society_email: string;
+    }>(
+      `SELECT m.machine_id, m.machine_type, s.name as society_name, s.email as society_email
+       FROM \`${schemaName}\`.\`machines\` m
+       LEFT JOIN \`${schemaName}\`.\`societies\` s ON m.society_id = s.id
+       WHERE m.id = ?`,
+      { replacements: [id], type: QueryTypes.SELECT }
+    );
+
+    if (!machineDetails) {
+      return createErrorResponse('Machine not found', 404);
+    }
+
     // Determine password status based on provided passwords
     // Status 1 = Password set (ready to inject)
     // Status 0 = No password OR password already injected (managed by ESP32)
@@ -79,6 +98,19 @@ export async function PUT(
 
     if (results === 0) {
       return createErrorResponse('Machine not found', 404);
+    }
+
+    // Send email notification to society (non-blocking)
+    if (machineDetails?.society_email) {
+      const passwordType = userPassword && supervisorPassword ? 'both' : userPassword ? 'user' : 'supervisor';
+      sendMachineUpdateEmail(machineDetails.society_email, {
+        machineName: machineDetails.machine_type || `Machine ${machineDetails.machine_id}`,
+        machineId: machineDetails.machine_id || id,
+        societyName: machineDetails.society_name || 'Unknown Society',
+        updateType: 'password',
+        passwordType,
+        updatedBy: admin.fullName
+      }).catch(err => console.error('Failed to send password update email:', err));
     }
 
     return createSuccessResponse(

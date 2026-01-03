@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit3, Trash2, Eye, Lock } from 'lucide-react';
+import { Edit3, Trash2, Eye, Lock, CheckCircle, Clock } from 'lucide-react';
 import StatusDropdown from './StatusDropdown';
 
 interface DetailItem {
@@ -12,6 +12,50 @@ interface DetailItem {
   highlight?: boolean; // New property for highlighting
   className?: string; // Custom className for styling
 }
+
+// Status section types for footer
+interface StatusPill {
+  label: string;
+  type: 'ready' | 'downloaded' | 'none' | 'pending';
+}
+
+interface FooterStatusSection {
+  title: string;
+  icon: React.ReactNode;
+  items?: StatusPill[];
+  customContent?: React.ReactNode;
+}
+
+export interface FooterStatusProps {
+  password?: {
+    user: { status: 'downloaded' | 'pending' | 'none'; tooltip?: string };
+    supervisor: { status: 'downloaded' | 'pending' | 'none'; tooltip?: string };
+  };
+  charts?: {
+    pending: Array<{ channel: string }>;
+    downloaded: Array<{ channel: string }>;
+  };
+  corrections?: {
+    pending: Array<{ channel: string }>;
+    downloaded: Array<{ channel: string }>;
+  };
+}
+
+// Helper function to map channel codes to display names
+const getChannelDisplayName = (channel: string): string => {
+  const channelMap: Record<string, string> = {
+    'COW': 'C1',
+    'BUF': 'C2', 
+    'MIX': 'C3',
+    'Cow': 'C1',
+    'Buf': 'C2',
+    'Mix': 'C3',
+    'C1': 'C1',
+    'C2': 'C2',
+    'C3': 'C3',
+  };
+  return channelMap[channel] || channel;
+};
 
 // Helper function to highlight matching text
 const highlightText = (text: string, searchQuery: string) => {
@@ -65,6 +109,8 @@ interface ItemCardProps {
   // Image support
   imageUrl?: string;
   onImageClick?: () => void;
+  // Footer status sections (like mobile app)
+  footerStatus?: FooterStatusProps;
 }
 
 /**
@@ -95,7 +141,8 @@ const ItemCard: React.FC<ItemCardProps> = ({
   searchQuery = '',
   showStatus = true,
   imageUrl,
-  onImageClick
+  onImageClick,
+  footerStatus
 }) => {
   const [imageLoading, setImageLoading] = React.useState(true);
   const [imageError, setImageError] = React.useState(false);
@@ -225,6 +272,167 @@ const ItemCard: React.FC<ItemCardProps> = ({
             )}
           </div>
         </div>
+
+        {/* Footer Status Sections - responsive grid layout */}
+        {footerStatus && (
+          <div className="mb-3 sm:mb-4 py-3 px-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-0">
+              {/* Section 1: Password Status */}
+              <div className="flex flex-col items-center justify-center px-2 pb-3 sm:pb-0 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-1 mb-2">
+                  <Lock className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Password</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* User Password */}
+                  <div 
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded border ${
+                      footerStatus.password?.user.status === 'downloaded' 
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                        : footerStatus.password?.user.status === 'pending'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                        : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                    }`}
+                    title={footerStatus.password?.user.tooltip || 'User Password'}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      footerStatus.password?.user.status === 'downloaded' 
+                        ? 'bg-green-500' 
+                        : footerStatus.password?.user.status === 'pending'
+                        ? 'bg-amber-500 animate-pulse'
+                        : 'bg-gray-400'
+                    }`} />
+                    <span className={`text-[10px] font-semibold ${
+                      footerStatus.password?.user.status === 'downloaded' 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : footerStatus.password?.user.status === 'pending'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}>U</span>
+                  </div>
+                  {/* Supervisor Password */}
+                  <div 
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded border ${
+                      footerStatus.password?.supervisor.status === 'downloaded' 
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                        : footerStatus.password?.supervisor.status === 'pending'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                        : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                    }`}
+                    title={footerStatus.password?.supervisor.tooltip || 'Supervisor Password'}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      footerStatus.password?.supervisor.status === 'downloaded' 
+                        ? 'bg-green-500' 
+                        : footerStatus.password?.supervisor.status === 'pending'
+                        ? 'bg-amber-500 animate-pulse'
+                        : 'bg-gray-400'
+                    }`} />
+                    <span className={`text-[10px] font-semibold ${
+                      footerStatus.password?.supervisor.status === 'downloaded' 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : footerStatus.password?.supervisor.status === 'pending'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}>S</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Rate Charts */}
+              <div className="flex flex-col items-center justify-center px-2 py-3 sm:py-0 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-1 mb-2">
+                  <svg className="w-3 h-3 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                  </svg>
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Charts</span>
+                </div>
+                <div className="flex items-center justify-center gap-1.5">
+                  {(() => {
+                    const allChannels = ['C1', 'C2', 'C3'];
+                    const pendingChannels = (footerStatus.charts?.pending || []).map(c => getChannelDisplayName(c.channel));
+                    const downloadedChannels = (footerStatus.charts?.downloaded || []).map(c => getChannelDisplayName(c.channel));
+                    const hasAny = pendingChannels.length > 0 || downloadedChannels.length > 0;
+                    
+                    if (!hasAny) {
+                      return <span className="text-[10px] text-gray-400 dark:text-gray-500">None</span>;
+                    }
+                    
+                    return allChannels.map(ch => {
+                      const isPending = pendingChannels.includes(ch);
+                      const isDownloaded = downloadedChannels.includes(ch);
+                      if (!isPending && !isDownloaded) return null;
+                      
+                      return (
+                        <span
+                          key={ch}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                            isPending 
+                              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                              : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800'
+                          }`}
+                        >
+                          {isPending ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          ) : (
+                            <CheckCircle className="w-2.5 h-2.5" />
+                          )}
+                          {ch}
+                        </span>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Section 3: Corrections */}
+              <div className="flex flex-col items-center justify-center px-2 pt-3 sm:pt-0">
+                <div className="flex items-center gap-1 mb-2">
+                  <svg className="w-3 h-3 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">Corrections</span>
+                </div>
+                <div className="flex items-center justify-center gap-1.5">
+                  {(() => {
+                    const allChannels = ['C1', 'C2', 'C3'];
+                    const pendingChannels = (footerStatus.corrections?.pending || []).map(c => getChannelDisplayName(c.channel));
+                    const downloadedChannels = (footerStatus.corrections?.downloaded || []).map(c => getChannelDisplayName(c.channel));
+                    const hasAny = pendingChannels.length > 0 || downloadedChannels.length > 0;
+                    
+                    if (!hasAny) {
+                      return <span className="text-[10px] text-gray-400 dark:text-gray-500">None</span>;
+                    }
+                    
+                    return allChannels.map(ch => {
+                      const isPending = pendingChannels.includes(ch);
+                      const isDownloaded = downloadedChannels.includes(ch);
+                      if (!isPending && !isDownloaded) return null;
+                      
+                      return (
+                        <span
+                          key={ch}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                            isPending 
+                              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                              : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800'
+                          }`}
+                        >
+                          {isPending ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          ) : (
+                            <CheckCircle className="w-2.5 h-2.5" />
+                          )}
+                          {ch}
+                        </span>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">

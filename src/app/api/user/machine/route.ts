@@ -264,9 +264,20 @@ export async function GET(request: NextRequest) {
            WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details,
           (SELECT COUNT(*) FROM \`${schemaName}\`.machine_corrections mc 
            WHERE mc.machine_id = m.id AND mc.status = 1) as active_corrections_count,
-          (SELECT CASE WHEN COUNT(*) > 0 THEN CONCAT('pending:', COUNT(*), ' corrections') ELSE NULL END
+          (SELECT GROUP_CONCAT(DISTINCT
+            CONCAT(
+              NULLIF(CONCAT_WS(',',
+                CASE WHEN mc.channel1_fat != 0 OR mc.channel1_snf != 0 THEN '1' ELSE NULL END,
+                CASE WHEN mc.channel2_fat != 0 OR mc.channel2_snf != 0 THEN '2' ELSE NULL END,
+                CASE WHEN mc.channel3_fat != 0 OR mc.channel3_snf != 0 THEN '3' ELSE NULL END
+              ), ''),
+              ':',
+              CASE WHEN mc.status = 1 THEN 'pending' ELSE 'downloaded' END
+            )
+            SEPARATOR '|||')
            FROM \`${schemaName}\`.machine_corrections mc
-           WHERE mc.machine_id = m.id AND mc.status = 1) as correction_details,
+           WHERE mc.machine_id = m.id
+             AND (mc.channel1_fat != 0 OR mc.channel1_snf != 0 OR mc.channel2_fat != 0 OR mc.channel2_snf != 0 OR mc.channel3_fat != 0 OR mc.channel3_snf != 0)) as correction_details,
           COALESCE(
             (SELECT COUNT(*) 
              FROM \`${schemaName}\`.milk_collections mc 
@@ -315,9 +326,20 @@ export async function GET(request: NextRequest) {
            WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details,
           (SELECT COUNT(*) FROM \`${schemaName}\`.machine_corrections mc 
            WHERE mc.machine_id = m.id AND mc.status = 1) as active_corrections_count,
-          (SELECT CASE WHEN COUNT(*) > 0 THEN CONCAT('pending:', COUNT(*), ' corrections') ELSE NULL END
+          (SELECT GROUP_CONCAT(DISTINCT
+            CONCAT(
+              NULLIF(CONCAT_WS(',',
+                CASE WHEN mc.channel1_fat != 0 OR mc.channel1_snf != 0 THEN '1' ELSE NULL END,
+                CASE WHEN mc.channel2_fat != 0 OR mc.channel2_snf != 0 THEN '2' ELSE NULL END,
+                CASE WHEN mc.channel3_fat != 0 OR mc.channel3_snf != 0 THEN '3' ELSE NULL END
+              ), ''),
+              ':',
+              CASE WHEN mc.status = 1 THEN 'pending' ELSE 'downloaded' END
+            )
+            SEPARATOR '|||')
            FROM \`${schemaName}\`.machine_corrections mc
-           WHERE mc.machine_id = m.id AND mc.status = 1) as correction_details,
+           WHERE mc.machine_id = m.id
+             AND (mc.channel1_fat != 0 OR mc.channel1_snf != 0 OR mc.channel2_fat != 0 OR mc.channel2_snf != 0 OR mc.channel3_fat != 0 OR mc.channel3_snf != 0)) as correction_details,
           COALESCE(
             (SELECT COUNT(DISTINCT mc.id) 
              FROM \`${schemaName}\`.milk_collections mc 
@@ -359,9 +381,20 @@ export async function GET(request: NextRequest) {
            WHERE rc.society_id = m.society_id AND rc.status = 1) as chart_details,
           (SELECT COUNT(*) FROM \`${schemaName}\`.machine_corrections mc 
            WHERE mc.machine_id = m.id AND mc.status = 1) as active_corrections_count,
-          (SELECT CASE WHEN COUNT(*) > 0 THEN CONCAT('pending:', COUNT(*), ' corrections') ELSE NULL END
+          (SELECT GROUP_CONCAT(DISTINCT
+            CONCAT(
+              NULLIF(CONCAT_WS(',',
+                CASE WHEN mc.channel1_fat != 0 OR mc.channel1_snf != 0 THEN '1' ELSE NULL END,
+                CASE WHEN mc.channel2_fat != 0 OR mc.channel2_snf != 0 THEN '2' ELSE NULL END,
+                CASE WHEN mc.channel3_fat != 0 OR mc.channel3_snf != 0 THEN '3' ELSE NULL END
+              ), ''),
+              ':',
+              CASE WHEN mc.status = 1 THEN 'pending' ELSE 'downloaded' END
+            )
+            SEPARATOR '|||')
            FROM \`${schemaName}\`.machine_corrections mc
-           WHERE mc.machine_id = m.id AND mc.status = 1) as correction_details,
+           WHERE mc.machine_id = m.id
+             AND (mc.channel1_fat != 0 OR mc.channel1_snf != 0 OR mc.channel2_fat != 0 OR mc.channel2_snf != 0 OR mc.channel3_fat != 0 OR mc.channel3_snf != 0)) as correction_details,
           COALESCE(
             (SELECT COUNT(DISTINCT mc.id) 
              FROM \`${schemaName}\`.milk_collections mc 

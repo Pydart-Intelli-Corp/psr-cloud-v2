@@ -297,17 +297,68 @@ function MachineManagement() {
   };
 
   // Parse correction details from string
+  // New format: "1,2,3:pending|||1,2:downloaded" where 1=C1, 2=C2, 3=C3
   const parseCorrectionDetails = (correctionDetails?: string) => {
-    if (!correctionDetails) return 0;
+    if (!correctionDetails) return { pending: [], downloaded: [] };
     
-    // Format: "pending:X corrections"
-    const parts = correctionDetails.split(':');
-    if (parts.length >= 2) {
-      const countPart = parts[1].trim().split(' ')[0];
-      return parseInt(countPart) || 0;
-    }
+    const channelMap: Record<string, string> = { '1': 'C1', '2': 'C2', '3': 'C3' };
+    const pending: Array<{ channel: string }> = [];
+    const downloaded: Array<{ channel: string }> = [];
+    const pendingChannels = new Set<string>();
     
-    return 0;
+    const records = correctionDetails.split('|||');
+    
+    // First pass: collect all pending channels
+    records.forEach(record => {
+      if (!record) return;
+      const parts = record.split(':');
+      if (parts.length >= 2) {
+        const channelPart = parts[0].trim();
+        const status = parts[1].trim().toLowerCase();
+        
+        if (channelPart && status === 'pending') {
+          const channelList = channelPart.split(',');
+          channelList.forEach(ch => {
+            const channelName = channelMap[ch.trim()];
+            if (channelName) {
+              pendingChannels.add(channelName);
+            }
+          });
+        }
+      }
+    });
+    
+    // Second pass: add to pending and downloaded lists (pending takes priority)
+    records.forEach(record => {
+      if (!record) return;
+      const parts = record.split(':');
+      if (parts.length >= 2) {
+        const channelPart = parts[0].trim();
+        const status = parts[1].trim().toLowerCase();
+        
+        if (channelPart) {
+          const channelList = channelPart.split(',');
+          channelList.forEach(ch => {
+            const channelName = channelMap[ch.trim()];
+            if (channelName) {
+              if (status === 'pending') {
+                // Add to pending only if not already added
+                if (!pending.some(p => p.channel === channelName)) {
+                  pending.push({ channel: channelName });
+                }
+              } else if (status === 'downloaded') {
+                // Add to downloaded only if NOT in pending list
+                if (!pendingChannels.has(channelName) && !downloaded.some(d => d.channel === channelName)) {
+                  downloaded.push({ channel: channelName });
+                }
+              }
+            }
+          });
+        }
+      }
+    });
+    
+    return { pending, downloaded };
   };
 
   // Check master machine status for selected society
@@ -2119,7 +2170,14 @@ function MachineManagement() {
                       {isExpanded && (
                         <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
                           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {society.machines.map((machine) => (
+                            {society.machines.map((machine) => {
+                              // Parse status data for footer
+                              const chartData = parseChartDetails(machine.chartDetails);
+                              const correctionData = parseCorrectionDetails(machine.correctionDetails);
+                              const hasUserPwd = machine.userPassword && machine.userPassword.trim() !== '';
+                              const hasSupervisorPwd = machine.supervisorPassword && machine.supervisorPassword.trim() !== '';
+                              
+                              return (
                               <div key={machine.id} className="relative hover:z-20">
                               <ItemCard
                                 id={machine.id}
@@ -2139,6 +2197,26 @@ function MachineManagement() {
                                 onSelect={() => handleSelectMachine(machine.id)}
                                 onPasswordSettings={() => handlePasswordSettingsClick(machine)}
                                 searchQuery={searchQuery}
+                                footerStatus={{
+                                  password: {
+                                    user: { 
+                                      status: hasUserPwd ? (machine.statusU === 0 ? 'downloaded' : 'pending') : 'none',
+                                      tooltip: hasUserPwd ? (machine.statusU === 0 ? 'User: Downloaded' : 'User: Ready') : 'User: Not set'
+                                    },
+                                    supervisor: { 
+                                      status: hasSupervisorPwd ? (machine.statusS === 0 ? 'downloaded' : 'pending') : 'none',
+                                      tooltip: hasSupervisorPwd ? (machine.statusS === 0 ? 'Supervisor: Downloaded' : 'Supervisor: Ready') : 'Supervisor: Not set'
+                                    }
+                                  },
+                                  charts: {
+                                    pending: chartData.pending.map(c => ({ channel: c.channel })),
+                                    downloaded: chartData.downloaded.map(c => ({ channel: c.channel }))
+                                  },
+                                  corrections: {
+                                    pending: correctionData.pending,
+                                    downloaded: correctionData.downloaded
+                                  }
+                                }}
                                 details={[
                                   ...(machine.location ? [{ icon: <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.location }] : []),
                                   ...(machine.operatorName ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.operatorName }] : []),
@@ -2165,80 +2243,6 @@ function MachineManagement() {
                                     ),
                                     className: 'text-blue-600 dark:text-blue-400'
                                   },
-                                  // Rate Chart Information
-                                  ...(() => {
-                                    const { pending, downloaded } = parseChartDetails(machine.chartDetails);
-                                    const details: Array<{ icon: React.ReactElement; text: string | React.ReactElement; className?: string }> = [];
-                                    
-                                    if (pending.length > 0) {
-                                      details.push({
-                                        icon: (
-                                          <div className="flex items-center gap-1">
-                                            <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
-                                          </div>
-                                        ),
-                                        text: (
-                                          <div className="flex flex-wrap items-center gap-1.5">
-                                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready:</span>
-                                            {pending.map((chart, idx) => (
-                                              <button
-                                                key={idx}
-                                                onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
-                                                className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
-                                              >
-                                                {chart.channel}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        ),
-                                        className: 'text-amber-600 dark:text-amber-400'
-                                      });
-                                    }
-                                    
-                                    if (downloaded.length > 0) {
-                                      details.push({
-                                        icon: <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                                        text: (
-                                          <div className="flex flex-wrap items-center gap-1.5">
-                                            <span className="text-xs font-medium">Downloaded:</span>
-                                            {downloaded.map((chart, idx) => (
-                                              <button
-                                                key={idx}
-                                                onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
-                                                className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
-                                              >
-                                                {chart.channel}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        ),
-                                        className: 'text-green-600 dark:text-green-400'
-                                      });
-                                    }
-                                    
-                                    return details;
-                                  })(),
-                                  // Correction Information
-                                  (() => {
-                                    const pendingCount = parseCorrectionDetails(machine.correctionDetails);
-                                    return {
-                                      icon: (
-                                        <div className="flex items-center gap-1">
-                                          <div className={`w-2 h-2 rounded-full ${pendingCount > 0 ? 'bg-amber-500 dark:bg-amber-400 animate-pulse' : 'bg-green-500 dark:bg-green-400'}`} />
-                                        </div>
-                                      ),
-                                      text: (
-                                        <div className="flex items-center gap-2">
-                                          <span className={`text-xs font-medium ${pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
-                                            {pendingCount > 0 ? `Pending: ${pendingCount} correction${pendingCount > 1 ? 's' : ''}` : 'Corrections: Up to date'}
-                                          </span>
-                                        </div>
-                                      ),
-                                      className: pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
-                                    };
-                                  })(),
-                                  // User and Supervisor password status in separate rows
-                                  ...getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword),
                                   // Password Status Display - Show button
                                   (() => {
                                     const hasAnyPassword = (machine.userPassword && machine.userPassword.trim() !== '') || (machine.supervisorPassword && machine.supervisorPassword.trim() !== '');
@@ -2267,7 +2271,8 @@ function MachineManagement() {
                                 viewText="View"
                               />
                               </div>
-                            ))}
+                            );
+                            })}
                           </div>
                         </div>
                       )}
@@ -2279,7 +2284,14 @@ function MachineManagement() {
           ) : (
             // List View - Traditional flat grid
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-              {filteredMachines.map((machine) => (
+              {filteredMachines.map((machine) => {
+                // Parse status data for footer
+                const chartData = parseChartDetails(machine.chartDetails);
+                const correctionData = parseCorrectionDetails(machine.correctionDetails);
+                const hasUserPwd = machine.userPassword && machine.userPassword.trim() !== '';
+                const hasSupervisorPwd = machine.supervisorPassword && machine.supervisorPassword.trim() !== '';
+                
+                return (
                 <ItemCard
                   key={machine.id}
                   id={machine.id}
@@ -2299,6 +2311,26 @@ function MachineManagement() {
                   onSelect={() => handleSelectMachine(machine.id)}
                   onPasswordSettings={() => handlePasswordSettingsClick(machine)}
                   searchQuery={searchQuery}
+                  footerStatus={{
+                    password: {
+                      user: { 
+                        status: hasUserPwd ? (machine.statusU === 0 ? 'downloaded' : 'pending') : 'none',
+                        tooltip: hasUserPwd ? (machine.statusU === 0 ? 'User: Downloaded' : 'User: Ready') : 'User: Not set'
+                      },
+                      supervisor: { 
+                        status: hasSupervisorPwd ? (machine.statusS === 0 ? 'downloaded' : 'pending') : 'none',
+                        tooltip: hasSupervisorPwd ? (machine.statusS === 0 ? 'Supervisor: Downloaded' : 'Supervisor: Ready') : 'Supervisor: Not set'
+                      }
+                    },
+                    charts: {
+                      pending: chartData.pending.map(c => ({ channel: c.channel })),
+                      downloaded: chartData.downloaded.map(c => ({ channel: c.channel }))
+                    },
+                    corrections: {
+                      pending: correctionData.pending,
+                      downloaded: correctionData.downloaded
+                    }
+                  }}
                   details={[
                     ...(machine.societyName ? [{ 
                       icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
@@ -2323,8 +2355,7 @@ function MachineManagement() {
                           <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
                             {machine.totalCollections30d || 0} Collections
                           </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">|
-                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">|</span>
                           <span className="text-xs text-gray-600 dark:text-gray-400">
                             {(machine.totalQuantity30d || 0).toFixed(2)} L
                           </span>
@@ -2332,80 +2363,6 @@ function MachineManagement() {
                       ),
                       className: 'text-blue-600 dark:text-blue-400'
                     },
-                    // Rate Chart Information
-                    ...(() => {
-                      const { pending, downloaded } = parseChartDetails(machine.chartDetails);
-                      const details: Array<{ icon: React.ReactElement; text: string | React.ReactElement; className?: string }> = [];
-                      
-                      if (pending.length > 0) {
-                        details.push({
-                          icon: (
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
-                            </div>
-                          ),
-                          text: (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Ready:</span>
-                              {pending.map((chart, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
-                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
-                                >
-                                  {chart.channel}
-                                </button>
-                              ))}
-                            </div>
-                          ),
-                          className: 'text-amber-600 dark:text-amber-400'
-                        });
-                      }
-                      
-                      if (downloaded.length > 0) {
-                        details.push({
-                          icon: <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />,
-                          text: (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium">Downloaded:</span>
-                              {downloaded.map((chart, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => handleViewRateChart(chart.fileName, chart.channel, machine.societyId)}
-                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${getChannelColor(chart.channel)} hover:opacity-80 transition-opacity cursor-pointer`}
-                                >
-                                  {chart.channel}
-                                </button>
-                              ))}
-                            </div>
-                          ),
-                          className: 'text-green-600 dark:text-green-400'
-                        });
-                      }
-                      
-                      return details;
-                    })(),
-                    // Correction Information
-                    (() => {
-                      const pendingCount = parseCorrectionDetails(machine.correctionDetails);
-                      return {
-                        icon: (
-                          <div className="flex items-center gap-1">
-                            <div className={`w-2 h-2 rounded-full ${pendingCount > 0 ? 'bg-amber-500 dark:bg-amber-400 animate-pulse' : 'bg-green-500 dark:bg-green-400'}`} />
-                          </div>
-                        ),
-                        text: (
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs font-medium ${pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
-                              {pendingCount > 0 ? `Pending: ${pendingCount} correction${pendingCount > 1 ? 's' : ''}` : 'Corrections: Up to date'}
-                            </span>
-                          </div>
-                        ),
-                        className: pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
-                      };
-                    })(),
-                    // User and Supervisor password status in separate rows
-                    ...getPasswordStatusDisplay(machine.statusU, machine.statusS, machine.userPassword, machine.supervisorPassword),
                     // Password Status Display - Show button
                     (() => {
                       const hasAnyPassword = (machine.userPassword && machine.userPassword.trim() !== '') || (machine.supervisorPassword && machine.supervisorPassword.trim() !== '');
@@ -2433,7 +2390,8 @@ function MachineManagement() {
                   onStatusChange={(status) => handleStatusChange(machine, status as 'active' | 'inactive' | 'maintenance' | 'suspended')}
                   viewText="View"
                 />
-              ))}
+              );
+              })}
             </div>
           )
         ) : (
