@@ -156,18 +156,27 @@ export async function POST(request: NextRequest) {
         const fatRounded = Math.round((reading.fat || 0) * 100) / 100;
         const snfRounded = Math.round((reading.snf || 0) * 100) / 100;
         const clrRounded = Math.round((reading.clr || 0) * 100) / 100;
+        const proteinRounded = Math.round((reading.protein || 0) * 100) / 100;
+        const lactoseRounded = Math.round((reading.lactose || 0) * 100) / 100;
+        const saltRounded = Math.round((reading.salt || 0) * 100) / 100;
+        const waterRounded = Math.round((reading.water || 0) * 100) / 100;
+        const tempRounded = Math.round((reading.temperature || 0) * 100) / 100;
+        const qtyRounded = Math.round((reading.quantity || 0) * 100) / 100;
 
         // Check for duplicate with comprehensive matching
         // This prevents duplicate syncing when machine also pushes via WiFi
-        // Match criteria: farmer_id, society_id, machine_id, date, and core quality parameters (FAT, SNF, CLR)
-        // Note: Other parameters like protein, lactose, salt, water, temp, qty may differ slightly
+        // Match criteria: farmer_id, society_id, machine_id, date, and ALL quality parameters (2 decimal precision)
         const duplicateQuery = `
           SELECT id, collection_time, fat_percentage, snf_percentage, clr_value,
                  ROUND(fat_percentage, 2) as fat_r, 
                  ROUND(snf_percentage, 2) as snf_r, 
                  ROUND(clr_value, 2) as clr_r,
-                 protein_percentage, lactose_percentage, salt_percentage,
-                 water_percentage, temperature, quantity
+                 ROUND(protein_percentage, 2) as protein_r,
+                 ROUND(lactose_percentage, 2) as lactose_r,
+                 ROUND(salt_percentage, 2) as salt_r,
+                 ROUND(water_percentage, 2) as water_r,
+                 ROUND(temperature, 2) as temp_r,
+                 ROUND(quantity, 2) as qty_r
           FROM \`${schemaName}\`.milk_collections 
           WHERE society_id = ? 
             AND farmer_id = ? 
@@ -176,12 +185,19 @@ export async function POST(request: NextRequest) {
             AND ROUND(fat_percentage, 2) = ?
             AND ROUND(snf_percentage, 2) = ?
             AND ROUND(clr_value, 2) = ?
+            AND ROUND(protein_percentage, 2) = ?
+            AND ROUND(lactose_percentage, 2) = ?
+            AND ROUND(salt_percentage, 2) = ?
+            AND ROUND(water_percentage, 2) = ?
+            AND ROUND(temperature, 2) = ?
+            AND ROUND(quantity, 2) = ?
           LIMIT 1
         `;
         const [duplicates] = await sequelize.query(duplicateQuery, {
           replacements: [
             id, normalizedFarmerId, machineDbId, reading.collection_date,
-            fatRounded, snfRounded, clrRounded
+            fatRounded, snfRounded, clrRounded, proteinRounded, lactoseRounded,
+            saltRounded, waterRounded, tempRounded, qtyRounded
           ]
         }) as [any[], any];
 
@@ -191,17 +207,28 @@ export async function POST(request: NextRequest) {
           console.log(`   Date: ${reading.collection_date}`);
           console.log(`   Request Time: ${reading.collection_time}`);
           console.log(`   DB Time: ${duplicates[0].collection_time}`);
-          console.log(`   Core Parameters Match:`);
+          console.log(`   All Parameters Match (2 decimal precision):`);
           console.log(`     FAT: ${fatRounded} = ${duplicates[0].fat_r}`);
           console.log(`     SNF: ${snfRounded} = ${duplicates[0].snf_r}`);
           console.log(`     CLR: ${clrRounded} = ${duplicates[0].clr_r}`);
+          console.log(`     Protein: ${proteinRounded} = ${duplicates[0].protein_r}`);
+          console.log(`     Lactose: ${lactoseRounded} = ${duplicates[0].lactose_r}`);
+          console.log(`     Salt: ${saltRounded} = ${duplicates[0].salt_r}`);
+          console.log(`     Water: ${waterRounded} = ${duplicates[0].water_r}`);
+          console.log(`     Temperature: ${tempRounded} = ${duplicates[0].temp_r}`);
+          console.log(`     Quantity: ${qtyRounded} = ${duplicates[0].qty_r}`);
           results.push({
             local_id: reading.local_id || reading.timestamp,
             status: 'duplicate',
             message: `Already exists: ${reading.collection_date}`,
             details: {
               farmer_id: normalizedFarmerId,
-              values: { fat: fatRounded, snf: snfRounded, clr: clrRounded }
+              values: { 
+                fat: fatRounded, snf: snfRounded, clr: clrRounded,
+                protein: proteinRounded, lactose: lactoseRounded,
+                salt: saltRounded, water: waterRounded,
+                temperature: tempRounded, quantity: qtyRounded
+              }
             }
           });
           duplicateCount++;
@@ -211,14 +238,25 @@ export async function POST(request: NextRequest) {
         // DEBUG: Show why no duplicate found - check what exists in DB for this farmer/date
         console.log(`🔍 No duplicate found, checking what exists in DB:`);
         console.log(`   Searching for: Farmer=${normalizedFarmerId}, Date=${reading.collection_date}`);
-        console.log(`   Request Values: FAT=${fatRounded}, SNF=${snfRounded}, CLR=${clrRounded}`);
+        console.log(`   Request Values (2 decimal precision):`);
+        console.log(`     FAT=${fatRounded}, SNF=${snfRounded}, CLR=${clrRounded}`);
+        console.log(`     Protein=${proteinRounded}, Lactose=${lactoseRounded}, Salt=${saltRounded}`);
+        console.log(`     Water=${waterRounded}, Temp=${tempRounded}, Qty=${qtyRounded}`);
         
         const debugQuery = `
           SELECT farmer_id, collection_date, collection_time, 
                  fat_percentage, snf_percentage, clr_value,
+                 protein_percentage, lactose_percentage, salt_percentage,
+                 water_percentage, temperature, quantity,
                  ROUND(fat_percentage, 2) as fat_r,
                  ROUND(snf_percentage, 2) as snf_r,
-                 ROUND(clr_value, 2) as clr_r
+                 ROUND(clr_value, 2) as clr_r,
+                 ROUND(protein_percentage, 2) as protein_r,
+                 ROUND(lactose_percentage, 2) as lactose_r,
+                 ROUND(salt_percentage, 2) as salt_r,
+                 ROUND(water_percentage, 2) as water_r,
+                 ROUND(temperature, 2) as temp_r,
+                 ROUND(quantity, 2) as qty_r
           FROM \`${schemaName}\`.milk_collections 
           WHERE society_id = ? 
             AND farmer_id = ? 
@@ -232,18 +270,27 @@ export async function POST(request: NextRequest) {
         if (existingRecords.length > 0) {
           console.log(`   📊 Found ${existingRecords.length} existing record(s) for this farmer on this date:`);
           existingRecords.forEach((rec: any, idx: number) => {
-            console.log(`   [${idx + 1}] Time: ${rec.collection_time} - FAT=${rec.fat_r}, SNF=${rec.snf_r}, CLR=${rec.clr_r}`);
+            console.log(`   [${idx + 1}] Time: ${rec.collection_time}`);
+            console.log(`       FAT=${rec.fat_r}, SNF=${rec.snf_r}, CLR=${rec.clr_r}`);
+            console.log(`       Protein=${rec.protein_r}, Lactose=${rec.lactose_r}, Salt=${rec.salt_r}`);
+            console.log(`       Water=${rec.water_r}, Temp=${rec.temp_r}, Qty=${rec.qty_r}`);
             
-            // Show which core parameters don't match
+            // Show which parameters don't match
             const mismatches = [];
             if (rec.fat_r !== fatRounded) mismatches.push(`FAT(${rec.fat_r}≠${fatRounded})`);
             if (rec.snf_r !== snfRounded) mismatches.push(`SNF(${rec.snf_r}≠${snfRounded})`);
             if (rec.clr_r !== clrRounded) mismatches.push(`CLR(${rec.clr_r}≠${clrRounded})`);
+            if (rec.protein_r !== proteinRounded) mismatches.push(`Protein(${rec.protein_r}≠${proteinRounded})`);
+            if (rec.lactose_r !== lactoseRounded) mismatches.push(`Lactose(${rec.lactose_r}≠${lactoseRounded})`);
+            if (rec.salt_r !== saltRounded) mismatches.push(`Salt(${rec.salt_r}≠${saltRounded})`);
+            if (rec.water_r !== waterRounded) mismatches.push(`Water(${rec.water_r}≠${waterRounded})`);
+            if (rec.temp_r !== tempRounded) mismatches.push(`Temp(${rec.temp_r}≠${tempRounded})`);
+            if (rec.qty_r !== qtyRounded) mismatches.push(`Qty(${rec.qty_r}≠${qtyRounded})`);
             
             if (mismatches.length > 0) {
               console.log(`       ❌ Mismatches: ${mismatches.join(', ')}`);
             } else {
-              console.log(`       ✅ Core values match!`);
+              console.log(`       ✅ All values match!`);
             }
           });
         } else {
