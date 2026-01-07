@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       machineMap.set(m.machine_id.replace(/^0+/, ''), m.id);
     });
 
-    const results: { local_id: string; status: 'synced' | 'duplicate' | 'error'; message?: string }[] = [];
+    const results: { local_id: string; status: 'synced' | 'duplicate' | 'error'; message?: string; details?: any }[] = [];
     let syncedCount = 0;
     let duplicateCount = 0;
     let errorCount = 0;
