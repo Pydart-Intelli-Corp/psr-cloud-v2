@@ -227,6 +227,8 @@ async function createAdminTables(schemaName: string): Promise<void> {
         \`status\` ENUM('active', 'inactive', 'suspended', 'maintenance') DEFAULT 'active',
         \`notes\` TEXT,
         \`password\` VARCHAR(255),
+        \`otp_code\` VARCHAR(6) COMMENT 'One-time password for farmer login',
+        \`otp_expires\` DATETIME COMMENT 'OTP expiration timestamp',
         \`society_id\` INT,
         \`machine_id\` INT,
         \`cattle_count\` INT,

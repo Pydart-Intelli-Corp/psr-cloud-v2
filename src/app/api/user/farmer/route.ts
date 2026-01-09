@@ -3,39 +3,157 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
 
-// Helper function to check farmer email uniqueness across all admin schemas
-async function checkGlobalFarmerEmailUniqueness(email: string, excludeFarmerId?: number, currentSchemaName?: string): Promise<{ isUnique: boolean; existingSchema?: string }> {
-  const { sequelize, User } = await import('@/models').then(m => m.getModels());
+// Helper function to check email uniqueness across ALL entities in the entire system
+async function checkGlobalEmailUniqueness(
+  email: string, 
+  excludeEntityType?: 'farmer' | 'society' | 'dairy' | 'bmc' | 'user',
+  excludeEntityId?: number, 
+  currentSchemaName?: string
+): Promise<{ isUnique: boolean; existingLocation?: string }> {
+  if (!email || email.trim() === '') {
+    return { isUnique: true };
+  }
+
+  const { sequelize } = await import('@/models').then(m => m.getModels());
+  const normalizedEmail = email.trim().toLowerCase();
   
-  // Get all admin schemas
+  // 1. Check main database Users table (Admins and Super Admin)
+  if (excludeEntityType !== 'user') {
+    try {
+      const [users] = await sequelize.query(`
+        SELECT email, fullName, role 
+        FROM users 
+        WHERE LOWER(email) = ?
+      `, { replacements: [normalizedEmail] });
+      
+      if (Array.isArray(users) && users.length > 0) {
+        const user = users[0] as any;
+        return { 
+          isUnique: false, 
+          existingLocation: `${user.role} user: ${user.fullName}` 
+        };
+      }
+    } catch (error) {
+      console.log('⚠️ Error checking users table:', error);
+    }
+  }
+  
+  // 2. Get all admin schemas
   const [schemas] = await sequelize.query(`
     SELECT DISTINCT TABLE_SCHEMA 
     FROM information_schema.TABLES 
-    WHERE (TABLE_SCHEMA LIKE 'db_%' OR TABLE_SCHEMA LIKE 'tester_%') 
-    AND TABLE_NAME = 'farmers'
+    WHERE (TABLE_SCHEMA LIKE '%_%') 
+    AND TABLE_NAME IN ('farmers', 'societies', 'dairies', 'bmcs')
     ORDER BY TABLE_SCHEMA
   `);
   
   const adminSchemas = (schemas as Array<{ TABLE_SCHEMA: string }>).map(s => s.TABLE_SCHEMA);
+  const uniqueSchemas = [...new Set(adminSchemas)];
   
-  for (const schema of adminSchemas) {
+  for (const schema of uniqueSchemas) {
     try {
-      let query = `SELECT farmer_id, name FROM \`${schema}\`.\`farmers\` WHERE email = ?`;
-      const replacements: any[] = [email.trim().toLowerCase()];
-      
-      // If checking for update (exclude current farmer)
-      if (excludeFarmerId && currentSchemaName && schema === currentSchemaName) {
-        query += ' AND id != ?';
-        replacements.push(excludeFarmerId);
+      // Check Farmers table
+      if (excludeEntityType !== 'farmer' || schema !== currentSchemaName) {
+        try {
+          let farmerQuery = `SELECT farmer_id, name FROM \`${schema}\`.\`farmers\` WHERE LOWER(email) = ?`;
+          const farmerReplacements: any[] = [normalizedEmail];
+          
+          if (excludeEntityType === 'farmer' && excludeEntityId && currentSchemaName && schema === currentSchemaName) {
+            farmerQuery += ' AND id != ?';
+            farmerReplacements.push(excludeEntityId);
+          }
+          
+          const [existingFarmer] = await sequelize.query(farmerQuery, { replacements: farmerReplacements });
+          
+          if (Array.isArray(existingFarmer) && existingFarmer.length > 0) {
+            const farmer = existingFarmer[0] as any;
+            return { 
+              isUnique: false, 
+              existingLocation: `Farmer: ${farmer.name} (${farmer.farmer_id}) in ${schema}` 
+            };
+          }
+        } catch (error) {
+          // Table might not exist in this schema
+        }
       }
       
-      const [existingEmail] = await sequelize.query(query, { replacements });
-      
-      if (Array.isArray(existingEmail) && existingEmail.length > 0) {
-        return { isUnique: false, existingSchema: schema };
+      // Check Societies table
+      if (excludeEntityType !== 'society' || schema !== currentSchemaName) {
+        try {
+          let societyQuery = `SELECT society_id, name FROM \`${schema}\`.\`societies\` WHERE LOWER(email) = ?`;
+          const societyReplacements: any[] = [normalizedEmail];
+          
+          if (excludeEntityType === 'society' && excludeEntityId && currentSchemaName && schema === currentSchemaName) {
+            societyQuery += ' AND id != ?';
+            societyReplacements.push(excludeEntityId);
+          }
+          
+          const [existingSociety] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+          
+          if (Array.isArray(existingSociety) && existingSociety.length > 0) {
+            const society = existingSociety[0] as any;
+            return { 
+              isUnique: false, 
+              existingLocation: `Society: ${society.name} (${society.society_id}) in ${schema}` 
+            };
+          }
+        } catch (error) {
+          // Table might not exist in this schema
+        }
       }
+      
+      // Check Dairies table
+      if (excludeEntityType !== 'dairy' || schema !== currentSchemaName) {
+        try {
+          let dairyQuery = `SELECT dairy_id, name FROM \`${schema}\`.\`dairies\` WHERE LOWER(email) = ?`;
+          const dairyReplacements: any[] = [normalizedEmail];
+          
+          if (excludeEntityType === 'dairy' && excludeEntityId && currentSchemaName && schema === currentSchemaName) {
+            dairyQuery += ' AND id != ?';
+            dairyReplacements.push(excludeEntityId);
+          }
+          
+          const [existingDairy] = await sequelize.query(dairyQuery, { replacements: dairyReplacements });
+          
+          if (Array.isArray(existingDairy) && existingDairy.length > 0) {
+            const dairy = existingDairy[0] as any;
+            return { 
+              isUnique: false, 
+              existingLocation: `Dairy: ${dairy.name} (${dairy.dairy_id}) in ${schema}` 
+            };
+          }
+        } catch (error) {
+          // Table might not exist in this schema
+        }
+      }
+      
+      // Check BMCs table
+      if (excludeEntityType !== 'bmc' || schema !== currentSchemaName) {
+        try {
+          let bmcQuery = `SELECT bmc_id, name FROM \`${schema}\`.\`bmcs\` WHERE LOWER(email) = ?`;
+          const bmcReplacements: any[] = [normalizedEmail];
+          
+          if (excludeEntityType === 'bmc' && excludeEntityId && currentSchemaName && schema === currentSchemaName) {
+            bmcQuery += ' AND id != ?';
+            bmcReplacements.push(excludeEntityId);
+          }
+          
+          const [existingBmc] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+          
+          if (Array.isArray(existingBmc) && existingBmc.length > 0) {
+            const bmc = existingBmc[0] as any;
+            return { 
+              isUnique: false, 
+              existingLocation: `BMC: ${bmc.name} (${bmc.bmc_id}) in ${schema}` 
+            };
+          }
+        } catch (error) {
+          // Table might not exist in this schema
+        }
+      }
+      
     } catch (error) {
-      console.log(`⚠️ Schema ${schema} not accessible or doesn't have farmers table`);
+      console.log(`⚠️ Schema ${schema} not fully accessible`);
       continue;
     }
   }
@@ -278,12 +396,16 @@ export async function POST(request: NextRequest) {
         return createErrorResponse('Farmer ID and name are required', 400);
       }
 
-      // Check for global farmer email uniqueness across all admin schemas if provided
+      // Check for global email uniqueness across ALL entities in the system
       if (email && email.trim() !== '') {
-        const emailCheck = await checkGlobalFarmerEmailUniqueness(email);
+        const emailCheck = await checkGlobalEmailUniqueness(email);
         if (!emailCheck.isUnique) {
-          console.log(`📧 Global duplicate farmer email detected: ${email} (exists in schema: ${emailCheck.existingSchema})`);
-          return createErrorResponse('Email address already exists in the system. Please use a different email.', 400);
+          console.log(`📧 Global duplicate email detected: ${email}`);
+          console.log(`📧 Location: ${emailCheck.existingLocation}`);
+          return createErrorResponse(
+            `Email address already exists in the system (${emailCheck.existingLocation}). Please use a different email.`, 
+            400
+          );
         }
       }
 
@@ -423,12 +545,16 @@ export async function PUT(request: NextRequest) {
       return createErrorResponse('ID, Farmer ID and name are required', 400);
     }
 
-    // Check for global farmer email uniqueness across all admin schemas if provided (exclude current farmer)
+    // Check for global email uniqueness across ALL entities in the system (exclude current farmer)
     if (email && email.trim() !== '') {
-      const emailCheck = await checkGlobalFarmerEmailUniqueness(email, id, schemaName);
+      const emailCheck = await checkGlobalEmailUniqueness(email, 'farmer', id, schemaName);
       if (!emailCheck.isUnique) {
-        console.log(`📧 Global duplicate farmer email detected: ${email} (exists in schema: ${emailCheck.existingSchema})`);
-        return createErrorResponse('Email address already exists in the system. Please use a different email.', 400);
+        console.log(`📧 Global duplicate email detected: ${email}`);
+        console.log(`📧 Location: ${emailCheck.existingLocation}`);
+        return createErrorResponse(
+          `Email address already exists in the system (${emailCheck.existingLocation}). Please use a different email.`, 
+          400
+        );
       }
     }
 

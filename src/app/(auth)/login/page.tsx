@@ -98,6 +98,9 @@ const inputStyle = `
 interface LoginForm {
   email: string;
   password: string;
+  loginType: 'user' | 'farmer' | 'society';
+  otp: string[];
+  otpSent: boolean;
 }
 
 interface LoginResponse {
@@ -120,7 +123,13 @@ interface LoginResponse {
 }
 
 const LoginPage = () => {
-  const [form, setForm] = useState<LoginForm>({ email: '', password: '' });
+  const [form, setForm] = useState<LoginForm>({ 
+    email: '', 
+    password: '', 
+    loginType: 'user',
+    otp: ['', '', '', '', '', ''],
+    otpSent: false
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -128,6 +137,7 @@ const LoginPage = () => {
   const [showEmailVerificationPrompt, setShowEmailVerificationPrompt] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState('');
   const [currentUser, setCurrentUser] = useState<{ fullName: string; role: string; email: string } | null>(null);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
@@ -197,6 +207,28 @@ const LoginPage = () => {
     setIsSuccess(false); // Clear success state when user types
   };
 
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) return; // Only allow single digit
+    if (!/^\d*$/.test(value)) return; // Only allow numbers
+
+    const newOtp = [...form.otp];
+    newOtp[index] = value;
+    setForm(prev => ({ ...prev, otp: newOtp }));
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !form.otp[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      prevInput?.focus();
+    }
+  };
+
   const validateForm = (): boolean => {
     if (!form.email) {
       setError('Email is required');
@@ -206,6 +238,22 @@ const LoginPage = () => {
       setError('Please enter a valid email address');
       return false;
     }
+    
+    // For farmer or society login with OTP, only validate email if OTP not sent yet
+    if ((form.loginType === 'farmer' || form.loginType === 'society') && !form.otpSent) {
+      return true;
+    }
+    
+    // For farmer or society login with OTP sent, validate OTP
+    if ((form.loginType === 'farmer' || form.loginType === 'society') && form.otpSent) {
+      if (form.otp.join('').length !== 6) {
+        setError('Please enter the 6-digit OTP');
+        return false;
+      }
+      return true;
+    }
+    
+    // For user login, validate password
     if (!form.password) {
       setError('Password is required');
       return false;
@@ -215,6 +263,49 @@ const LoginPage = () => {
       return false;
     }
     return true;
+  };
+
+  const handleSendOtp = async () => {
+    if (!form.email || !form.email.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setError('');
+
+    try {
+      // Use external API which supports both farmer and society login
+      const endpoint = form.loginType === 'farmer' ? '/api/auth/farmer-send-otp' : '/api/external/auth/send-otp';
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: form.email }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setForm(prev => ({ ...prev, otpSent: true }));
+        setIsSuccess(true);
+        const entityType = result.data?.entityType || form.loginType;
+        setError(`OTP sent successfully! Please check your email. (${entityType} account found)`);
+        setTimeout(() => {
+          setIsSuccess(false);
+          setError('');
+        }, 4000);
+      } else {
+        setError(result.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      setError('Network error. Please check your connection and try again.');
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
   const handleEmailVerificationPending = async (email: string) => {
@@ -248,7 +339,61 @@ const LoginPage = () => {
     setIsSuccess(false);
 
     try {
-      // First check account status
+      // For farmer or society login with OTP
+      if (form.loginType === 'farmer' || form.loginType === 'society') {
+        if (!form.otpSent) {
+          // Send OTP first
+          setIsLoading(false);
+          await handleSendOtp();
+          return;
+        }
+
+        // Verify OTP and login - use external API for society, farmer API for farmer
+        const otpCode = form.otp.join('');
+        const endpoint = form.loginType === 'farmer' ? '/api/auth/farmer-login' : '/api/external/auth/verify-otp';
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: form.email, otpCode, otp: otpCode }),
+        });
+
+        const result: LoginResponse = await response.json();
+
+        if (result.success && result.data) {
+          // Handle both farmer and society response structures
+          const user = result.data.user || result.data;
+          const token = result.data.token || result.data.accessToken;
+          const refreshToken = result.data.refreshToken;
+          
+          // Store tokens and user info
+          if (token) localStorage.setItem('authToken', token);
+          if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+          localStorage.setItem('userData', JSON.stringify(user));
+
+          setIsSuccess(true);
+          
+          // Redirect based on login type
+          const dashboardRoute = form.loginType === 'farmer' ? '/farmer/dashboard' : '/society/dashboard';
+          setTimeout(() => {
+            router.push(dashboardRoute);
+          }, 1500);
+        } else {
+          const errorMessage = result.error?.message || result.message || 'Login failed. Please try again.';
+          setError(errorMessage);
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+
+      // For regular user login (existing flow)
+      // Determine login endpoint based on login type
+      const loginEndpoint = '/api/auth/login';
+
+      // First check account status for regular users
       const statusResponse = await fetch('/api/auth/check-status', {
         method: 'POST',
         headers: {
@@ -290,12 +435,12 @@ const LoginPage = () => {
       }
 
       // Proceed with login
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(loginEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ email: form.email, password: form.password }),
       });
 
       const result: LoginResponse = await response.json();
@@ -320,7 +465,7 @@ const LoginPage = () => {
         // Handle specific error messages
         const errorMessage = result.error?.message || result.message || 'Login failed. Please try again.';
         
-        // If account exists but login failed (wrong password)
+        // If account exists but login failed (wrong password) - only for user login
         if (accountExists && errorMessage === 'Invalid credentials') {
           setError('Incorrect password. Please try again or reset your password.');
         } 
@@ -434,9 +579,49 @@ const LoginPage = () => {
               <div className="text-center mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
                 <p className="text-gray-600">Sign in to your account to continue</p>
+                
+                {/* Login Type Selection */}
+                <div className="mt-6 flex gap-2 justify-center flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, loginType: 'user', otpSent: false, otp: ['', '', '', '', '', ''] }))}
+                    className={`px-4 py-2.5 rounded-xl font-medium transition-all text-sm ${
+                      form.loginType === 'user'
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Admin/User
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, loginType: 'society', otpSent: false, otp: ['', '', '', '', '', ''] }))}
+                    className={`px-4 py-2.5 rounded-xl font-medium transition-all text-sm ${
+                      form.loginType === 'society'
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Society
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, loginType: 'farmer', otpSent: false, otp: ['', '', '', '', '', ''] }))}
+                    className={`px-4 py-2.5 rounded-xl font-medium transition-all text-sm ${
+                      form.loginType === 'farmer'
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Farmer
+                  </button>
+                </div>
+
                 <div className="mt-4 inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-full">
                   <div className="w-2 h-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full mr-2"></div>
-                  <span className="text-sm text-gray-700 font-medium">User Login</span>
+                  <span className="text-sm text-gray-700 font-medium">
+                    {form.loginType === 'farmer' ? 'Farmer Portal' : form.loginType === 'society' ? 'Society Portal' : 'Admin Portal'}
+                  </span>
                 </div>
               </div>
 
@@ -484,8 +669,9 @@ const LoginPage = () => {
                       name="email"
                       value={form.email}
                       onChange={handleInputChange}
+                      disabled={form.loginType === 'farmer' && form.otpSent}
                       required
-                      className="login-input w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200"
+                      className="login-input w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                       placeholder="Enter your email address"
                       style={{ 
                         color: '#111827 !important',
@@ -496,46 +682,89 @@ const LoginPage = () => {
                   </div>
                 </div>
 
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
-                    Password
-                  </label>
-                  <div className="relative overflow-hidden rounded-xl">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                      <Lock className="h-5 w-5 text-gray-400" />
+                {/* Password Field - Only show for user login */}
+                {form.loginType === 'user' && (
+                  <div className="space-y-2">
+                    <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
+                      Password
+                    </label>
+                    <div className="relative overflow-hidden rounded-xl">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                        <Lock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        id="password"
+                        name="password"
+                        value={form.password}
+                        onChange={handleInputChange}
+                        required
+                        autoComplete="current-password"
+                        className="login-input w-full pl-12 pr-12 py-4 bg-white border border-gray-200 rounded-xl placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200"
+                        placeholder="Enter your password"
+                        style={{ 
+                          color: '#111827 !important',
+                          backgroundColor: '#ffffff !important',
+                          WebkitTextFillColor: '#111827 !important'
+                        }}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-4 z-10">
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none p-1"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-5 w-5" />
+                          ) : (
+                            <Eye className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      id="password"
-                      name="password"
-                      value={form.password}
-                      onChange={handleInputChange}
-                      required
-                      autoComplete="current-password"
-                      className="login-input w-full pl-12 pr-12 py-4 bg-white border border-gray-200 rounded-xl placeholder-gray-500 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200"
-                      placeholder="Enter your password"
-                      style={{ 
-                        color: '#111827 !important',
-                        backgroundColor: '#ffffff !important',
-                        WebkitTextFillColor: '#111827 !important'
-                      }}
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 z-10">
+                  </div>
+                )}
+
+                {/* OTP Input - Show for farmer or society login after OTP sent */}
+                {(form.loginType === 'farmer' || form.loginType === 'society') && form.otpSent && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Enter 6-Digit OTP Code
+                    </label>
+                    <div className="flex justify-center gap-3">
+                      {form.otp.map((digit, index) => (
+                        <input
+                          key={index}
+                          id={`otp-${index}`}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          className="w-14 h-14 text-center text-2xl font-bold border-2 rounded-xl focus:outline-none transition-all duration-200 shadow-sm"
+                          placeholder="•"
+                          style={{
+                            color: '#111827',
+                            backgroundColor: '#ffffff',
+                            borderColor: digit ? '#10b981' : '#d1d5db',
+                            boxShadow: digit ? '0 0 0 3px rgba(16, 185, 129, 0.1)' : undefined
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="text-center mt-4">
                       <button
                         type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none p-1"
+                        onClick={handleSendOtp}
+                        disabled={isSendingOtp}
+                        className="text-sm text-green-600 hover:text-green-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
+                        {isSendingOtp ? 'Sending...' : 'Resend OTP'}
                       </button>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Error/Success Message */}
                 {error && (
@@ -560,42 +789,67 @@ const LoginPage = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || isSendingOtp}
                   className="w-full bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 text-white font-semibold py-4 px-6 rounded-xl hover:from-green-700 hover:via-emerald-700 hover:to-green-800 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg shadow-green-500/25"
                 >
-                  {isLoading ? (
+                  {isLoading || isSendingOtp ? (
                     <div className="flex items-center justify-center space-x-2">
                       <FlowerSpinner size={20} className="brightness-200" />
-                      <span>Signing In...</span>
+                      <span>{isSendingOtp ? 'Sending OTP...' : 'Signing In...'}</span>
                     </div>
                   ) : (
-                    'Sign In'
+                    <>
+                      {(form.loginType === 'farmer' || form.loginType === 'society') && !form.otpSent ? 'Send OTP' : 'Sign In'}
+                    </>
                   )}
                 </button>
               </form>
 
               {/* Links */}
               <div className="mt-8 space-y-4">
-                <div className="text-center">
-                  <Link 
-                    href="/forgot-password" 
-                    className="login-link text-sm font-medium transition-colors"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
+                {/* Only show forgot password and register links for user login */}
+                {form.loginType === 'user' && (
+                  <>
+                    <div className="text-center">
+                      <Link 
+                        href="/forgot-password" 
+                        className="login-link text-sm font-medium transition-colors"
+                      >
+                        Forgot your password?
+                      </Link>
+                    </div>
+                    
+                    <div className="border-t border-gray-200 pt-6 text-center">
+                      <p className="text-sm text-gray-600">
+                        {mounted ? "Don't have an account?" : "Don\u2019t have an account?"}{' '}
+                        <Link 
+                          href="/register" 
+                          className="login-link font-semibold transition-colors"
+                        >
+                          Create one here
+                        </Link>
+                      </p>
+                    </div>
+                  </>
+                )}
                 
-                <div className="border-t border-gray-200 pt-6 text-center">
-                  <p className="text-sm text-gray-600">
-                    {mounted ? "Don't have an account?" : "Don\u2019t have an account?"}{' '}
-                    <Link 
-                      href="/register" 
-                      className="login-link font-semibold transition-colors"
-                    >
-                      Create one here
-                    </Link>
-                  </p>
-                </div>
+                {/* Farmer login info */}
+                {form.loginType === 'farmer' && (
+                  <div className="border-t border-gray-200 pt-6 text-center">
+                    <p className="text-sm text-gray-600">
+                      Contact your society administrator to create or reset your farmer account
+                    </p>
+                  </div>
+                )}
+
+                {/* Society login info */}
+                {form.loginType === 'society' && (
+                  <div className="border-t border-gray-200 pt-6 text-center">
+                    <p className="text-sm text-gray-600">
+                      Contact your BMC or dairy administrator to manage your society account
+                    </p>
+                  </div>
+                )}
 
                 <div className="text-center">
                   <Link 

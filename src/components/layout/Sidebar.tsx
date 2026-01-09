@@ -81,19 +81,19 @@ const navigationItems: NavItem[] = [
     icon: Cog,
     labelKey: 'machineManagement',
     href: '/admin/machine',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SOCIETY]
   },
   {
     icon: Receipt,
     labelKey: 'ratechartManagement',
     href: '/admin/ratechart',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SOCIETY]
   },
   {
     icon: Tractor,
     labelKey: 'farmerManagement',
     href: '/admin/farmer',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SOCIETY]
   },
   {
     icon: Bell,
@@ -156,14 +156,40 @@ export default function Sidebar({ userRole, isCollapsed, onToggle, onLogout }: S
     if (role === UserRole.ADMIN) {
       return '/admin/dashboard';
     }
+    if (role === UserRole.SOCIETY) {
+      return '/society/dashboard';
+    }
     // For other roles, default to admin dashboard
     return '/admin/dashboard';
   };
 
-  // Update navigation items with dynamic dashboard href
+  // Get the correct route prefix based on user role
+  const getRoutePrefix = (role: UserRole): string => {
+    if (role === UserRole.SOCIETY) {
+      return '/society';
+    }
+    return '/admin';
+  };
+
+  // Update navigation items with dynamic dashboard href and role-based routes
   const updatedNavItems = navigationItems.map(item => {
     if (item.labelKey === 'dashboard') {
       return { ...item, href: getDashboardHref(userRole) };
+    }
+    // For society users, redirect admin routes to society routes
+    if (userRole === UserRole.SOCIETY) {
+      if (item.href === '/admin/reports') {
+        return { ...item, href: '/society/reports' };
+      }
+      if (item.href === '/admin/farmer') {
+        return { ...item, href: '/society/farmer' };
+      }
+      if (item.href === '/admin/machine') {
+        return { ...item, href: '/society/machine' };
+      }
+      if (item.href === '/admin/ratechart') {
+        return { ...item, href: '/society/ratechart' };
+      }
     }
     return item;
   });

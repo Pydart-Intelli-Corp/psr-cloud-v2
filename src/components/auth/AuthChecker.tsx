@@ -39,7 +39,37 @@ export default function AuthChecker({ children }: { children: React.ReactNode })
 
     // Check if user has valid token
     const checkAuth = async () => {
-      // Check for both regular and admin tokens
+      // Check for userData first to see if it's a farmer
+      const userDataStr = localStorage.getItem('userData');
+      let userData = null;
+      
+      try {
+        if (userDataStr) {
+          userData = JSON.parse(userDataStr);
+        }
+      } catch (e) {
+        console.error('Error parsing userData:', e);
+      }
+
+      // If this is a farmer, skip server verification (farmers use their own auth)
+      if (userData && userData.role === 'farmer') {
+        console.log('✅ AuthChecker: Farmer detected, skipping server verification');
+        
+        // Just check if they have a token
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          console.log('🔒 AuthChecker: Farmer has no token, redirecting to login');
+          localStorage.clear();
+          setIsChecking(false);
+          router.push('/login');
+          return;
+        }
+        
+        setIsChecking(false);
+        return;
+      }
+      
+      // For regular users, check token and verify with server
       let token = localStorage.getItem('authToken');
       if (!token) {
         token = localStorage.getItem('adminToken');

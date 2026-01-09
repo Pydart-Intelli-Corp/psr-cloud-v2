@@ -1781,7 +1781,7 @@ const FarmerManagement = () => {
                       <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {society.farmers.map((farmer) => (
-                            <div key={farmer.id} className="relative hover:z-20">
+                            <div key={farmer.id} className="relative hover:z-20 h-full">
                             <ItemCard
                               id={farmer.id}
                               name={farmer.farmerName}
@@ -1813,6 +1813,7 @@ const FarmerManagement = () => {
                               selected={selectedFarmers.has(farmer.id)}
                               onSelect={() => handleSelectFarmer(farmer.id)}
                               searchQuery={searchQuery}
+                              className="h-full"
                             />
                             </div>
                           ))}

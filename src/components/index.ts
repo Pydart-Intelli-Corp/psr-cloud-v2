@@ -58,5 +58,8 @@ export {
   SearchAndFilter
 } from './management';
 
+// Report Components
+export { default as SocietyCollectionReports } from './reports/SocietyCollectionReports';
+
 // Dairy Components
 export { default as DairyMinimalCard } from './dairy/DairyMinimalCard';
