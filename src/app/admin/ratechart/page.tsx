@@ -18,6 +18,7 @@ import BulkDeleteConfirmModal from '@/components/management/BulkDeleteConfirmMod
 import RateChartUploadModal from '@/components/ratechart/RateChartUploadModal';
 import RateChartMinimalCard from '@/components/ratechart/RateChartMinimalCard';
 import AssignSocietyModal from '@/components/ratechart/AssignSocietyModal';
+import AssignBmcModal from '@/components/ratechart/AssignBmcModal';
 import TotalAssignmentsModal from '@/components/ratechart/TotalAssignmentsModal';
 import ResetDownloadModal from '@/components/ratechart/ResetDownloadModal';
 import ManagementPageHeader from '@/components/management/ManagementPageHeader';
@@ -54,6 +55,10 @@ interface RateChart {
   recordCount: number;
   shared_chart_id: number | null;
   status: number;
+  isBmcAssigned?: number;
+  bmcId?: number;
+  bmcName?: string;
+  bmcIdentifier?: string;
 }
 
 export default function RatechartManagement() {
@@ -99,6 +104,14 @@ export default function RatechartManagement() {
     chartId: number;
     fileName: string;
     societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>;
+  } | null>(null);
+
+  // Assign BMC modal
+  const [showAssignBmcModal, setShowAssignBmcModal] = useState(false);
+  const [selectedChartForBmcAssign, setSelectedChartForBmcAssign] = useState<{
+    chartId: number;
+    fileName: string;
+    bmcs: Array<{ bmcId: number; bmcName: string; bmcIdentifier: string }>;
   } | null>(null);
 
   // Bulk status
@@ -485,13 +498,9 @@ export default function RatechartManagement() {
     // Handle channel filter including 'unique' option
     if (channelFilter !== 'all') {
       if (channelFilter === 'unique') {
-        // For unique filter, only show charts that are not shared
-        // This means: shared_chart_id is null AND no other charts reference this chart
         const isShared = rateCharts.some(c => c.shared_chart_id === chart.id);
         if (chart.shared_chart_id !== null || isShared) return false;
       } else {
-        // For specific channel filters (COW, BUFFALO, MIXED)
-        // Convert database channel value to display format for comparison
         const displayChannel = getChannelDisplay(chart.channel);
         if (displayChannel !== channelFilter) return false;
       }
@@ -501,8 +510,10 @@ export default function RatechartManagement() {
     if (searchQuery !== '') {
       const query = searchQuery.toLowerCase();
       const matchesSearch = 
-        chart.societyName.toLowerCase().includes(query) ||
-        chart.societyIdentifier.toLowerCase().includes(query) ||
+        (chart.societyName && chart.societyName.toLowerCase().includes(query)) ||
+        (chart.societyIdentifier && chart.societyIdentifier.toLowerCase().includes(query)) ||
+        (chart.bmcName && chart.bmcName.toLowerCase().includes(query)) ||
+        (chart.bmcIdentifier && chart.bmcIdentifier.toLowerCase().includes(query)) ||
         chart.channel.toLowerCase().includes(query) ||
         chart.fileName.toLowerCase().includes(query) ||
         chart.uploadedBy.toLowerCase().includes(query);
@@ -516,7 +527,6 @@ export default function RatechartManagement() {
   // Get only master charts (where shared_chart_id is null)
   const masterCharts = filteredRateCharts.filter(chart => chart.shared_chart_id === null);
   
-  // For each master chart, find all societies using it (including shared references)
   const groupedCharts = masterCharts.reduce((acc, masterChart) => {
     acc[masterChart.id] = {
       chartId: masterChart.id,
@@ -526,30 +536,60 @@ export default function RatechartManagement() {
       createdAt: masterChart.uploadedAt,
       recordCount: masterChart.recordCount,
       status: masterChart.status,
+      isBmcAssigned: !!(masterChart.isBmcAssigned),
+      bmcId: masterChart.bmcId,
+      bmcName: masterChart.bmcName,
+      bmcIdentifier: masterChart.bmcIdentifier,
       societies: [],
-      chartRecordIds: [masterChart.id] // Start with master chart ID
+      bmcs: [],
+      chartRecordIds: [masterChart.id]
     };
     
-    // Add the master chart's society with its chart record ID
-    acc[masterChart.id].societies.push({
-      societyId: masterChart.societyId,
-      societyName: masterChart.societyName,
-      societyIdentifier: masterChart.societyIdentifier,
-      chartRecordId: masterChart.id // Add the chart record ID for this society
-    });
-    
-    // Find all societies that share this chart
-    filteredRateCharts.forEach(chart => {
-      if (chart.shared_chart_id === masterChart.id) {
-        acc[masterChart.id].societies.push({
-          societyId: chart.societyId,
-          societyName: chart.societyName,
-          societyIdentifier: chart.societyIdentifier,
-          chartRecordId: chart.id // Add the chart record ID for this society
-        });
-        acc[masterChart.id].chartRecordIds.push(chart.id);
-      }
-    });
+    if (masterChart.isBmcAssigned && masterChart.bmcId) {
+      // For BMC-assigned charts, collect unique BMCs
+      const bmcMap = new Map<number, { bmcId: number; bmcName: string; bmcIdentifier: string; chartRecordId: number }>();
+      
+      bmcMap.set(masterChart.bmcId, {
+        bmcId: masterChart.bmcId,
+        bmcName: masterChart.bmcName!,
+        bmcIdentifier: masterChart.bmcIdentifier!,
+        chartRecordId: masterChart.id
+      });
+      
+      filteredRateCharts.forEach(chart => {
+        if (chart.shared_chart_id === masterChart.id && chart.bmcId && !bmcMap.has(chart.bmcId)) {
+          bmcMap.set(chart.bmcId, {
+            bmcId: chart.bmcId,
+            bmcName: chart.bmcName!,
+            bmcIdentifier: chart.bmcIdentifier!,
+            chartRecordId: chart.id
+          });
+          acc[masterChart.id].chartRecordIds.push(chart.id);
+        }
+      });
+      
+      acc[masterChart.id].bmcs = Array.from(bmcMap.values());
+    } else if (masterChart.societyId) {
+      // For society-assigned charts
+      acc[masterChart.id].societies.push({
+        societyId: masterChart.societyId,
+        societyName: masterChart.societyName,
+        societyIdentifier: masterChart.societyIdentifier,
+        chartRecordId: masterChart.id
+      });
+      
+      filteredRateCharts.forEach(chart => {
+        if (chart.shared_chart_id === masterChart.id) {
+          acc[masterChart.id].societies.push({
+            societyId: chart.societyId,
+            societyName: chart.societyName,
+            societyIdentifier: chart.societyIdentifier,
+            chartRecordId: chart.id
+          });
+          acc[masterChart.id].chartRecordIds.push(chart.id);
+        }
+      });
+    }
     
     return acc;
   }, {} as Record<number, { 
@@ -560,13 +600,28 @@ export default function RatechartManagement() {
     createdAt: string;
     recordCount: number;
     status: number;
+    isBmcAssigned: boolean;
+    bmcId?: number;
+    bmcName?: string;
+    bmcIdentifier?: string;
     societies: { societyId: number; societyName: string; societyIdentifier: string; chartRecordId: number }[];
+    bmcs: { bmcId: number; bmcName: string; bmcIdentifier: string; chartRecordId: number }[];
     chartRecordIds: number[];
   }>);
 
   // Apply dairy, BMC, society, and machine filters AFTER grouping
   const societyFilteredGroupedCharts = Object.values(groupedCharts).filter(group => {
-    // Check each society in the group for filter matches
+    // For BMC-assigned charts, check BMC filters
+    if (group.isBmcAssigned) {
+      // Check BMC filter
+      if (bmcFilter.length > 0) {
+        const matchesBmc = group.bmcs.some(bmc => bmcFilter.includes(bmc.bmcId.toString()));
+        if (!matchesBmc) return false;
+      }
+      return true;
+    }
+    
+    // For society-assigned charts, check society/BMC/dairy filters
     return group.societies.some(groupSociety => {
       // Get society details
       const society = societies.find(s => s.id === groupSociety.societyId);
@@ -674,10 +729,15 @@ export default function RatechartManagement() {
     }
   };
 
-  // Handle opening assign modal
-  const handleOpenAssignModal = (chartId: number, fileName: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>) => {
-    setSelectedChartForAssign({ chartId, fileName, societies });
-    setShowAssignModal(true);
+  // Handle opening assign modal (society or BMC)
+  const handleOpenAssignModal = (chartId: number, fileName: string, societies: Array<{ societyId: number; societyName: string; societyIdentifier: string }>, bmcs: Array<{ bmcId: number; bmcName: string; bmcIdentifier: string }>, isBmcAssigned: boolean) => {
+    if (isBmcAssigned) {
+      setSelectedChartForBmcAssign({ chartId, fileName, bmcs });
+      setShowAssignBmcModal(true);
+    } else {
+      setSelectedChartForAssign({ chartId, fileName, societies });
+      setShowAssignModal(true);
+    }
   };
 
   // Handle assigning chart to additional societies
@@ -728,6 +788,45 @@ export default function RatechartManagement() {
     } catch (error) {
       console.error('Error assigning chart to societies:', error);
       setError('Error assigning chart to societies');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
+  // Handle assigning chart to additional BMCs
+  const handleAssignBmcs = async (bmcIds: number[]) => {
+    if (!selectedChartForBmcAssign) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/ratechart/assign-bmc', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          chartId: selectedChartForBmcAssign.chartId,
+          bmcIds
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuccess(`Successfully assigned chart to ${data.data.assignedBmcs} ${data.data.assignedBmcs === 1 ? 'BMC' : 'BMCs'}`);
+        setTimeout(() => setSuccess(''), 5000);
+        await fetchRateCharts();
+        setShowAssignBmcModal(false);
+        setSelectedChartForBmcAssign(null);
+      } else {
+        setError(data.message || 'Failed to assign chart to BMCs');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error assigning chart to BMCs:', error);
+      setError('Error assigning chart to BMCs');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -816,6 +915,39 @@ export default function RatechartManagement() {
     } catch (error) {
       console.error('Error removing society:', error);
       setError('❌ Error removing society. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
+  // Handle removing BMC from rate chart
+  const handleRemoveBmc = async (chartRecordId: number, bmcId: number, bmcName: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/user/ratechart/remove-bmc', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ chartId: chartRecordId, bmcId })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuccess(`✅ Successfully removed ${bmcName} from rate chart`);
+        setTimeout(() => setSuccess(''), 5000);
+        setRateCharts([]);
+        await fetchRateCharts();
+      } else {
+        setError(data.message || 'Failed to remove BMC');
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (error) {
+      console.error('Error removing BMC:', error);
+      setError('❌ Error removing BMC. Please try again.');
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -994,14 +1126,19 @@ export default function RatechartManagement() {
               
               return (
                 <RateChartMinimalCard
-                  key={group.chartId}
+                  key={`${group.chartId}-${group.societies.length}-${group.bmcs.length}`}
                   chartId={group.chartId}
                   fileName={group.fileName}
                   channel={group.channel}
                   uploadedBy={group.uploadedBy}
                   createdAt={group.createdAt}
                   societies={group.societies}
+                  bmcs={group.bmcs}
                   status={group.status}
+                  isBmcAssigned={group.isBmcAssigned}
+                  bmcId={group.bmcId}
+                  bmcName={group.bmcName}
+                  bmcIdentifier={group.bmcIdentifier}
                   isSelected={isGroupSelected}
                   searchQuery={searchQuery}
                   onToggleSelection={() => {
@@ -1022,12 +1159,13 @@ export default function RatechartManagement() {
                       });
                     }
                   }}
-                  onAssignSociety={() => handleOpenAssignModal(group.chartId, group.fileName, group.societies)}
+                  onAssignSociety={() => handleOpenAssignModal(group.chartId, group.fileName, group.societies, group.bmcs, group.isBmcAssigned)}
                   onDelete={() => handleDelete(group.chartRecordIds[0])}
                   onToggleStatus={handleToggleStatus}
                   onView={() => handleViewRateChart(group.fileName, group.channel, group.societies[0]?.societyId || 0)}
                   onResetDownload={() => handleOpenResetDownloadModal(group.chartId, group.fileName, group.channel, group.societies, group.chartRecordIds)}
                   onRemoveSociety={handleRemoveSociety}
+                  onRemoveBmc={handleRemoveBmc}
                 />
               );
             })}
@@ -1041,6 +1179,7 @@ export default function RatechartManagement() {
       isOpen={showUploadModal}
       onClose={() => setShowUploadModal(false)}
       societies={societies}
+      bmcs={bmcs}
       onUploadSuccess={handleUploadSuccess}
       onUploadError={handleUploadError}
       onUploadStart={() => setIsUploading(true)}
@@ -1094,6 +1233,22 @@ export default function RatechartManagement() {
         fileName={selectedChartForAssign.fileName}
         currentSocieties={selectedChartForAssign.societies}
         allSocieties={societies}
+      />
+    )}
+
+    {/* Assign BMC Modal */}
+    {selectedChartForBmcAssign && (
+      <AssignBmcModal
+        isOpen={showAssignBmcModal}
+        onClose={() => {
+          setShowAssignBmcModal(false);
+          setSelectedChartForBmcAssign(null);
+        }}
+        onAssign={handleAssignBmcs}
+        chartId={selectedChartForBmcAssign.chartId}
+        fileName={selectedChartForBmcAssign.fileName}
+        currentBmcs={selectedChartForBmcAssign.bmcs}
+        allBmcs={bmcs.map(b => ({ id: b.id, name: b.name, bmcId: b.bmcId }))}
       />
     )}
 

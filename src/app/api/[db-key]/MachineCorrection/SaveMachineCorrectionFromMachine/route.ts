@@ -148,21 +148,47 @@ async function handleRequest(
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
     
-    // Validate and find society
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
-      schemaName,
-      societyIdStr
-    );
-    
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Machine correction save failed.');
+    // Validate Society/BMC ID
+    const societyValidation = InputValidator.validateSocietyId(societyIdStr);
+    if (!societyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Invalid society/BMC ID');
     }
     
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    let actualSocietyId: number;
+    
+    if (societyValidation.isBmc) {
+      // Look up BMC
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Machine correction save failed.');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      // Look up society
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Machine correction save failed.');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    }
 
     // Validate and find machine
     const machineValidation = InputValidator.validateMachineId(machineId);
@@ -184,7 +210,7 @@ async function handleRequest(
       machineQuery = `
         SELECT id, machine_id, society_id 
         FROM \`${schemaName}\`.machines
-        WHERE id = ? AND society_id = ?
+        WHERE id = ? AND (society_id = ? OR bmc_id IS NOT NULL)
         LIMIT 1
       `;
       machineReplacements = [parsedMachineId, actualSocietyId];
@@ -193,7 +219,7 @@ async function handleRequest(
       machineQuery = `
         SELECT id, machine_id, society_id
         FROM \`${schemaName}\`.machines
-        WHERE machine_id IN (${placeholders}) AND society_id = ?
+        WHERE machine_id IN (${placeholders}) AND (society_id = ? OR bmc_id IS NOT NULL)
         LIMIT 1
       `;
       machineReplacements = [...machineIdVariants, actualSocietyId];

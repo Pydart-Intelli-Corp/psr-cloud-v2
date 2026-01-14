@@ -11,10 +11,17 @@ interface Society {
   society_id: string;
 }
 
+interface BMC {
+  id: number;
+  name: string;
+  bmcId: string;
+}
+
 interface RateChartUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   societies: Society[];
+  bmcs?: BMC[];
   onUploadSuccess: (message: string) => void;
   onUploadError: (message: string) => void;
   onUploadStart?: () => void;
@@ -33,6 +40,7 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
   isOpen,
   onClose,
   societies,
+  bmcs = [],
   onUploadSuccess,
   onUploadError,
   onUploadStart,
@@ -41,7 +49,9 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
 }) => {
   const { t } = useLanguage();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [assignmentType, setAssignmentType] = useState<'society' | 'bmc'>('society');
   const [selectedSocieties, setSelectedSocieties] = useState<number[]>([]);
+  const [selectedBmcs, setSelectedBmcs] = useState<number[]>([]);
   const [channel, setChannel] = useState<ChannelType | ''>('');
   const [isUploading, setIsUploading] = useState(false);
 
@@ -71,19 +81,38 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
     });
   };
 
+  const handleBmcToggle = (bmcId: number) => {
+    setSelectedBmcs(prev => {
+      if (prev.includes(bmcId)) {
+        return prev.filter(id => id !== bmcId);
+      } else {
+        return [...prev, bmcId];
+      }
+    });
+  };
+
   const handleSelectAll = () => {
-    if (selectedSocieties.length === societies.length) {
-      setSelectedSocieties([]);
+    if (assignmentType === 'society') {
+      if (selectedSocieties.length === societies.length) {
+        setSelectedSocieties([]);
+      } else {
+        setSelectedSocieties(societies.map(s => s.id));
+      }
     } else {
-      setSelectedSocieties(societies.map(s => s.id));
+      if (selectedBmcs.length === bmcs.length) {
+        setSelectedBmcs([]);
+      } else {
+        setSelectedBmcs(bmcs.map(b => b.id));
+      }
     }
   };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (selectedSocieties.length === 0 || !channel || !selectedFile) {
-      onUploadError('Please select at least one society, channel, and CSV file');
+    const selectedCount = assignmentType === 'society' ? selectedSocieties.length : selectedBmcs.length;
+    if (selectedCount === 0 || !channel || !selectedFile) {
+      onUploadError(`Please select at least one ${assignmentType}, channel, and CSV file`);
       return;
     }
 
@@ -95,10 +124,16 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
       const token = localStorage.getItem('authToken');
       updateProgress(10);
 
-      // Single API call with multiple society IDs
       const uploadFormData = new FormData();
       uploadFormData.append('file', selectedFile);
-      uploadFormData.append('societyIds', selectedSocieties.join(','));
+      uploadFormData.append('assignmentType', assignmentType);
+      
+      if (assignmentType === 'society') {
+        uploadFormData.append('societyIds', selectedSocieties.join(','));
+      } else {
+        uploadFormData.append('bmcIds', selectedBmcs.join(','));
+      }
+      
       uploadFormData.append('channel', channel);
 
       updateProgress(30);
@@ -119,7 +154,8 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
 
       if (data.success) {
         updateProgress(100);
-        const message = `Rate chart uploaded to ${selectedSocieties.length} ${selectedSocieties.length === 1 ? 'society' : 'societies'}! Total ${data.data.recordCount} records imported.`;
+        const entityType = assignmentType === 'society' ? 'societies' : 'BMCs';
+        const message = `Rate chart uploaded to ${selectedCount} ${selectedCount === 1 ? assignmentType : entityType}! Total ${data.data.recordCount} records imported.`;
         onUploadSuccess(message);
         handleClose();
       } else {
@@ -160,6 +196,8 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
   const handleClose = () => {
     setSelectedFile(null);
     setSelectedSocieties([]);
+    setSelectedBmcs([]);
+    setAssignmentType('society');
     setChannel('');
     onClose();
   };
@@ -195,50 +233,133 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
           </button>
         </div>
 
-        {/* Society Selection */}
+        {/* Assignment Type Toggle */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t.ratechartManagement.selectSociety} <span className="text-red-500">*</span>
-            </label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Assign To
+          </label>
+          <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
             <button
               type="button"
-              onClick={handleSelectAll}
-              className="text-sm text-green-600 dark:text-green-400 hover:underline"
+              onClick={() => {
+                setAssignmentType('society');
+                setSelectedBmcs([]);
+              }}
+              className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                assignmentType === 'society'
+                  ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
             >
-              {selectedSocieties.length === societies.length ? t.common.clearAll : t.common.selectAll}
+              Society
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAssignmentType('bmc');
+                setSelectedSocieties([]);
+              }}
+              className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                assignmentType === 'bmc'
+                  ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              BMC
             </button>
           </div>
-          <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-            {societies.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                {t.ratechartManagement.noSocietiesAvailable}
+        </div>
+
+        {/* Society or BMC Selection */}
+        {assignmentType === 'society' ? (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t.ratechartManagement.selectSociety} <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-sm text-green-600 dark:text-green-400 hover:underline"
+              >
+                {selectedSocieties.length === societies.length ? t.common.clearAll : t.common.selectAll}
+              </button>
+            </div>
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+              {societies.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                  {t.ratechartManagement.noSocietiesAvailable}
+                </p>
+              ) : (
+                societies.map(society => (
+                  <label
+                    key={society.id}
+                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSocieties.includes(society.id)}
+                      onChange={() => handleSocietyToggle(society.id)}
+                      className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-900 dark:text-white">
+                      {society.name} ({society.society_id})
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+            {selectedSocieties.length > 0 && (
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                {selectedSocieties.length} {selectedSocieties.length === 1 ? t.ratechartManagement.society : t.ratechartManagement.societies} {t.common.selected}
               </p>
-            ) : (
-              societies.map(society => (
-                <label
-                  key={society.id}
-                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedSocieties.includes(society.id)}
-                    onChange={() => handleSocietyToggle(society.id)}
-                    className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
-                  />
-                  <span className="text-sm text-gray-900 dark:text-white">
-                    {society.name} ({society.society_id})
-                  </span>
-                </label>
-              ))
             )}
           </div>
-          {selectedSocieties.length > 0 && (
-            <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-              {selectedSocieties.length} {selectedSocieties.length === 1 ? t.ratechartManagement.society : t.ratechartManagement.societies} {t.common.selected}
-            </p>
-          )}
-        </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select BMC <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-sm text-green-600 dark:text-green-400 hover:underline"
+              >
+                {selectedBmcs.length === bmcs.length ? t.common.clearAll : t.common.selectAll}
+              </button>
+            </div>
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+              {bmcs.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                  No BMCs available
+                </p>
+              ) : (
+                bmcs.map(bmc => (
+                  <label
+                    key={bmc.id}
+                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedBmcs.includes(bmc.id)}
+                      onChange={() => handleBmcToggle(bmc.id)}
+                      className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-900 dark:text-white">
+                      {bmc.name} ({bmc.bmcId})
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+            {selectedBmcs.length > 0 && (
+              <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                {selectedBmcs.length} BMC{selectedBmcs.length > 1 ? 's' : ''} {t.common.selected}
+              </p>
+            )}
+          </div>
+        )}
 
         <FormSelect
           label={t.ratechartManagement.milkChannel}
@@ -296,9 +417,9 @@ const RateChartUploadModal: React.FC<RateChartUploadModalProps> = ({
 
         <FormActions
           onCancel={handleClose}
-          submitText={`${t.common.upload} to ${selectedSocieties.length} ${selectedSocieties.length === 1 ? t.ratechartManagement.society : t.ratechartManagement.societies}`}
+          submitText={`${t.common.upload} to ${assignmentType === 'society' ? selectedSocieties.length : selectedBmcs.length} ${assignmentType === 'society' ? (selectedSocieties.length === 1 ? t.ratechartManagement.society : t.ratechartManagement.societies) : (selectedBmcs.length === 1 ? 'BMC' : 'BMCs')}`}
           isLoading={isUploading}
-          isSubmitDisabled={selectedSocieties.length === 0 || !channel || !selectedFile}
+          isSubmitDisabled={(assignmentType === 'society' ? selectedSocieties.length === 0 : selectedBmcs.length === 0) || !channel || !selectedFile}
           submitType="submit"
         />
       </form>

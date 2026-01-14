@@ -21,16 +21,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Handle super admin tokens separately (they don't exist in User table)
-    if (decoded.type === 'admin' && decoded.role === 'super_admin') {
+    if ((decoded as any).type === 'admin' && (decoded as any).role === 'super_admin') {
       console.log('Verifying super admin token');
       return createSuccessResponse({
         user: {
-          id: decoded.id,
-          uid: decoded.uid || 'super-admin',
-          email: decoded.email,
+          id: (decoded as any).id,
+          uid: (decoded as any).uid || 'super-admin',
+          email: (decoded as any).email,
           fullName: 'Super Admin',
           role: 'super_admin',
-          dbKey: decoded.dbKey || 'master'
+          dbKey: (decoded as any).dbKey || 'master'
         }
       }, 'Super admin session valid');
     }
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const { User } = getModels();
     const user = await User.findOne({ 
       where: { 
-        id: decoded.id,
+        id: (decoded as any).id,
         status: 'active',
         isEmailVerified: true
       }

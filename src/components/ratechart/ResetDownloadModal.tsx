@@ -10,10 +10,14 @@ interface Machine {
   id: number;
   machineId: string;
   machineType: string;
-  societyName: string;
-  societyId: number;
+  societyName?: string;
+  societyId?: number;
   societyIdentifier?: string;
+  bmcName?: string;
+  bmcId?: number;
+  bmcIdentifier?: string;
   location?: string;
+  downloaded?: number;
 }
 
 interface ResetDownloadModalProps {
@@ -40,7 +44,8 @@ export default function ResetDownloadModal({
   const [selectedMachines, setSelectedMachines] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [societyFilter, setSocietyFilter] = useState<number | 'all'>('all');
+  const [filter, setFilter] = useState<number | 'all'>('all');
+  const [isBmcAssigned, setIsBmcAssigned] = useState(false);
 
   useEffect(() => {
     const fetchMachines = async () => {
@@ -58,6 +63,7 @@ export default function ResetDownloadModal({
         if (response.ok) {
           const result = await response.json();
           setMachines(result.data?.machines || []);
+          setIsBmcAssigned(result.data?.isBmcAssigned || false);
         }
       } catch (error) {
         console.error('Error fetching machines:', error);
@@ -69,7 +75,7 @@ export default function ResetDownloadModal({
     if (show) {
       fetchMachines();
       setSelectedMachines(new Set());
-      setSocietyFilter('all');
+      setFilter('all');
     }
   }, [show, chartId]);
 
@@ -108,10 +114,12 @@ export default function ResetDownloadModal({
   };
 
   const filteredMachines = machines.filter(machine => {
-    const matchesSociety = societyFilter === 'all' || 
-      societies.find(s => s.societyId === societyFilter && s.societyName === machine.societyName);
-
-    return matchesSociety;
+    if (filter === 'all') return true;
+    if (isBmcAssigned) {
+      return machine.bmcId === filter;
+    } else {
+      return societies.find(s => s.societyId === filter && s.societyName === machine.societyName);
+    }
   });
 
   if (!show) return null;
@@ -152,20 +160,29 @@ export default function ResetDownloadModal({
 
         {/* Info Text */}
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t.ratechartManagement.selectMachinesToReset} <span className="font-semibold text-gray-900 dark:text-gray-100">{channel} {t.ratechartManagement.channel}</span> {t.ratechartManagement.downloadStatusAllowRedownload} {channel} {t.ratechartManagement.milkType}.
+          {t.ratechartManagement.selectMachinesToReset} <span className="font-semibold text-gray-900 dark:text-gray-100">{channel} {t.ratechartManagement.channel}</span> {t.ratechartManagement.downloadStatusAllowRedownload} {channel} {t.ratechartManagement.milkType}. Only machines that have already downloaded can be reset.
         </p>
 
-        {/* Society Filter */}
+        {/* Filter */}
         <FormSelect
-          label={t.ratechartManagement.filterBySociety}
-          value={societyFilter.toString()}
-          onChange={(value) => setSocietyFilter(value === 'all' ? 'all' : parseInt(value))}
+          label={isBmcAssigned ? 'Filter by BMC' : t.ratechartManagement.filterBySociety}
+          value={filter.toString()}
+          onChange={(value) => setFilter(value === 'all' ? 'all' : parseInt(value))}
           options={[
-            { value: 'all', label: t.ratechartManagement.allSocieties },
-            ...societies.map(society => ({
-              value: society.societyId.toString(),
-              label: society.societyName
-            }))
+            { value: 'all', label: isBmcAssigned ? 'All BMCs' : t.ratechartManagement.allSocieties },
+            ...(isBmcAssigned 
+              ? Array.from(new Set(machines.map(m => m.bmcId))).filter(Boolean).map(bmcId => {
+                  const machine = machines.find(m => m.bmcId === bmcId);
+                  return {
+                    value: bmcId!.toString(),
+                    label: machine?.bmcName || `BMC ${bmcId}`
+                  };
+                })
+              : societies.map(society => ({
+                  value: society.societyId.toString(),
+                  label: society.societyName
+                }))
+            )
           ]}
         />
 
@@ -213,17 +230,20 @@ export default function ResetDownloadModal({
             filteredMachines.map(machine => (
               <label
                 key={machine.id}
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all group ${
-                  selectedMachines.has(machine.id)
-                    ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all group ${
+                  !machine.downloaded
+                    ? 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 opacity-60 cursor-not-allowed'
+                    : selectedMachines.has(machine.id)
+                    ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 cursor-pointer'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer'
                 }`}
               >
                 <input
                   type="checkbox"
                   checked={selectedMachines.has(machine.id)}
                   onChange={() => handleToggleSelection(machine.id)}
-                  className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2 cursor-pointer transition-all"
+                  disabled={!machine.downloaded}
+                  className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                   <span className="text-xs font-bold text-blue-700 dark:text-blue-300">
@@ -238,12 +258,25 @@ export default function ResetDownloadModal({
                     <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded font-medium">
                       {machine.machineType}
                     </span>
+                    {machine.downloaded ? (
+                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-medium">
+                        Downloaded
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded font-medium">
+                        Not Downloaded
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-xs">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">{machine.societyName}</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {isBmcAssigned ? machine.bmcName : machine.societyName}
+                    </span>
                     <span className="text-gray-400 dark:text-gray-500">•</span>
                     <span className="text-gray-500 dark:text-gray-400">
-                      {machine.societyIdentifier || `ID: ${machine.societyId}`}
+                      {isBmcAssigned 
+                        ? (machine.bmcIdentifier || `ID: ${machine.bmcId}`)
+                        : (machine.societyIdentifier || `ID: ${machine.societyId}`)}
                     </span>
                     {machine.location && (
                       <>

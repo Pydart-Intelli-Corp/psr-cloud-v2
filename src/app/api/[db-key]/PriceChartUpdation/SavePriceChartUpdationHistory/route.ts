@@ -84,26 +84,49 @@ async function handleRequest(
     
     console.log(`🔍 Parsed InputString parts:`, { societyIdStr, machineType, machineModel, machineId, channel });
     
-    // PRIORITY 2: Validate Society ID and find actual database ID
+    // PRIORITY 2: Validate Society/BMC ID and find actual database ID
     // Generate admin-specific schema name for society lookup
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
     
-    // Look up society using QueryBuilder
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
-      schemaName,
-      societyIdStr
-    );
-    
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ No society found for society_id: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+    const societyValidation = InputValidator.validateSocietyId(societyIdStr);
+    if (!societyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Invalid society/BMC ID');
     }
     
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    let actualSocietyId: number;
+    
+    if (societyValidation.isBmc) {
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    }
 
     // PRIORITY 3: Validate Machine ID and verify it's registered under this society
     const machineValidation = InputValidator.validateMachineId(machineId);

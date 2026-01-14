@@ -170,8 +170,8 @@ export async function GET(request: NextRequest) {
               ms_info.statistics_time
             FROM \`${schemaName}\`.machines m
             ${machineImageJoin}
-            JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
-            LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+            LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+            LEFT JOIN \`${schemaName}\`.bmcs b ON (s.bmc_id = b.id OR m.bmc_id = b.id)
             LEFT JOIN \`${schemaName}\`.dairy_farms d ON b.dairy_farm_id = d.id
             ${collectionStatsSubquery(schemaName)}
             ${rateChartSubquery(schemaName)}

@@ -96,35 +96,33 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
-    // Parse input string - 11 parts expected
+    // Parse input string - 10 or 11 parts expected
     const inputParts = inputString.split('|');
     
-    if (inputParts.length !== 11) {
-      console.log(`❌ Invalid InputString format. Expected 11 parts, got ${inputParts.length}`);
+    if (inputParts.length !== 10 && inputParts.length !== 11) {
+      console.log(`❌ Invalid InputString format. Expected 10 or 11 parts, got ${inputParts.length}`);
       console.log(`   Parts received:`, inputParts);
       return ESP32ResponseHelper.createErrorResponse('Invalid InputString format');
     }
 
-    const [
-      societyIdStr,
-      machineType,
-      version,
-      machineId,
-      shiftType,
-      countStr,
-      channel,
-      quantityStr,
-      totalAmountStr,
-      rateStr,
-      datetimeStr
-    ] = inputParts;
+    // Handle both formats: with and without shift type
+    let societyIdStr, machineType, version, machineId, shiftType, countStr, channel, quantityStr, totalAmountStr, rateStr, datetimeStr;
+    
+    if (inputParts.length === 11) {
+      // Format: societyId|machineType|version|machineId|shiftType|count|channel|quantity|totalAmount|rate|datetime
+      [societyIdStr, machineType, version, machineId, shiftType, countStr, channel, quantityStr, totalAmountStr, rateStr, datetimeStr] = inputParts;
+    } else {
+      // Format: societyId|machineType|version|machineId|count|channel|quantity|totalAmount|rate|datetime (no shift type)
+      [societyIdStr, machineType, version, machineId, countStr, channel, quantityStr, totalAmountStr, rateStr, datetimeStr] = inputParts;
+      shiftType = 'EV'; // Default to evening shift
+    }
 
-    console.log(`🔍 Parsed InputString:`, {
+    console.log(`🔍 Parsed InputString (${inputParts.length} parts):`, {
       societyIdStr,
       machineType,
       version,
       machineId,
-      shiftType,
+      shiftType: shiftType || 'EV (default)',
       countStr,
       channel,
       datetime: datetimeStr
@@ -171,26 +169,32 @@ async function handleRequest(
 
     console.log(`🔍 Using schema: ${schemaName}`);
 
-    // Look up society
-    const societyQuery = `
-      SELECT id FROM \`${schemaName}\`.societies 
+    // Look up society or BMC
+    const lookupQuery = `
+      SELECT id, 'society' as type FROM \`${schemaName}\`.societies 
       WHERE society_id = ? OR society_id = ?
+      UNION
+      SELECT id, 'bmc' as type FROM \`${schemaName}\`.bmcs
+      WHERE bmc_id = ? OR bmc_id = ?
       LIMIT 1
     `;
     
-    const societyLookupParams = societyValidation.id.startsWith('S-') 
-      ? [societyValidation.id, societyValidation.fallback]
-      : [`S-${societyValidation.id}`, societyValidation.id];
+    const lookupParams = societyValidation.id.startsWith('S-') || societyValidation.id.startsWith('B-')
+      ? [societyValidation.id, societyValidation.fallback, societyValidation.id, societyValidation.fallback]
+      : [`S-${societyValidation.id}`, societyValidation.id, `B-${societyValidation.id}`, societyValidation.id];
     
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyLookupParams });
+    const [lookupResults] = await sequelize.query(lookupQuery, { replacements: lookupParams });
     
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyValidation.id}"`);
-      return ESP32ResponseHelper.createErrorResponse('Society not found');
+    if (!Array.isArray(lookupResults) || lookupResults.length === 0) {
+      console.log(`❌ Society/BMC not found: "${societyValidation.id}"`);
+      return ESP32ResponseHelper.createErrorResponse('Society/BMC not found');
     }
     
-    const actualSocietyId = (societyResults[0] as SocietyResult).id;
-    console.log(`✅ Found society: "${societyValidation.id}" -> database ID: ${actualSocietyId}`);
+    const result = lookupResults[0] as { id: number; type: string };
+    const isBMC = result.type === 'bmc';
+    const actualSocietyId = isBMC ? null : result.id;
+    const actualBmcId = isBMC ? result.id : null;
+    console.log(`✅ Found ${isBMC ? 'BMC' : 'society'}: "${societyValidation.id}" -> database ID: ${result.id}`);
 
     // Look up machine
     const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
@@ -201,15 +205,16 @@ async function handleRequest(
     }
     
     const placeholders = machineIdVariants.map(() => '?').join(', ');
-    const machineQuery = `
-      SELECT id, machine_id 
-      FROM \`${schemaName}\`.machines 
-      WHERE society_id = ? AND machine_id IN (${placeholders})
-      LIMIT 1
-    `;
+    const machineQuery = isBMC
+      ? `SELECT id, machine_id, bmc_id FROM \`${schemaName}\`.machines 
+         WHERE bmc_id = ? AND machine_id IN (${placeholders})
+         LIMIT 1`
+      : `SELECT id, machine_id, society_id FROM \`${schemaName}\`.machines 
+         WHERE society_id = ? AND machine_id IN (${placeholders})
+         LIMIT 1`;
     
     const [machineResults] = await sequelize.query(machineQuery, { 
-      replacements: [actualSocietyId, ...machineIdVariants]
+      replacements: [result.id, ...machineIdVariants]
     });
     
     if (!Array.isArray(machineResults) || machineResults.length === 0) {
@@ -217,8 +222,17 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Machine not found');
     }
     
-    const actualMachine = machineResults[0] as MachineResult;
-    console.log(`✅ Found machine: "${salesData.machineId}" -> database ID: ${actualMachine.id}`);
+    const actualMachine = machineResults[0] as MachineResult & { bmc_id?: number; society_id?: number };
+    console.log(`✅ Found machine: "${salesData.machineId}" -> database ID: ${actualMachine.id}, ${isBMC ? 'bmc_id' : 'society_id'}: ${result.id}`);
+
+    // Auto-update machine's bmc_id if not set
+    if (isBMC && !actualMachine.bmc_id) {
+      console.log(`🔄 Auto-updating machine's bmc_id to ${actualBmcId}`);
+      await sequelize.query(
+        `UPDATE \`${schemaName}\`.machines SET bmc_id = ? WHERE id = ?`,
+        { replacements: [actualBmcId, actualMachine.id] }
+      );
+    }
 
     console.log(`ℹ️  Sales count from input: "${salesData.count}"`);
 
@@ -277,6 +291,7 @@ async function handleRequest(
 
     console.log(`💾 Saving sales record (will insert or update if duplicate)...`);
     console.log(`   Count: ${salesData.count}`);
+    console.log(`   ${isBMC ? 'BMC' : 'Society'} ID: ${result.id}`);
     console.log(`   Date: ${formattedDate}`);
     console.log(`   Time: ${formattedTime}`);
     console.log(`   Shift: ${salesData.shiftType}`);

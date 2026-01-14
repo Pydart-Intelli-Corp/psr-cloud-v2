@@ -8,7 +8,7 @@ async function addOtpColumnsToFarmers() {
     await connectDB();
     const { sequelize } = await import('@/models').then(m => m.getModels());
 
-    console.log('🔧 Starting OTP columns migration for farmers tables...\n');
+    console.log('🔧 Starting OTP & farmeruid columns migration for farmers tables...\n');
 
     // Get all admin schemas
     const [schemas] = await sequelize.query(`
@@ -35,13 +35,13 @@ async function addOtpColumnsToFarmers() {
           FROM information_schema.COLUMNS 
           WHERE TABLE_SCHEMA = ? 
           AND TABLE_NAME = 'farmers'
-          AND COLUMN_NAME IN ('otp_code', 'otp_expires')
+          AND COLUMN_NAME IN ('otp_code', 'otp_expires', 'farmeruid')
         `, { replacements: [schema] });
 
         const existingColumns = (columns as Array<{ COLUMN_NAME: string }>).map(c => c.COLUMN_NAME);
 
-        if (existingColumns.length === 2) {
-          console.log(`✅ ${schema}: OTP columns already exist - skipping`);
+        if (existingColumns.length === 3) {
+          console.log(`✅ ${schema}: All columns (OTP + farmeruid) already exist - skipping`);
           successCount++;
           continue;
         }
@@ -57,15 +57,20 @@ async function addOtpColumnsToFarmers() {
           alterStatements.push(`ADD COLUMN \`otp_expires\` DATETIME DEFAULT NULL COMMENT 'OTP expiration timestamp'`);
         }
 
+        if (!existingColumns.includes('farmeruid')) {
+          alterStatements.push(`ADD COLUMN \`farmeruid\` VARCHAR(100) UNIQUE NULL COMMENT 'Unique identifier for farmer' AFTER \`farmer_id\``);
+          alterStatements.push(`ADD INDEX \`idx_farmeruid\` (\`farmeruid\`)`);
+        }
+
         if (alterStatements.length > 0) {
           const alterQuery = `ALTER TABLE \`${schema}\`.\`farmers\` ${alterStatements.join(', ')}`;
           await sequelize.query(alterQuery);
-          console.log(`✅ ${schema}: Added ${alterStatements.length} OTP column(s)`);
+          console.log(`✅ ${schema}: Added ${Math.ceil(alterStatements.length / 1.5)} column(s)`);
           successCount++;
         }
 
       } catch (error) {
-        console.error(`❌ ${schema}: Failed to add OTP columns - ${error}`);
+        console.error(`❌ ${schema}: Failed to add columns - ${error}`);
         errorCount++;
       }
     }
@@ -73,7 +78,7 @@ async function addOtpColumnsToFarmers() {
     console.log('\n📊 Migration Summary:');
     console.log(`   ✅ Success: ${successCount}/${uniqueSchemas.length} schemas`);
     console.log(`   ❌ Errors: ${errorCount}/${uniqueSchemas.length} schemas`);
-    console.log('\n🎉 OTP columns migration completed!\n');
+    console.log('\n🎉 OTP & farmeruid columns migration completed!\n');
 
   } catch (error) {
     console.error('❌ Migration failed:', error);

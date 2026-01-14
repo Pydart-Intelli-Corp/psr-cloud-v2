@@ -85,7 +85,7 @@ async function checkGlobalEmailUniqueness(email: string, excludeSocietyId?: numb
           };
         }
       } catch (error) {
-        console.log(`⚠️ Could not check ${entity.table} in schema ${schema}:`, error.message);
+        console.log(`⚠️ Could not check ${entity.table} in schema ${schema}:`, error instanceof Error ? error.message : String(error));
         continue;
       }
     }
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
     // Check for global email uniqueness across entire database (including current schema)
-    const emailCheck = await checkGlobalEmailUniqueness(email, null, schemaName);
+    const emailCheck = await checkGlobalEmailUniqueness(email, undefined, schemaName);
     if (!emailCheck.isUnique) {
       console.log(`📧 Global duplicate email detected: ${email}`);
       console.log(`📧 Location: ${emailCheck.existingLocation}`);

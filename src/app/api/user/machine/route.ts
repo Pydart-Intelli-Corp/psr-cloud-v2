@@ -6,7 +6,8 @@ import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response
 interface MachineData {
   machineId: string;
   machineType: string;
-  societyId: number;
+  societyId?: number;
+  bmcId?: number;
   location?: string;
   installationDate?: string;
   operatorName?: string;
@@ -20,8 +21,11 @@ interface MachineQueryResult {
   machine_id: string;
   machine_type: string;
   society_id: number;
+  bmc_id?: number;
   society_name?: string;
   society_identifier?: string;
+  bmc_name?: string;
+  bmc_identifier?: string;
   location?: string;
   installation_date?: string;
   operator_name?: string;
@@ -58,10 +62,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { machineId, machineType, societyId, location, installationDate, operatorName, contactPhone, status = 'active', notes, setAsMaster, disablePasswordInheritance }: MachineData & { setAsMaster?: boolean; disablePasswordInheritance?: boolean } = body;
+    const { machineId, machineType, societyId, bmcId, location, installationDate, operatorName, contactPhone, status = 'active', notes, setAsMaster, disablePasswordInheritance }: MachineData & { setAsMaster?: boolean; disablePasswordInheritance?: boolean } = body;
 
-    if (!machineId || !machineType || !societyId) {
-      return createErrorResponse('Machine ID, Machine Type, and Society ID are required', 400);
+    if (!machineId || !machineType || (!societyId && !bmcId)) {
+      return createErrorResponse('Machine ID, Machine Type, and Society ID or BMC ID are required', 400);
     }
 
     await connectDB();
@@ -78,32 +82,32 @@ export async function POST(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Check if machine ID already exists in the same society
-    const existingQuery = `
-      SELECT id FROM \`${schemaName}\`.machines 
-      WHERE machine_id = ? AND society_id = ? LIMIT 1
-    `;
+    // Check if machine ID already exists in the same society/bmc
+    const existingQuery = societyId 
+      ? `SELECT id FROM \`${schemaName}\`.machines WHERE machine_id = ? AND society_id = ? LIMIT 1`
+      : `SELECT id FROM \`${schemaName}\`.machines WHERE machine_id = ? AND bmc_id = ? LIMIT 1`;
     
     const [existing] = await sequelize.query(existingQuery, {
-      replacements: [machineId, societyId]
+      replacements: [machineId, societyId || bmcId]
     });
 
     if (existing.length > 0) {
-      return createErrorResponse('Machine ID already exists in this society', 409);
+      return createErrorResponse(societyId ? 'Machine ID already exists in this society' : 'Machine ID already exists in this BMC', 409);
     }
 
-    // Verify society exists
-    const societyQuery = `
-      SELECT id FROM \`${schemaName}\`.societies 
-      WHERE id = ? LIMIT 1
-    `;
-    
-    const [societyExists] = await sequelize.query(societyQuery, {
-      replacements: [societyId]
-    });
-
-    if (societyExists.length === 0) {
-      return createErrorResponse('Selected society not found', 400);
+    // Verify society or BMC exists
+    if (societyId) {
+      const societyQuery = `SELECT id FROM \`${schemaName}\`.societies WHERE id = ? LIMIT 1`;
+      const [societyExists] = await sequelize.query(societyQuery, { replacements: [societyId] });
+      if (societyExists.length === 0) {
+        return createErrorResponse('Selected society not found', 400);
+      }
+    } else if (bmcId) {
+      const bmcQuery = `SELECT id FROM \`${schemaName}\`.bmcs WHERE id = ? LIMIT 1`;
+      const [bmcExists] = await sequelize.query(bmcQuery, { replacements: [bmcId] });
+      if (bmcExists.length === 0) {
+        return createErrorResponse('Selected BMC not found', 400);
+      }
     }
 
     // Check if this is the first machine for the society (will be master)
@@ -173,17 +177,18 @@ export async function POST(request: NextRequest) {
     // Insert new machine
     const insertQuery = `
       INSERT INTO \`${schemaName}\`.machines 
-      (machine_id, machine_type, society_id, location, installation_date, 
+      (machine_id, machine_type, society_id, bmc_id, location, installation_date, 
        operator_name, contact_phone, status, notes, is_master_machine, 
        user_password, supervisor_password, statusU, statusS, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `;
 
     await sequelize.query(insertQuery, {
       replacements: [
         machineId,
         machineType,
-        societyId,
+        societyId || null,
+        bmcId || null,
         location || null,
         installationDate || null,
         operatorName || null,
@@ -246,11 +251,12 @@ export async function GET(request: NextRequest) {
       // Query single machine with rate chart information
       query = `
         SELECT 
-          m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
+          m.id, m.machine_id, m.machine_type, m.society_id, m.bmc_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
           m.is_master_machine, m.created_at, m.updated_at,
           s.name as society_name, s.society_id as society_identifier,
+          b.name as bmc_name, b.bmc_id as bmc_identifier,
           mt.image_url,
           (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
            WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
@@ -292,6 +298,7 @@ export async function GET(request: NextRequest) {
           ) as total_quantity_30d
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+        LEFT JOIN \`${schemaName}\`.bmcs b ON m.bmc_id = b.id
         LEFT JOIN psr_v4_main.machinetype mt ON m.machine_type COLLATE utf8mb4_unicode_ci = mt.machine_type
         WHERE m.id = ?
       `;
@@ -308,11 +315,12 @@ export async function GET(request: NextRequest) {
       
       query = `
         SELECT 
-          m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
+          m.id, m.machine_id, m.machine_type, m.society_id, m.bmc_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
           m.is_master_machine, m.created_at,
           s.name as society_name, s.society_id as society_identifier,
+          b.name as bmc_name, b.bmc_id as bmc_identifier,
           mt.image_url,
           (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
            WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
@@ -354,6 +362,7 @@ export async function GET(request: NextRequest) {
           ) as total_quantity_30d
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+        LEFT JOIN \`${schemaName}\`.bmcs b ON m.bmc_id = b.id
         LEFT JOIN psr_v4_main.machinetype mt ON m.machine_type COLLATE utf8mb4_unicode_ci = mt.machine_type
         WHERE m.society_id IN (${placeholders})
         ORDER BY m.created_at DESC
@@ -363,11 +372,12 @@ export async function GET(request: NextRequest) {
       // Query all machines with rate chart information
       query = `
         SELECT 
-          m.id, m.machine_id, m.machine_type, m.society_id, m.location, 
+          m.id, m.machine_id, m.machine_type, m.society_id, m.bmc_id, m.location, 
           m.installation_date, m.operator_name, m.contact_phone, m.status, 
           m.notes, m.user_password, m.supervisor_password, m.statusU, m.statusS,
           m.is_master_machine, m.created_at,
           s.name as society_name, s.society_id as society_identifier,
+          b.name as bmc_name, b.bmc_id as bmc_identifier,
           mt.image_url,
           (SELECT COUNT(*) FROM \`${schemaName}\`.rate_charts rc 
            WHERE rc.society_id = m.society_id AND rc.status = 1) as active_charts_count,
@@ -409,6 +419,7 @@ export async function GET(request: NextRequest) {
           ) as total_quantity_30d
         FROM \`${schemaName}\`.machines m
         LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+        LEFT JOIN \`${schemaName}\`.bmcs b ON m.bmc_id = b.id
         LEFT JOIN psr_v4_main.machinetype mt ON m.machine_type COLLATE utf8mb4_unicode_ci = mt.machine_type
         ORDER BY m.created_at DESC
       `;
@@ -421,8 +432,11 @@ export async function GET(request: NextRequest) {
       machineId: machine.machine_id,
       machineType: machine.machine_type,
       societyId: machine.society_id,
+      bmcId: machine.bmc_id,
       societyName: machine.society_name,
       societyIdentifier: machine.society_identifier,
+      bmcName: machine.bmc_name,
+      bmcIdentifier: machine.bmc_identifier,
       location: machine.location,
       installationDate: machine.installation_date,
       operatorName: machine.operator_name,

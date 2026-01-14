@@ -46,6 +46,7 @@ interface Society {
 interface Farmer {
   id: number;
   farmerId: string;
+  farmeruid?: string;
   rfId?: string;
   farmerName: string;
   password?: string;
@@ -100,6 +101,7 @@ const FarmerDetails = () => {
   // Form state
   const [formData, setFormData] = useState({
     farmerId: '',
+    farmeruid: '',
     rfId: '',
     farmerName: '',
     contactNumber: '',
@@ -260,6 +262,7 @@ const FarmerDetails = () => {
     if (farmer) {
       setFormData({
         farmerId: farmer.farmerId,
+        farmeruid: farmer.farmeruid || '',
         rfId: farmer.rfId || '',
         farmerName: farmer.farmerName,
         contactNumber: farmer.contactNumber || '',
@@ -388,6 +391,7 @@ const FarmerDetails = () => {
         body: JSON.stringify({
           id: farmer.id,
           farmerId: formData.farmerId,
+          farmeruid: formData.farmeruid || null,
           rfId: formData.rfId || null,
           farmerName: formData.farmerName,
           contactNumber: formData.contactNumber || null,
@@ -838,6 +842,25 @@ const FarmerDetails = () => {
                     readOnly
                   />
                   <FormInput
+                    label="Farmer UID"
+                    type="text"
+                    value={formData.farmeruid}
+                    onChange={(value) => {
+                      let alphanumeric = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                      alphanumeric = alphanumeric.slice(0, 8);
+                      let formatted = '';
+                      if (alphanumeric.length > 0) {
+                        formatted = alphanumeric.slice(0, 4);
+                        if (alphanumeric.length > 4) {
+                          formatted += '-' + alphanumeric.slice(4, 8);
+                        }
+                      }
+                      setFormData({ ...formData, farmeruid: formatted });
+                    }}
+                    placeholder="e.g., VLDD-1234"
+                    maxLength={9}
+                  />
+                  <FormInput
                     label="RF-ID"
                     type="text"
                     value={formData.rfId}
@@ -849,7 +872,6 @@ const FarmerDetails = () => {
                     value={formData.farmerName}
                     onChange={(value) => {
                       setFormData({ ...formData, farmerName: value });
-                      // Clear error when user types
                       if (fieldErrors.farmerName) {
                         setFieldErrors({ ...fieldErrors, farmerName: '' });
                       }
@@ -883,6 +905,20 @@ const FarmerDetails = () => {
                     </div>
                   </div>
                   
+                  {farmer.farmeruid && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                          <Hash className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Farmer UID</p>
+                          <p className="font-semibold text-gray-900 dark:text-white truncate">{farmer.farmeruid}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {farmer.rfId && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center gap-3">
@@ -899,8 +935,8 @@ const FarmerDetails = () => {
 
                   <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <User className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                        <User className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Farmer Name</p>

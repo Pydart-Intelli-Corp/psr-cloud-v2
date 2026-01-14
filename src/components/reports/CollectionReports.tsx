@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Download,
   FileDown,
@@ -17,7 +18,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import StatsCard from '@/components/management/StatsCard';
 import { FlowerSpinner, PageLoader } from '@/components';
-import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar, EmailReportModal } from '@/components/management';
+import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } from '@/components/management';
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
 import EnhancedEmailReportModal from '@/components/dialogs/EnhancedEmailReportModal';
 import DownloadModal from '@/components/dialogs/DownloadModal';
@@ -27,6 +28,7 @@ interface CollectionRecord {
   id: number;
   farmer_id: string;
   farmer_name: string;
+  farmer_uid?: string;
   society_id: string;
   society_name: string;
   bmc_id?: number;
@@ -65,13 +67,13 @@ interface CollectionStats {
 }
 
 // Column configuration for collection reports
-const COLLECTION_COLUMNS: ColumnConfig[] = [
+const getCollectionColumns = (reportSource: 'society' | 'bmc'): ColumnConfig[] => [
   { key: 'collection_date', label: 'Date', required: true, description: 'Collection date' },
   { key: 'collection_time', label: 'Time', required: true, description: 'Collection time' },
   { key: 'farmer_id', label: 'Farmer ID', description: 'Unique farmer identifier' },
   { key: 'farmer_name', label: 'Farmer Name', description: 'Name of the farmer' },
-  { key: 'society_id', label: 'Society ID', required: true, description: 'Society identifier' },
-  { key: 'society_name', label: 'Society', required: true, description: 'Society name' },
+  { key: reportSource === 'bmc' ? 'bmc_id' : 'society_id', label: reportSource === 'bmc' ? 'BMC ID' : 'Society ID', required: true, description: reportSource === 'bmc' ? 'BMC identifier' : 'Society identifier' },
+  { key: reportSource === 'bmc' ? 'bmc_name' : 'society_name', label: reportSource === 'bmc' ? 'BMC' : 'Society', required: true, description: reportSource === 'bmc' ? 'BMC name' : 'Society name' },
   { key: 'machine_id', label: 'Machine ID', description: 'Machine identifier' },
   { key: 'machine_type', label: 'Machine Type', description: 'Type of machine used' },
   { key: 'shift_type', label: 'Shift', description: 'Morning or evening shift' },
@@ -88,14 +90,16 @@ const COLLECTION_COLUMNS: ColumnConfig[] = [
   { key: 'rate_per_liter', label: 'Rate/L', required: true, description: 'Rate per liter' },
   { key: 'bonus', label: 'Bonus', description: 'Bonus amount' },
   { key: 'total_amount', label: 'Total Amount', required: true, description: 'Total payment amount' },
-  { key: 'bmc_name', label: 'BMC', description: 'BMC name' },
+  { key: reportSource === 'bmc' ? 'society_name' : 'bmc_name', label: reportSource === 'bmc' ? 'Society' : 'BMC', description: reportSource === 'bmc' ? 'Society name' : 'BMC name' },
   { key: 'dairy_name', label: 'Dairy', description: 'Dairy name' }
 ];
 
 // Default columns for collection reports
-const DEFAULT_COLLECTION_COLUMNS = [
+const getDefaultCollectionColumns = (reportSource: 'society' | 'bmc') => [
   'collection_date', 'collection_time', 'farmer_id', 'farmer_name', 
-  'society_id', 'society_name', 'channel', 'shift_type', 
+  reportSource === 'bmc' ? 'bmc_id' : 'society_id', 
+  reportSource === 'bmc' ? 'bmc_name' : 'society_name', 
+  'channel', 'shift_type', 
   'quantity', 'fat_percentage', 'snf_percentage', 'clr_value',
   'rate_per_liter', 'total_amount'
 ];
@@ -143,6 +147,7 @@ const getChannelDisplay = (channel: string): string => {
 
 interface CollectionReportsProps {
   globalSearch?: string;
+  reportSource?: 'society' | 'bmc';
   initialSocietyId?: string | null;
   initialSocietyName?: string | null;
   initialFromDate?: string | null;
@@ -151,9 +156,10 @@ interface CollectionReportsProps {
   initialMachineFilter?: string | null;
 }
 
-export default function CollectionReports({ globalSearch = '', initialSocietyId = null, initialSocietyName = null, initialFromDate = null, initialToDate = null, initialBmcFilter = null, initialMachineFilter = null }: CollectionReportsProps) {
+export default function CollectionReports({ globalSearch = '', reportSource = 'society', initialSocietyId = null, initialSocietyName = null, initialFromDate = null, initialToDate = null, initialBmcFilter = null, initialMachineFilter = null }: CollectionReportsProps) {
   console.log('CollectionReports received props:', { initialSocietyId, initialSocietyName, initialFromDate, initialToDate, initialMachineFilter });
   
+  const router = useRouter();
   const [records, setRecords] = useState<CollectionRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<CollectionRecord[]>([]);
   const [stats, setStats] = useState<CollectionStats>({
@@ -194,7 +200,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
   const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
   const [machinesData, setMachinesData] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number; collectionCount?: number }>>([]);
-  const [farmersData, setFarmersData] = useState<Array<{ id: number; farmerId: string; farmerName: string; societyId?: number }>>([]);
+  const [farmersData, setFarmersData] = useState<Array<{ id: number; farmerId: string; farmerName: string; farmeruid?: string; societyId?: number }>>([]);
 
   // Delete functionality
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -661,7 +667,8 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
     try {
       if (showLoading) setLoading(true);
-      const response = await fetch('/api/user/reports/collections', {
+      const endpoint = reportSource === 'bmc' ? '/api/user/reports/bmc-collections' : '/api/user/reports/collections';
+      const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -683,7 +690,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [calculateStats]);
+  }, [calculateStats, reportSource]);
 
   useEffect(() => {
     fetchData(true);
@@ -754,13 +761,19 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       }
     }
 
-    // Farmer filter
+    // Farmer filter - filter by farmer UID (farmer_id) and farmer ID
     if (farmerFilter.length > 0) {
       const selectedFarmerIds = farmerFilter
         .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
         .filter(Boolean) as string[];
-      if (selectedFarmerIds.length > 0) {
-        filtered = filtered.filter(record => selectedFarmerIds.includes(record.farmer_id));
+      const selectedFarmerUIDs = farmerFilter
+        .map(id => farmers.find(f => f.id.toString() === id)?.farmeruid)
+        .filter(Boolean) as string[];
+      if (selectedFarmerIds.length > 0 || selectedFarmerUIDs.length > 0) {
+        filtered = filtered.filter(record => 
+          selectedFarmerIds.includes(record.farmer_id) ||
+          (record.farmer_uid && selectedFarmerUIDs.includes(record.farmer_uid))
+        );
       }
     }
 
@@ -799,6 +812,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         return [
           record.farmer_id,
           record.farmer_name,
+          record.farmer_uid,
           record.society_id,
           record.society_name,
           record.bmc_name,
@@ -853,7 +867,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       record.channel,
       record.shift_type,
       `${record.machine_id} (${record.machine_type})`,
-      `${record.society_name} (${record.society_id})`,
+      reportSource === 'bmc' ? `${record.bmc_name || 'N/A'}` : `${record.society_name} (${record.society_id})`,
       record.farmer_id,
       record.farmer_name,
       record.fat_percentage,
@@ -872,7 +886,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       '',
       'DETAILED COLLECTION DATA',
       '',
-      'Date,Time,Channel,Shift,Machine,Society,Farmer ID,Farmer Name,Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive',
+      'Date,Time,Channel,Shift,Machine,' + (reportSource === 'bmc' ? 'BMC' : 'Society') + ',Farmer ID,Farmer Name,Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive',
       ...dataRows.map(row => row.join(',')),
       '',
       '',
@@ -933,7 +947,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
       getChannelDisplay(record.channel),
       record.shift_type,
       `${record.machine_id} (${record.machine_type})`,
-      `${record.society_name} (${record.society_id})`,
+      reportSource === 'bmc' ? `${record.bmc_name || 'N/A'}` : `${record.society_name} (${record.society_id})`,
       record.farmer_id,
       record.farmer_name || '',
       record.fat_percentage,
@@ -948,7 +962,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
     autoTable(doc, {
       startY: 32,
-      head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
+      head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 6, cellPadding: 1, halign: 'center' },
@@ -1032,7 +1046,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         record.channel,
         record.shift_type,
         `${record.machine_id} (${record.machine_type})`,
-        record.society_name || '',
+        reportSource === 'bmc' ? (record.bmc_name || 'N/A') : (record.society_name || ''),
         record.farmer_id || '',
         record.farmer_name || '',
         record.fat_percentage,
@@ -1059,7 +1073,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         ['Weighted SNF (%):', stats.weightedSnf.toFixed(2)],
         ['Weighted CLR:', stats.weightedClr.toFixed(2)],
         [],
-        ['Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate (₹/L)', 'Quantity (L)', 'Total Amount (₹)', 'Incentive'],
+        ['Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate (₹/L)', 'Quantity (L)', 'Total Amount (₹)', 'Incentive'],
         ...dataRows
       ].map(row => row.join(',')).join('\n');
 
@@ -1090,7 +1104,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         getChannelDisplay(record.channel),
         record.shift_type,
         `${record.machine_id} (${record.machine_type})`,
-        `${record.society_name} (${record.society_id})`,
+        reportSource === 'bmc' ? `${record.bmc_name || 'N/A'}` : `${record.society_name} (${record.society_id})`,
         record.farmer_id,
         record.farmer_name || '',
         record.fat_percentage,
@@ -1105,7 +1119,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
       autoTable(doc, {
         startY: 32,
-        head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
+        head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
         body: tableData,
         theme: 'grid',
         styles: { fontSize: 6, cellPadding: 1, halign: 'center' },
@@ -1215,7 +1229,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
       // Get column labels for headers
       const columnLabels = selectedColumns.map(col => 
-        COLLECTION_COLUMNS.find(c => c.key === col)?.label || col
+        getCollectionColumns(reportSource).find(c => c.key === col)?.label || col
       );
 
       const dataRows = filteredRecords.map(record => 
@@ -1227,6 +1241,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
             case 'farmer_name': return record.farmer_name || '';
             case 'society_id': return record.society_id;
             case 'society_name': return record.society_name || '';
+            case 'bmc_id': return record.bmc_id || '';
             case 'bmc_name': return record.bmc_name || '';
             case 'dairy_name': return record.dairy_name || '';
             case 'machine_id': return record.machine_id;
@@ -1441,7 +1456,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
         // Get column labels for headers
         const columnLabels = selectedColumns.map(col => 
-          COLLECTION_COLUMNS.find(c => c.key === col)?.label || col
+          getCollectionColumns(reportSource).find(c => c.key === col)?.label || col
         );
 
         const dataRows = filteredRecords.map(record => 
@@ -1453,6 +1468,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
               case 'farmer_name': return record.farmer_name || '';
               case 'society_id': return record.society_id;
               case 'society_name': return record.society_name || '';
+              case 'bmc_id': return record.bmc_id || '';
               case 'bmc_name': return record.bmc_name || '';
               case 'dairy_name': return record.dairy_name || '';
               case 'machine_id': return record.machine_id;
@@ -1539,7 +1555,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
 
         // Get column labels for headers
         const columnLabels = selectedColumns.map(col => 
-          COLLECTION_COLUMNS.find(c => c.key === col)?.label || col
+          getCollectionColumns(reportSource).find(c => c.key === col)?.label || col
         );
 
         // Table with selected columns
@@ -1553,6 +1569,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
               case 'farmer_name': return record.farmer_name || '';
               case 'society_id': return record.society_id;
               case 'society_name': return record.society_name || '';
+              case 'bmc_id': return record.bmc_id || '';
               case 'bmc_name': return record.bmc_name || '';
               case 'dairy_name': return record.dairy_name || '';
               case 'machine_id': return record.machine_id;
@@ -1777,6 +1794,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
             showChannelFilter
             showShiftFilter
             showMachineFilter
+            showFarmerFilter
             hideMainFilterButton={true}
           />
         </div>
@@ -1798,7 +1816,7 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Farmer</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{reportSource === 'bmc' ? 'BMC' : 'Society'}</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Shift</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Channel</th>
@@ -1844,12 +1862,33 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
                       <div className="text-xs text-gray-500">{record.collection_time}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
-                      <div className="font-medium">{highlightText(record.farmer_name, combinedSearch)}</div>
-                      <div className="text-xs text-gray-500">ID: {highlightText(record.farmer_id, combinedSearch)}</div>
+                      <div 
+                        className="font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        onClick={() => {
+                          router.push(`/admin/farmer?farmerId=${encodeURIComponent(record.farmer_id)}&farmerName=${encodeURIComponent(record.farmer_name)}`);
+                        }}
+                        title="Click to view farmer details"
+                      >
+                        {highlightText(record.farmer_name, combinedSearch)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <span 
+                          className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          onClick={() => {
+                            router.push(`/admin/farmer?farmerId=${encodeURIComponent(record.farmer_id)}&farmerName=${encodeURIComponent(record.farmer_name)}`);
+                          }}
+                          title="Click to view farmer details"
+                        >
+                          ID: {highlightText(record.farmer_id, combinedSearch)}
+                        </span>
+                        {record.farmer_uid && (
+                          <span className="ml-2">UID: {highlightText(record.farmer_uid, combinedSearch)}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
-                      <div className="font-medium">{highlightText(record.society_name, combinedSearch)}</div>
-                      <div className="text-xs text-gray-500">ID: {highlightText(record.society_id, combinedSearch)}</div>
+                      <div className="font-medium">{highlightText(reportSource === 'bmc' ? (record.bmc_name || 'N/A') : record.society_name, combinedSearch)}</div>
+                      <div className="text-xs text-gray-500">ID: {highlightText(reportSource === 'bmc' ? (record.bmc_id || 'N/A') : record.society_id, combinedSearch)}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
                       <div className="font-medium">{highlightText(record.machine_id, combinedSearch)}</div>
@@ -1962,8 +2001,8 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         defaultEmail={adminEmail}
         recordCount={filteredRecords.length}
         reportType="Collection Report"
-        availableColumns={COLLECTION_COLUMNS}
-        defaultColumns={DEFAULT_COLLECTION_COLUMNS}
+        availableColumns={getCollectionColumns(reportSource)}
+        defaultColumns={getDefaultCollectionColumns(reportSource)}
       />
 
       {/* Download Modal */}
@@ -1973,8 +2012,8 @@ export default function CollectionReports({ globalSearch = '', initialSocietyId 
         onDownload={handleDownloadWithColumns}
         recordCount={filteredRecords.length}
         reportType="Collection Report"
-        availableColumns={COLLECTION_COLUMNS}
-        defaultColumns={DEFAULT_COLLECTION_COLUMNS}
+        availableColumns={getCollectionColumns(reportSource)}
+        defaultColumns={getDefaultCollectionColumns(reportSource)}
       />
 
       {/* Status Messages */}

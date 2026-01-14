@@ -141,21 +141,39 @@ async function handleRequest(
     
     console.log(`🔍 Using schema: ${schemaName}`);
 
-    // Look up society
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
-      schemaName,
-      societyIdStr
-    );
+    let actualSocietyId: number;
     
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+    if (societyValidation.isBmc) {
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Price chart not found.');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
     }
-    
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
     // Look up machine to verify it exists
     const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
@@ -169,7 +187,7 @@ async function handleRequest(
     const machineQuery = `
       SELECT id, machine_id, society_id 
       FROM \`${schemaName}\`.machines 
-      WHERE machine_id IN (${placeholders}) AND society_id = ?
+      WHERE machine_id IN (${placeholders}) AND (society_id = ? OR bmc_id IS NOT NULL)
       LIMIT 1
     `;
     
@@ -185,17 +203,41 @@ async function handleRequest(
     const machineData = machineResults[0] as MachineResult;
     console.log(`✅ Found machine: "${machineId}" -> database ID: ${machineData.id}`);
 
-    // Find active rate chart for this society and channel
-    const chartQuery = `
-      SELECT id, society_id, channel, file_name, shared_chart_id, uploaded_at, status
-      FROM \`${schemaName}\`.rate_charts
-      WHERE society_id = ? AND channel = ? AND status = 1
-      ORDER BY uploaded_at DESC
-      LIMIT 1
-    `;
+    // Find active rate chart for this society/BMC and channel
+    let chartQuery: string;
+    let chartReplacements: any[];
+    
+    // Check if machine is BMC-assigned
+    const machineTypeQuery = `SELECT bmc_id FROM \`${schemaName}\`.machines WHERE id = ? LIMIT 1`;
+    const [machineTypeResults] = await sequelize.query(machineTypeQuery, {
+      replacements: [machineData.id]
+    });
+    const machineInfo = machineTypeResults[0] as { bmc_id: number | null };
+    
+    if (machineInfo.bmc_id) {
+      // BMC machine - check for BMC-assigned charts
+      chartQuery = `
+        SELECT id, society_id, bmc_id, channel, file_name, shared_chart_id, uploaded_at, status
+        FROM \`${schemaName}\`.rate_charts
+        WHERE bmc_id = ? AND channel = ? AND status = 1 AND is_bmc_assigned = 1
+        ORDER BY uploaded_at DESC
+        LIMIT 1
+      `;
+      chartReplacements = [machineInfo.bmc_id, channelUpper];
+    } else {
+      // Society machine - check for society-assigned charts
+      chartQuery = `
+        SELECT id, society_id, channel, file_name, shared_chart_id, uploaded_at, status
+        FROM \`${schemaName}\`.rate_charts
+        WHERE society_id = ? AND channel = ? AND status = 1
+        ORDER BY uploaded_at DESC
+        LIMIT 1
+      `;
+      chartReplacements = [actualSocietyId, channelUpper];
+    }
 
     const [chartResults] = await sequelize.query(chartQuery, {
-      replacements: [actualSocietyId, channelUpper]
+      replacements: chartReplacements
     });
 
     if (!Array.isArray(chartResults) || chartResults.length === 0) {

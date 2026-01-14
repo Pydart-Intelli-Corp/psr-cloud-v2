@@ -186,7 +186,7 @@ export const initUserModel = (sequelize: Sequelize): typeof User => {
       status: {
         type: DataTypes.ENUM(...Object.values(UserStatus)),
         allowNull: false,
-        defaultValue: UserStatus.PENDING
+        defaultValue: UserStatus.PENDING_APPROVAL
       },
       dbKey: {
         type: DataTypes.STRING(50),

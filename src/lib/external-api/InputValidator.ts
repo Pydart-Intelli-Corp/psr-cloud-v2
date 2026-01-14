@@ -3,13 +3,14 @@
  */
 export class InputValidator {
   /**
-   * Validate and parse society ID (handles S- prefix format)
+   * Validate and parse society/BMC ID (handles S- and B- prefix formats)
    */
   static validateSocietyId(societyIdStr: string): { 
     isValid: boolean; 
     id: string; 
     fallback: string; 
     numericId?: number;
+    isBmc?: boolean;
     error?: string;
   } {
     if (!societyIdStr || (typeof societyIdStr === 'string' && societyIdStr.trim() === '')) {
@@ -17,16 +18,19 @@ export class InputValidator {
         isValid: false,
         id: societyIdStr,
         fallback: societyIdStr,
-        error: 'Society ID cannot be empty'
+        error: 'Society/BMC ID cannot be empty'
       };
     }
+
+    // Check if this is a BMC ID (B- prefix)
+    const isBmc = societyIdStr.startsWith('B-');
 
     // Preserve original format for database lookup
     const id = societyIdStr;
     
-    // Extract fallback ID (remove S- prefix if present)
+    // Extract fallback ID (remove S- or B- prefix if present)
     let fallback = societyIdStr;
-    if (societyIdStr.startsWith('S-')) {
+    if (societyIdStr.startsWith('S-') || societyIdStr.startsWith('B-')) {
       fallback = societyIdStr.substring(2);
     }
 
@@ -41,7 +45,8 @@ export class InputValidator {
       isValid: true,
       id,
       fallback,
-      numericId
+      numericId,
+      isBmc
     };
   }
 

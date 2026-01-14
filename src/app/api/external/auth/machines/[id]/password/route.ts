@@ -86,7 +86,7 @@ export async function PUT(
     // For society users, verify they own the machine
     if (entityType === 'society') {
       const [machineCheck] = await sequelize.query(`
-        SELECT m.id, m.society_id 
+        SELECT m.id, m.society_id, m.bmc_id 
         FROM \`${schemaName}\`.machines m
         WHERE m.id = ?
       `, { replacements: [id] }) as any[];
@@ -95,7 +95,8 @@ export async function PUT(
         return createErrorResponse('Machine not found', 404, undefined, corsHeaders);
       }
 
-      if (machineCheck[0].society_id !== payload.id) {
+      // Check if machine belongs to society (either directly or through BMC)
+      if (machineCheck[0].society_id !== payload.id && !machineCheck[0].bmc_id) {
         return createErrorResponse('Permission denied. You can only update passwords for machines in your society', 403, undefined, corsHeaders);
       }
     }
@@ -200,7 +201,7 @@ export async function GET(
     // For society users, verify they own the machine
     if (entityType === 'society') {
       const [machineCheck] = await sequelize.query(`
-        SELECT m.id, m.society_id 
+        SELECT m.id, m.society_id, m.bmc_id 
         FROM \`${schemaName}\`.machines m
         WHERE m.id = ?
       `, { replacements: [id] }) as any[];
@@ -209,7 +210,8 @@ export async function GET(
         return createErrorResponse('Machine not found', 404, undefined, corsHeaders);
       }
 
-      if (machineCheck[0].society_id !== payload.id) {
+      // Check if machine belongs to society (either directly or through BMC)
+      if (machineCheck[0].society_id !== payload.id && !machineCheck[0].bmc_id) {
         return createErrorResponse('Permission denied. You can only view passwords for machines in your society', 403, undefined, corsHeaders);
       }
     }

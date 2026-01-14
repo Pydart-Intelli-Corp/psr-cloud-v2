@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Droplet, Truck, DollarSign } from 'lucide-react';
+import { FileText, Droplet, Truck, DollarSign, Building2, Users } from 'lucide-react';
 import { PageLoader } from '@/components';
 import CollectionReports from '@/components/reports/CollectionReports';
 import DispatchReports from '@/components/reports/DispatchReports';
@@ -12,6 +12,7 @@ import SalesReports from '@/components/reports/SalesReports';
 export const dynamic = 'force-dynamic';
 
 type ReportType = 'collection' | 'dispatch' | 'sales';
+type ReportSource = 'society' | 'bmc';
 
 interface TabConfig {
   id: ReportType;
@@ -48,6 +49,7 @@ const tabs: TabConfig[] = [
 function ReportsPage() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<ReportType>('collection');
+  const [reportSource, setReportSource] = useState<ReportSource>('society');
   const [globalSearch, setGlobalSearch] = useState('');
   const [initialSocietyId, setInitialSocietyId] = useState<string | null>(null);
   const [initialSocietyName, setInitialSocietyName] = useState<string | null>(null);
@@ -107,14 +109,14 @@ function ReportsPage() {
   }, []);
 
   const renderContent = () => {
-    console.log('Rendering with date filters:', { initialFromDate, initialToDate, initialBmcFilter, initialMachineFilter });
+    const key = `${activeTab}-${reportSource}`;
     switch (activeTab) {
       case 'collection':
-        return <CollectionReports key="collection" globalSearch={globalSearch} initialSocietyId={initialSocietyId} initialSocietyName={initialSocietyName} initialFromDate={initialFromDate} initialToDate={initialToDate} initialBmcFilter={initialBmcFilter} initialMachineFilter={initialMachineFilter} />;
+        return <CollectionReports key={key} globalSearch={globalSearch} reportSource={reportSource} initialSocietyId={initialSocietyId} initialSocietyName={initialSocietyName} initialFromDate={initialFromDate} initialToDate={initialToDate} initialBmcFilter={initialBmcFilter} initialMachineFilter={initialMachineFilter} />;
       case 'dispatch':
-        return <DispatchReports key="dispatch" globalSearch={globalSearch} />;
+        return <DispatchReports key={key} globalSearch={globalSearch} reportSource={reportSource} />;
       case 'sales':
-        return <SalesReports key="sales" globalSearch={globalSearch} />;
+        return <SalesReports key={key} globalSearch={globalSearch} reportSource={reportSource} />;
       default:
         return null;
     }
@@ -141,31 +143,68 @@ function ReportsPage() {
               </div>
             </div>
 
-            {/* Toggle Button - Right Side */}
-            <div className="inline-flex bg-psr-green-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-
-                return (
+            {/* Toggle Buttons - Right Side */}
+            <div className="flex items-center gap-3">
+              {/* Society/BMC Toggle */}
+              <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1 shadow-inner">
                   <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => setReportSource('society')}
                     className={`
-                      relative flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-medium
+                      flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium text-sm
                       transition-all duration-200
                       ${
-                        isActive
-                          ? 'bg-psr-green-600 dark:bg-psr-green-700 text-white shadow-md'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-psr-green-600 dark:hover:text-psr-green-400'
+                        reportSource === 'society'
+                          ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                       }
                     `}
                   >
-                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="hidden sm:inline">{tab.label}</span>
+                    <Users className="w-4 h-4" />
+                    <span className="hidden sm:inline">Society</span>
                   </button>
-                );
-              })}
+                  <button
+                    onClick={() => setReportSource('bmc')}
+                    className={`
+                      flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md font-medium text-sm
+                      transition-all duration-200
+                      ${
+                        reportSource === 'bmc'
+                          ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                      }
+                    `}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">BMC</span>
+                  </button>
+                </div>
+
+              {/* Report Type Toggle */}
+              <div className="inline-flex bg-psr-green-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`
+                        relative flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-medium
+                        transition-all duration-200
+                        ${
+                          isActive
+                            ? 'bg-psr-green-600 dark:bg-psr-green-700 text-white shadow-md'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-psr-green-600 dark:hover:text-psr-green-400'
+                        }
+                      `}
+                    >
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

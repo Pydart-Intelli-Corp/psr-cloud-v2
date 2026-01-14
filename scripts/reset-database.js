@@ -239,6 +239,7 @@ async function createRequiredTables(connection) {
         description TEXT,
         category VARCHAR(100) NOT NULL,
         specifications JSON,
+        image_url VARCHAR(500) COMMENT 'URL path to machine image',
         isActive BOOLEAN DEFAULT true,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

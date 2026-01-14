@@ -106,25 +106,43 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Machine correction not found.');
     }
     
-    // PRIORITY 2: Validate Society ID and find actual database ID
+    // PRIORITY 2: Validate Society/BMC ID and find actual database ID
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
     
-    // Look up society using QueryBuilder
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
-      schemaName,
-      societyValidation.id
-    );
+    let actualSocietyId: number;
     
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Machine correction not found.');
+    if (societyValidation.isBmc) {
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Machine correction not found.');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Machine correction not found.');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
     }
-    
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
     // PRIORITY 3: Get machine ID variants for matching
     // Use the comprehensive variants from InputValidator which includes all possible formats
@@ -181,7 +199,7 @@ async function handleRequest(
         mc.updated_at
       FROM \`${schemaName}\`.machine_corrections mc
       INNER JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
-      WHERE m.society_id = ? 
+      WHERE (m.society_id = ? OR m.bmc_id IS NOT NULL)
         AND m.machine_id IN (${placeholders})
         AND mc.status = 1
         AND m.status = 'active'

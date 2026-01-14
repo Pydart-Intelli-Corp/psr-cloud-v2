@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
       LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
       LEFT JOIN \`${schemaName}\`.machines m ON md.machine_id = m.id
+      WHERE md.society_id IS NOT NULL
       ORDER BY md.dispatch_date DESC, md.dispatch_time DESC
       LIMIT 1000
     `;

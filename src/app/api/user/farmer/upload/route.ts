@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
+import { generateUniqueFarmerUID } from '@/lib/farmeruid-generator';
 
 interface CSVRowFromFile {
   ID: string;
@@ -164,15 +165,19 @@ export async function POST(request: NextRequest) {
           }
         }
         
+        // Generate unique farmer UID
+        const farmeruid = await generateUniqueFarmerUID(schemaName, sequelize);
+        
         // Insert farmer
         await sequelize.query(`
           INSERT INTO \`${schemaName}\`.farmers 
-          (farmer_id, rf_id, name, phone, sms_enabled, bonus, society_id, machine_id, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
+          (farmer_id, rf_id, farmeruid, name, phone, sms_enabled, bonus, society_id, machine_id, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
         `, {
           replacements: [
             farmer.ID,
             rfIdToUse,
+            farmeruid,
             farmer.NAME,
             farmer.MOBILE || null,
             farmer.SMS || 'OFF',

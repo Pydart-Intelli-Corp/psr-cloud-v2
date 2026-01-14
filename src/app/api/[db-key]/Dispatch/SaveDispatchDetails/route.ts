@@ -184,28 +184,33 @@ async function handleRequest(
 
     console.log(`🔍 Using schema: ${schemaName}`);
 
-    // Look up society
+    // Look up society or BMC
     const societyQuery = `
-      SELECT id FROM \`${schemaName}\`.societies 
+      SELECT id, 'society' as type FROM \`${schemaName}\`.societies 
       WHERE society_id = ? OR society_id = ?
+      UNION
+      SELECT id, 'bmc' as type FROM \`${schemaName}\`.bmcs
+      WHERE bmc_id = ? OR bmc_id = ?
       LIMIT 1
     `;
     
-    const societyLookupParams = societyValidation.id.startsWith('S-') 
-      ? [societyValidation.id, societyValidation.fallback]
-      : [`S-${societyValidation.id}`, societyValidation.id];
+    const societyLookupParams = societyValidation.id.startsWith('S-') || societyValidation.id.startsWith('B-')
+      ? [societyValidation.id, societyValidation.fallback, societyValidation.id, societyValidation.fallback]
+      : [`S-${societyValidation.id}`, societyValidation.id, `B-${societyValidation.id}`, societyValidation.id];
     
     const [societyResults] = await sequelize.query(societyQuery, { replacements: societyLookupParams });
     
     if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyValidation.id}"`);
-      return ESP32ResponseHelper.createErrorResponse('Society not found');
+      console.log(`❌ Society/BMC not found: "${societyValidation.id}"`);
+      return ESP32ResponseHelper.createErrorResponse('Society/BMC not found');
     }
     
-    const actualSocietyId = (societyResults[0] as SocietyResult).id;
-    console.log(`✅ Found society: "${societyValidation.id}" -> database ID: ${actualSocietyId}`);
+    const lookupResult = societyResults[0] as SocietyResult & { type: string };
+    const actualSocietyId = lookupResult.id;
+    const isBmc = lookupResult.type === 'bmc';
+    console.log(`✅ Found ${isBmc ? 'BMC' : 'society'}: "${societyValidation.id}" -> database ID: ${actualSocietyId}`);
 
-    // Look up machine
+    // Look up machine - check society_id or bmc_id based on lookup result
     const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
     
     if (machineIdVariants.length === 0) {
@@ -215,9 +220,10 @@ async function handleRequest(
     
     const placeholders = machineIdVariants.map(() => '?').join(', ');
     const machineQuery = `
-      SELECT id, machine_id 
+      SELECT id, machine_id, bmc_id, society_id 
       FROM \`${schemaName}\`.machines 
-      WHERE society_id = ? AND machine_id IN (${placeholders})
+      WHERE ${isBmc ? 'bmc_id' : 'society_id'} = ? 
+        AND machine_id IN (${placeholders})
       LIMIT 1
     `;
     
@@ -230,8 +236,17 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Machine not found');
     }
     
-    const actualMachine = machineResults[0] as MachineResult;
-    console.log(`✅ Found machine: "${dispatchData.machineId}" -> database ID: ${actualMachine.id}`);
+    const actualMachine = machineResults[0] as MachineResult & { bmc_id?: number; society_id?: number };
+    console.log(`✅ Found machine: "${dispatchData.machineId}" -> database ID: ${actualMachine.id}, bmc_id: ${actualMachine.bmc_id}, society_id: ${actualMachine.society_id}`);
+
+    // Ensure machine has correct bmc_id if this is a BMC dispatch
+    if (isBmc && !actualMachine.bmc_id) {
+      console.log(`🔧 Updating machine ${actualMachine.id} to set bmc_id = ${actualSocietyId}`);
+      await sequelize.query(
+        `UPDATE \`${schemaName}\`.machines SET bmc_id = ? WHERE id = ?`,
+        { replacements: [actualSocietyId, actualMachine.id] }
+      );
+    }
 
     console.log(`ℹ️  Dispatch ID from input: "${dispatchData.dispatchId}"`);
 
@@ -282,7 +297,7 @@ async function handleRequest(
 
     const insertParams = [
       dispatchData.dispatchId,
-      actualSocietyId,
+      isBmc ? null : actualSocietyId,
       actualMachine.id,
       formattedDate,
       formattedTime,

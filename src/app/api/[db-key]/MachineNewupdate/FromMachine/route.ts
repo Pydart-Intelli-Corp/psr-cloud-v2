@@ -113,25 +113,46 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Invalid machine ID format');
     }
     
-    // Validate Society ID and find actual database ID
+    // Validate Society/BMC ID and find actual database ID
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
     
-    // Look up society using QueryBuilder
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
-      schemaName,
-      societyValidation.id
-    );
+    let actualSocietyId: number;
     
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+    // Check if this is a BMC ID or Society ID
+    if (societyValidation.isBmc) {
+      // Look up BMC using QueryBuilder
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Invalid BMC ID');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      // Look up society using QueryBuilder
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
     }
-    
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
     // Get machine ID variants for matching
     const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
@@ -148,7 +169,7 @@ async function handleRequest(
     const machineQuery = `
       SELECT id, machine_id, society_id 
       FROM \`${schemaName}\`.machines 
-      WHERE machine_id IN (${placeholders}) AND society_id = ?
+      WHERE machine_id IN (${placeholders}) AND (society_id = ? OR bmc_id IS NOT NULL)
       LIMIT 1
     `;
     
@@ -231,20 +252,54 @@ async function handleRequest(
         }
 
         // Check 2: Rate chart updates (status = 1 and not yet downloaded by this machine)
-        const chartCheckQuery = `
-          SELECT COUNT(*) as pending_charts
-          FROM \`${schemaName}\`.rate_charts rc
-          WHERE rc.society_id = ? 
-            AND rc.status = 1
-            AND NOT EXISTS (
-              SELECT 1 
-              FROM \`${schemaName}\`.rate_chart_download_history rcdh
-              WHERE rcdh.rate_chart_id = rc.id 
-                AND rcdh.machine_id = ?
-            )
+        // First check if machine is BMC-assigned or society-assigned
+        const machineTypeQuery = `
+          SELECT bmc_id, society_id FROM \`${schemaName}\`.machines WHERE id = ? LIMIT 1
         `;
+        const [machineTypeResults] = await sequelize.query(machineTypeQuery, {
+          replacements: [machineData.id]
+        });
+        
+        const machineInfo = machineTypeResults[0] as { bmc_id: number | null; society_id: number | null };
+        
+        let chartCheckQuery: string;
+        let chartReplacements: any[];
+        
+        if (machineInfo.bmc_id) {
+          // BMC machine - check for BMC-assigned charts
+          chartCheckQuery = `
+            SELECT COUNT(*) as pending_charts
+            FROM \`${schemaName}\`.rate_charts rc
+            WHERE rc.bmc_id = ? 
+              AND rc.is_bmc_assigned = 1
+              AND rc.status = 1
+              AND NOT EXISTS (
+                SELECT 1 
+                FROM \`${schemaName}\`.rate_chart_download_history rcdh
+                WHERE rcdh.rate_chart_id = rc.id 
+                  AND rcdh.machine_id = ?
+              )
+          `;
+          chartReplacements = [machineInfo.bmc_id, machineData.id];
+        } else {
+          // Society machine - check for society-assigned charts
+          chartCheckQuery = `
+            SELECT COUNT(*) as pending_charts
+            FROM \`${schemaName}\`.rate_charts rc
+            WHERE rc.society_id = ? 
+              AND rc.status = 1
+              AND NOT EXISTS (
+                SELECT 1 
+                FROM \`${schemaName}\`.rate_chart_download_history rcdh
+                WHERE rcdh.rate_chart_id = rc.id 
+                  AND rcdh.machine_id = ?
+              )
+          `;
+          chartReplacements = [actualSocietyId, machineData.id];
+        }
+        
         const [chartResults] = await sequelize.query(chartCheckQuery, { 
-          replacements: [actualSocietyId, machineData.id] 
+          replacements: chartReplacements
         });
         
         if (Array.isArray(chartResults) && chartResults.length > 0) {

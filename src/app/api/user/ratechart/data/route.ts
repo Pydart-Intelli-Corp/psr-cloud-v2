@@ -43,9 +43,9 @@ export async function GET(request: NextRequest) {
         return createErrorResponse('Invalid chart ID', 400);
       }
 
-      // First get the rate chart details and all related charts (shared charts)
+      // First get the rate chart details
       const chartQuery = `
-        SELECT rc.id, rc.society_id, rc.channel, rc.shared_chart_id
+        SELECT rc.id, rc.society_id, rc.bmc_id, rc.channel, rc.shared_chart_id, rc.is_bmc_assigned
         FROM \`${schemaName}\`.rate_charts rc
         WHERE rc.id = ?
         LIMIT 1
@@ -59,15 +59,12 @@ export async function GET(request: NextRequest) {
         return createErrorResponse('Rate chart not found', 404);
       }
 
-      const chart = charts[0] as { id: number; society_id: number; channel: string; shared_chart_id: number | null };
+      const chart = charts[0] as { id: number; society_id: number | null; bmc_id: number | null; channel: string; shared_chart_id: number | null; is_bmc_assigned: number };
 
-      // Get all chart IDs that share the same data (including the current chart)
-      // If this chart has a shared_chart_id, find all charts with that shared_chart_id
-      // If this chart doesn't have a shared_chart_id, find all charts that reference this chart's ID
+      // Get all chart IDs that share the same data
       let chartIds = [chart.id];
       
       if (chart.shared_chart_id) {
-        // This chart references another chart, so get all charts with the same shared_chart_id
         const sharedChartsQuery = `
           SELECT id FROM \`${schemaName}\`.rate_charts
           WHERE shared_chart_id = ? OR id = ?
@@ -77,7 +74,6 @@ export async function GET(request: NextRequest) {
         });
         chartIds = (sharedCharts as Array<{ id: number }>).map(c => c.id);
       } else {
-        // This chart might be the master, so find all charts that reference it
         const sharedChartsQuery = `
           SELECT id FROM \`${schemaName}\`.rate_charts
           WHERE shared_chart_id = ?
@@ -88,42 +84,77 @@ export async function GET(request: NextRequest) {
         chartIds = [chart.id, ...(sharedCharts as Array<{ id: number }>).map(c => c.id)];
       }
 
-      // Get all society IDs associated with these charts
-      const societiesQuery = `
-        SELECT DISTINCT society_id FROM \`${schemaName}\`.rate_charts
-        WHERE id IN (${chartIds.join(',')})
-      `;
-      const [societyResults] = await sequelize.query(societiesQuery);
-      const societyIds = (societyResults as Array<{ society_id: number }>).map(s => s.society_id);
+      let machines;
 
-      // Fetch machines that have downloaded this chart (status=0 means downloaded)
-      // We check the download history to find machines that have actually downloaded the chart
-      const machinesQuery = `
-        SELECT DISTINCT
-          m.id,
-          m.machine_id as machineId,
-          m.society_id as societyId,
-          m.machine_type as machineType,
-          m.location,
-          s.name as societyName,
-          s.society_id as societyIdentifier
-        FROM \`${schemaName}\`.machines m
-        INNER JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
-        INNER JOIN \`${schemaName}\`.rate_chart_download_history rcdh 
-          ON m.id = rcdh.machine_id 
-          AND rcdh.rate_chart_id IN (${chartIds.join(',')})
-          AND rcdh.channel = ?
-        WHERE m.society_id IN (${societyIds.join(',')}) AND m.status = 1
-        ORDER BY m.machine_id ASC
-      `;
+      if (chart.is_bmc_assigned) {
+        // For BMC-assigned charts, get all machines from BMCs
+        const bmcIdsQuery = `
+          SELECT DISTINCT bmc_id FROM \`${schemaName}\`.rate_charts
+          WHERE id IN (${chartIds.join(',')})
+        `;
+        const [bmcResults] = await sequelize.query(bmcIdsQuery);
+        const bmcIds = (bmcResults as Array<{ bmc_id: number }>).map(b => b.bmc_id);
 
-      const [machines] = await sequelize.query(machinesQuery, {
-        replacements: [chart.channel]
-      });
+        const machinesQuery = `
+          SELECT DISTINCT
+            m.id,
+            m.machine_id as machineId,
+            m.bmc_id as bmcId,
+            m.machine_type as machineType,
+            m.location,
+            b.name as bmcName,
+            b.bmc_id as bmcIdentifier,
+            CASE WHEN rcdh.id IS NOT NULL THEN 1 ELSE 0 END as downloaded
+          FROM \`${schemaName}\`.machines m
+          INNER JOIN \`${schemaName}\`.bmcs b ON m.bmc_id = b.id
+          LEFT JOIN \`${schemaName}\`.rate_chart_download_history rcdh 
+            ON m.id = rcdh.machine_id 
+            AND rcdh.rate_chart_id IN (${chartIds.join(',')})
+            AND rcdh.channel = ?
+          WHERE m.bmc_id IN (${bmcIds.join(',')}) AND m.status = 1
+          ORDER BY m.machine_id ASC
+        `;
+
+        [machines] = await sequelize.query(machinesQuery, {
+          replacements: [chart.channel]
+        });
+      } else {
+        // For society-assigned charts
+        const societiesQuery = `
+          SELECT DISTINCT society_id FROM \`${schemaName}\`.rate_charts
+          WHERE id IN (${chartIds.join(',')})
+        `;
+        const [societyResults] = await sequelize.query(societiesQuery);
+        const societyIds = (societyResults as Array<{ society_id: number }>).map(s => s.society_id);
+
+        const machinesQuery = `
+          SELECT DISTINCT
+            m.id,
+            m.machine_id as machineId,
+            m.society_id as societyId,
+            m.machine_type as machineType,
+            m.location,
+            s.name as societyName,
+            s.society_id as societyIdentifier,
+            CASE WHEN rcdh.id IS NOT NULL THEN 1 ELSE 0 END as downloaded
+          FROM \`${schemaName}\`.machines m
+          INNER JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
+          LEFT JOIN \`${schemaName}\`.rate_chart_download_history rcdh 
+            ON m.id = rcdh.machine_id 
+            AND rcdh.rate_chart_id IN (${chartIds.join(',')})
+            AND rcdh.channel = ?
+          WHERE m.society_id IN (${societyIds.join(',')}) AND m.status = 1
+          ORDER BY m.machine_id ASC
+        `;
+
+        [machines] = await sequelize.query(machinesQuery, {
+          replacements: [chart.channel]
+        });
+      }
 
       console.log(`✅ Retrieved ${Array.isArray(machines) ? machines.length : 0} machines that downloaded chart ID ${chartIdNum}`);
 
-      return createSuccessResponse('Machines retrieved successfully', { machines });
+      return createSuccessResponse('Machines retrieved successfully', { machines, isBmcAssigned: chart.is_bmc_assigned });
     }
 
     // Use case 2: Fetch rate chart data (fileName, channel, societyId provided)

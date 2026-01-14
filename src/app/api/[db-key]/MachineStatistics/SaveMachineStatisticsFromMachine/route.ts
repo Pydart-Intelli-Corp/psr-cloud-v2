@@ -169,21 +169,42 @@ async function handleRequest(
     
     console.log(`🔍 Using schema: ${schemaName}`);
 
-    // Look up society
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
-      schemaName,
-      societyIdStr
-    );
+    let actualSocietyId: number;
     
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ Society not found: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+    // Check if this is a BMC ID or Society ID
+    if (societyValidation.isBmc) {
+      // Look up BMC using QueryBuilder
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Invalid BMC ID');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      // Look up society using QueryBuilder
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyIdStr
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
     }
-    
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
 
     // Look up machine to verify it exists
     const machineIdVariants = (machineValidation.variants || []).map(v => String(v));
@@ -197,7 +218,7 @@ async function handleRequest(
     const machineQuery = `
       SELECT id, machine_id, society_id 
       FROM \`${schemaName}\`.machines 
-      WHERE machine_id IN (${placeholders}) AND society_id = ?
+      WHERE machine_id IN (${placeholders}) AND (society_id = ? OR bmc_id IS NOT NULL)
       LIMIT 1
     `;
     

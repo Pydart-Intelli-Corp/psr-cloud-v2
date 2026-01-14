@@ -6,6 +6,7 @@ export interface Farmer {
   id: number;
   farmerId: string;
   rfId?: string;
+  farmeruid?: string; // Unique farmer identifier (format: LLNN-DDDD)
   farmerName: string;
   fullName?: string; // Alias for farmerName
   password?: string;

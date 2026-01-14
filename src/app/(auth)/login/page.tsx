@@ -109,6 +109,7 @@ interface LoginResponse {
   data?: {
     token?: string;
     refreshToken?: string;
+    accessToken?: string;
     user?: {
       id: number;
       email: string;

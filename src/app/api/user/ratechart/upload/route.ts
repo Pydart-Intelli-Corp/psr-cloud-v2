@@ -30,22 +30,34 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const societyIdsStr = formData.get('societyIds') as string; // Changed to accept multiple
+    const assignmentType = formData.get('assignmentType') as string || 'society';
+    const societyIdsStr = formData.get('societyIds') as string;
+    const bmcIdsStr = formData.get('bmcIds') as string;
     const channel = formData.get('channel') as string;
 
     if (!file) {
       return createErrorResponse('CSV file is required', 400);
     }
 
-    if (!societyIdsStr) {
-      return createErrorResponse('Society ID(s) required', 400);
+    // Validate assignment type and get IDs
+    let targetIds: string[] = [];
+    let isBmcAssignment = false;
+    
+    if (assignmentType === 'bmc') {
+      if (!bmcIdsStr) {
+        return createErrorResponse('BMC ID(s) required', 400);
+      }
+      targetIds = bmcIdsStr.split(',').map(id => id.trim()).filter(id => id);
+      isBmcAssignment = true;
+    } else {
+      if (!societyIdsStr) {
+        return createErrorResponse('Society ID(s) required', 400);
+      }
+      targetIds = societyIdsStr.split(',').map(id => id.trim()).filter(id => id);
     }
 
-    // Parse society IDs (can be single or comma-separated)
-    const societyIds = societyIdsStr.split(',').map(id => id.trim()).filter(id => id);
-
-    if (societyIds.length === 0) {
-      return createErrorResponse('At least one society ID is required', 400);
+    if (targetIds.length === 0) {
+      return createErrorResponse(`At least one ${isBmcAssignment ? 'BMC' : 'society'} ID is required`, 400);
     }
 
     if (!channel || !['COW', 'BUF', 'MIX'].includes(channel)) {
@@ -142,136 +154,54 @@ export async function POST(request: NextRequest) {
     const transaction = await sequelize.transaction();
 
     try {
-      // For single society upload: check if it was using a shared chart
-      if (societyIds.length === 1) {
-        const [existingChart] = await sequelize.query(`
-          SELECT id, shared_chart_id FROM ${schemaName}.rate_charts
-          WHERE society_id = ${societyIds[0]} AND channel = :channel
-        `, {
-          replacements: { channel },
-          transaction
-        });
-
-        // If society has a shared chart, only delete its chart record (not the shared data)
-        if (existingChart && existingChart.length > 0) {
-          const chart = (existingChart as Array<{ id: number; shared_chart_id: number | null }>)[0];
-          
-          if (chart.shared_chart_id !== null) {
-            // Society was using a shared chart - only delete its chart record
-            // This won't affect other societies using the same shared chart
-            await sequelize.query(`
-              DELETE FROM ${schemaName}.rate_charts
-              WHERE id = ${chart.id}
-            `, { transaction });
-          } else {
-            // Society is the master of this chart - check if other societies are using it
-            const [sharedUsage] = await sequelize.query(`
-              SELECT COUNT(*) as count FROM ${schemaName}.rate_charts
-              WHERE shared_chart_id = ${chart.id}
-            `, { transaction });
-
-            const sharedCount = (sharedUsage as Array<{ count: number }>)[0].count;
-
-            if (sharedCount > 0) {
-              // Other societies are using this chart - transfer ownership to first shared society
-              const [firstShared] = await sequelize.query(`
-                SELECT id, society_id FROM ${schemaName}.rate_charts
-                WHERE shared_chart_id = ${chart.id}
-                ORDER BY id ASC
-                LIMIT 1
-              `, { transaction });
-
-              const newMaster = (firstShared as Array<{ id: number; society_id: number }>)[0];
-
-              // Step 1: Transfer rate_chart_data ownership to new master
-              await sequelize.query(`
-                UPDATE ${schemaName}.rate_chart_data
-                SET rate_chart_id = ${newMaster.id}
-                WHERE rate_chart_id = ${chart.id}
-              `, { transaction });
-
-              // Step 2: Promote first shared chart to master
-              await sequelize.query(`
-                UPDATE ${schemaName}.rate_charts
-                SET shared_chart_id = NULL
-                WHERE id = ${newMaster.id}
-              `, { transaction });
-
-              // Step 3: Update other shared charts to point to new master
-              await sequelize.query(`
-                UPDATE ${schemaName}.rate_charts
-                SET shared_chart_id = ${newMaster.id}
-                WHERE shared_chart_id = ${chart.id} AND id != ${newMaster.id}
-              `, { transaction });
-
-              // Step 4: Delete download history for old master
-              await sequelize.query(`
-                DELETE FROM ${schemaName}.rate_chart_download_history
-                WHERE rate_chart_id = ${chart.id}
-              `, { transaction });
-
-              // Step 5: Delete the old master chart record
-              await sequelize.query(`
-                DELETE FROM ${schemaName}.rate_charts
-                WHERE id = ${chart.id}
-              `, { transaction });
-            } else {
-              // No other societies using this chart - delete both chart and data
-              await sequelize.query(`
-                DELETE FROM ${schemaName}.rate_chart_data
-                WHERE rate_chart_id = ${chart.id}
-              `, { transaction });
-
-              await sequelize.query(`
-                DELETE FROM ${schemaName}.rate_charts
-                WHERE id = ${chart.id}
-              `, { transaction });
-            }
-          }
-        }
-      } else {
-        // Multi-society upload: delete all their charts and data as before
+      // Delete existing charts for the target entities
+      if (isBmcAssignment) {
         await sequelize.query(`
           DELETE FROM ${schemaName}.rate_chart_data
           WHERE rate_chart_id IN (
             SELECT id FROM ${schemaName}.rate_charts
-            WHERE society_id IN (${societyIds.join(',')}) AND channel = :channel
+            WHERE bmc_id IN (${targetIds.join(',')}) AND channel = :channel AND is_bmc_assigned = 1
           )
-        `, {
-          replacements: { channel },
-          transaction
-        });
+        `, { replacements: { channel }, transaction });
 
         await sequelize.query(`
           DELETE FROM ${schemaName}.rate_charts
-          WHERE society_id IN (${societyIds.join(',')}) AND channel = :channel
-        `, {
-          replacements: { channel },
-          transaction
-        });
+          WHERE bmc_id IN (${targetIds.join(',')}) AND channel = :channel AND is_bmc_assigned = 1
+        `, { replacements: { channel }, transaction });
+      } else {
+        await sequelize.query(`
+          DELETE FROM ${schemaName}.rate_chart_data
+          WHERE rate_chart_id IN (
+            SELECT id FROM ${schemaName}.rate_charts
+            WHERE society_id IN (${targetIds.join(',')}) AND channel = :channel AND is_bmc_assigned = 0
+          )
+        `, { replacements: { channel }, transaction });
+
+        await sequelize.query(`
+          DELETE FROM ${schemaName}.rate_charts
+          WHERE society_id IN (${targetIds.join(',')}) AND channel = :channel AND is_bmc_assigned = 0
+        `, { replacements: { channel }, transaction });
       }
 
-      // Insert rate chart records for all selected societies in one query
-      const chartValues = societyIds.map(id => 
-        `(${id}, '${channel}', NOW(), '${user.fullName.replace(/'/g, "''")}', '${file.name.replace(/'/g, "''")}', ${rateData.length}, 1)`
+      // Insert rate chart records
+      const idColumn = isBmcAssignment ? 'bmc_id' : 'society_id';
+      const chartValues = targetIds.map(id => 
+        `(${id}, '${channel}', NOW(), '${user.fullName.replace(/'/g, "''")}', '${file.name.replace(/'/g, "''")}', ${rateData.length}, 1, ${isBmcAssignment ? 1 : 0})`
       ).join(',');
 
       await sequelize.query(`
         INSERT INTO ${schemaName}.rate_charts 
-        (society_id, channel, uploaded_at, uploaded_by, file_name, record_count, status)
+        (${idColumn}, channel, uploaded_at, uploaded_by, file_name, record_count, status, is_bmc_assigned)
         VALUES ${chartValues}
       `, { transaction });
 
       // Get the FIRST inserted rate chart ID (master chart)
       const [firstChartResult] = await sequelize.query(`
         SELECT id FROM ${schemaName}.rate_charts
-        WHERE society_id = ${societyIds[0]} AND channel = :channel
+        WHERE ${idColumn} = ${targetIds[0]} AND channel = :channel
         ORDER BY id DESC
         LIMIT 1
-      `, {
-        replacements: { channel },
-        transaction
-      });
+      `, { replacements: { channel }, transaction });
 
       const masterChartId = (firstChartResult as Array<{ id: number }>)[0].id;
 
@@ -288,24 +218,21 @@ export async function POST(request: NextRequest) {
         `, { transaction });
       }
 
-      // Update other societies' rate_charts to reference the master chart
-      if (societyIds.length > 1) {
+      // Update other entities' rate_charts to reference the master chart
+      if (targetIds.length > 1) {
         await sequelize.query(`
           UPDATE ${schemaName}.rate_charts
           SET shared_chart_id = ${masterChartId}
-          WHERE society_id IN (${societyIds.slice(1).join(',')}) AND channel = :channel
-        `, {
-          replacements: { channel },
-          transaction
-        });
+          WHERE ${idColumn} IN (${targetIds.slice(1).join(',')}) AND channel = :channel
+        `, { replacements: { channel }, transaction });
       }
 
       await transaction.commit();
 
-      console.log(`📊 Rate chart uploaded: ${rateData.length} records for ${channel} channel, ${societyIds.length} societies`);
+      console.log(`📊 Rate chart uploaded: ${rateData.length} records for ${channel} channel, ${targetIds.length} ${isBmcAssignment ? 'BMCs' : 'societies'}`);
 
-      // Send email notifications to societies with machines (non-blocking)
-      // Get society details and their machines
+      // Send email notifications only for society assignments
+      if (!isBmcAssignment) {
       const [societyMachines] = await sequelize.query<{
         society_id: number;
         society_name: string;
@@ -317,7 +244,7 @@ export async function POST(request: NextRequest) {
                m.machine_type, m.machine_id
         FROM ${schemaName}.societies s
         INNER JOIN ${schemaName}.machines m ON m.society_id = s.id
-        WHERE s.id IN (${societyIds.join(',')}) AND s.email IS NOT NULL AND s.email != ''
+        WHERE s.id IN (${targetIds.join(',')}) AND s.email IS NOT NULL AND s.email != ''
       `, { type: QueryTypes.SELECT });
 
       if (Array.isArray(societyMachines) && societyMachines.length > 0) {
@@ -353,5 +280,22 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+    }
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Rate chart upload error:', error);
+      return createErrorResponse('Failed to process rate chart upload', 500);
+    }
 
+    return createSuccessResponse(`Successfully uploaded ${rateData.length} rate records for ${channel} channel to ${targetIds.length} ${isBmcAssignment ? 'BMC(s)' : 'society/societies'}`, {
+      recordCount: rateData.length,
+      targetCount: targetIds.length,
+      channel,
+      assignmentType
+    });
+
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    return createErrorResponse('Failed to process rate chart upload', 500);
+  }
 }

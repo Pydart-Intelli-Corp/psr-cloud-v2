@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Users, UserCheck, Phone, Mail, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload, Droplets, TrendingUp, Award, BarChart3, X } from 'lucide-react';
+import { Users, UserCheck, Phone, Mail, Building2, Settings, Folder, FolderOpen, ChevronDown, ChevronRight, Plus, Upload, Droplets, TrendingUp, Award, BarChart3, X, Badge } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -116,6 +116,7 @@ const FarmerManagement = () => {
   // Form state
   const [formData, setFormData] = useState({
     farmerId: '',
+    farmeruid: '',
     rfId: '',
     farmerName: '',
     contactNumber: '',
@@ -181,6 +182,8 @@ const FarmerManagement = () => {
     const societyName = searchParams.get('societyName');
     const dairyFilterParam = searchParams.get('dairyFilter');
     const bmcFilterParam = searchParams.get('bmcFilter');
+    const farmerIdParam = searchParams.get('farmerId');
+    const farmerNameParam = searchParams.get('farmerName');
     
     if (societyId && !societyFilter.includes(societyId)) {
       setSocietyFilter([societyId]);
@@ -200,8 +203,15 @@ const FarmerManagement = () => {
       setBmcFilter([bmcFilterParam]);
       setSuccess('Filter Applied: BMC');
     }
+    
+    // Handle farmer filter from collection report - search by both ID and name
+    if ((farmerIdParam || farmerNameParam) && farmers.length > 0) {
+      const searchTerm = farmerNameParam ? decodeURIComponent(farmerNameParam) : farmerIdParam;
+      setSearchQuery(searchTerm || '');
+      setSuccess(`Filter Applied: ${farmerNameParam ? decodeURIComponent(farmerNameParam) : `Farmer ID ${farmerIdParam}`}`);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, [farmers.length]); // Run when farmers data loads
 
   const fetchFarmers = useCallback(async () => {
     try {
@@ -639,6 +649,7 @@ const FarmerManagement = () => {
         const searchMatch = searchQuery === '' || 
           farmer.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
           farmer.farmerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          farmer.farmeruid?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           farmer.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -924,6 +935,7 @@ const FarmerManagement = () => {
         setShowAddForm(false);
         setFormData({
           farmerId: '',
+          farmeruid: '',
           rfId: '',
           farmerName: '',
           contactNumber: '',
@@ -1024,6 +1036,7 @@ const FarmerManagement = () => {
         setSelectedFarmer(null);
         setFormData({
           farmerId: '',
+          farmeruid: '',
           rfId: '',
           farmerName: '',
           contactNumber: '',
@@ -1205,6 +1218,7 @@ const FarmerManagement = () => {
   const openAddModal = () => {
     setFormData({
       farmerId: '',
+      farmeruid: '',
       rfId: '',
       farmerName: '',
       contactNumber: '',
@@ -1232,6 +1246,7 @@ const FarmerManagement = () => {
     const societyId = farmer.societyId?.toString() || '';
     setFormData({
       farmerId: farmer.farmerId,
+      farmeruid: farmer.farmeruid || '',
       rfId: farmer.rfId || '',
       farmerName: farmer.farmerName,
       contactNumber: farmer.contactNumber || '',
@@ -1264,6 +1279,7 @@ const FarmerManagement = () => {
     setShowAddForm(false);
     setFormData({
       farmerId: '',
+      farmeruid: '',
       rfId: '',
       farmerName: '',
       contactNumber: '',
@@ -1282,6 +1298,7 @@ const FarmerManagement = () => {
     });
     setError('');
     setSuccess('');
+    setFieldErrors({});
   };
 
   const closeEditModal = () => {
@@ -1289,6 +1306,7 @@ const FarmerManagement = () => {
     setSelectedFarmer(null);
     setFormData({
       farmerId: '',
+      farmeruid: '',
       rfId: '',
       farmerName: '',
       contactNumber: '',
@@ -1307,6 +1325,7 @@ const FarmerManagement = () => {
     });
     setError('');
     setSuccess('');
+    setFieldErrors({});
   };
 
   // Initial data fetch
@@ -1325,6 +1344,7 @@ const FarmerManagement = () => {
     const searchMatch = searchQuery === '' ||
       farmer.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       farmer.farmerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      farmer.farmeruid?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       farmer.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       farmer.rfId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       farmer.societyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1789,6 +1809,12 @@ const FarmerManagement = () => {
                               status={farmer.status}
                               icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
                               details={[
+                                ...(farmer.farmeruid ? [{ 
+                                  icon: <Badge className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                                  text: farmer.farmeruid,
+                                  highlight: true,
+                                  className: 'text-green-700 dark:text-green-400 font-semibold'
+                                }] : []),
                                 ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
                                 ...(farmer.email ? [{ icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.email }] : []),
                                 ...(farmer.machineName || farmer.machineType ? [{ 
@@ -1837,6 +1863,12 @@ const FarmerManagement = () => {
                 status={farmer.status}
                 icon={<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />}
                 details={[
+                  ...(farmer.farmeruid ? [{ 
+                    icon: <Badge className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                    text: farmer.farmeruid,
+                    highlight: true,
+                    className: 'text-green-700 dark:text-green-400 font-semibold'
+                  }] : []),
                   ...(farmer.contactNumber ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.contactNumber }] : []),
                   ...(farmer.email ? [{ icon: <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: farmer.email }] : []),
                   ...(farmer.societyName ? [{ 
@@ -1910,6 +1942,31 @@ const FarmerManagement = () => {
             placeholder={t.farmerManagement.enterFarmerId}
             required
             error={fieldErrors.farmerId}
+          />
+          <FormInput
+            label="Farmer UID"
+            type="text"
+            value={formData.farmeruid}
+            onChange={(value) => {
+              // Allow only alphanumeric characters, max 8 characters
+              let alphanumeric = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+              alphanumeric = alphanumeric.slice(0, 8); // Limit to 8 characters
+              
+              // Add hyphen after 4 characters: XXXX-XXXX
+              let formatted = '';
+              if (alphanumeric.length > 0) {
+                formatted = alphanumeric.slice(0, 4);
+                if (alphanumeric.length > 4) {
+                  formatted += '-' + alphanumeric.slice(4, 8);
+                }
+              }
+              
+              setFormData({ ...formData, farmeruid: formatted });
+            }}
+            placeholder="e.g., VLDD-1234"
+            required
+            error={fieldErrors.farmeruid}
+            maxLength={9}
           />
           <FormInput
             label={t.farmerManagement.farmerName}
@@ -2129,6 +2186,32 @@ const FarmerManagement = () => {
             readOnly
             colSpan={1}
             error={fieldErrors.farmerId}
+          />
+          
+          <FormInput
+            label="Farmer UID"
+            type="text"
+            value={formData.farmeruid}
+            onChange={(value) => {
+              // Allow only alphanumeric characters, max 8 characters
+              let alphanumeric = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+              alphanumeric = alphanumeric.slice(0, 8); // Limit to 8 characters
+              
+              // Add hyphen after 4 characters: XXXX-XXXX
+              let formatted = '';
+              if (alphanumeric.length > 0) {
+                formatted = alphanumeric.slice(0, 4);
+                if (alphanumeric.length > 4) {
+                  formatted += '-' + alphanumeric.slice(4, 8);
+                }
+              }
+              
+              setFormData({ ...formData, farmeruid: formatted });
+            }}
+            placeholder="e.g., VLDD-1234"
+            error={fieldErrors.farmeruid}
+            maxLength={9}
+            colSpan={1}
           />
           
           <FormInput

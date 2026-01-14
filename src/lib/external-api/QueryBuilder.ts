@@ -94,6 +94,7 @@ export class QueryBuilder {
       return `
         FROM ${escapedSchema}.machines m
         LEFT JOIN ${escapedSchema}.societies s ON m.society_id = s.id
+        LEFT JOIN ${escapedSchema}.bmcs b ON m.bmc_id = b.id
       `;
     } else {
       throw new Error(`Unsupported table name: ${tableName}`);
@@ -166,7 +167,7 @@ export class QueryBuilder {
         m.statusS,
         s.society_id as society_string_id
       ${baseQuery}
-      WHERE ${societyFilter.condition}
+      WHERE (${societyFilter.condition} OR m.bmc_id IS NOT NULL)
         AND ${machineFilter.condition}
         AND m.status = 'active'
     `;
@@ -199,6 +200,35 @@ export class QueryBuilder {
     const query = `
       SELECT id FROM ${escapedSchema}.societies 
       WHERE society_id = ? OR society_id = ?
+      LIMIT 1
+    `;
+
+    return {
+      query,
+      replacements: lookupParams
+    };
+  }
+
+  /**
+   * Build BMC lookup query to get database ID from bmc_id string
+   */
+  static buildBmcLookupQuery(
+    schemaName: string,
+    bmcIdStr: string
+  ): {
+    query: string;
+    replacements: string[];
+  } {
+    const escapedSchema = QueryBuilder.escapeIdentifier(schemaName);
+    
+    // Try both with and without B- prefix
+    const lookupParams = bmcIdStr.startsWith('B-') 
+      ? [bmcIdStr, bmcIdStr.substring(2)]
+      : [`B-${bmcIdStr}`, bmcIdStr];
+    
+    const query = `
+      SELECT id FROM ${escapedSchema}.bmcs 
+      WHERE bmc_id = ? OR bmc_id = ?
       LIMIT 1
     `;
 

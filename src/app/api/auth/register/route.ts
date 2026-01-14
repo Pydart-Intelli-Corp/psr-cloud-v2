@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       email: email.toLowerCase(),
       password,
       role,
-      status: UserStatus.PENDING,
+      status: UserStatus.PENDING_APPROVAL,
       parentId: parentId || null,
       companyName: companyName || null,
       companyPincode: companyPincode || null,

@@ -80,21 +80,48 @@ async function handleRequest(
     
     console.log(`🔍 Parsed InputString parts:`, { societyIdStr, machineType, machineModel, machineId, passwordType });
     
-    // PRIORITY 2: Validate Society ID and find actual database ID
+    // PRIORITY 2: Validate Society/BMC ID and find actual database ID
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
     
-    // Look up society using QueryBuilder
-    const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(schemaName, societyIdStr);
-    const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
-    
-    if (!Array.isArray(societyResults) || societyResults.length === 0) {
-      console.log(`❌ No society found for society_id: "${societyIdStr}"`);
-      return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+    const societyValidation = InputValidator.validateSocietyId(societyIdStr);
+    if (!societyValidation.isValid) {
+      return ESP32ResponseHelper.createErrorResponse('Invalid society/BMC ID');
     }
     
-    const actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
-    console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    let actualSocietyId: number;
+    
+    if (societyValidation.isBmc) {
+      const { query: bmcQuery, replacements: bmcReplacements } = QueryBuilder.buildBmcLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [bmcResults] = await sequelize.query(bmcQuery, { replacements: bmcReplacements });
+      
+      if (!Array.isArray(bmcResults) || bmcResults.length === 0) {
+        console.log(`❌ BMC not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+      }
+      
+      actualSocietyId = (bmcResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found BMC: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    } else {
+      const { query: societyQuery, replacements: societyReplacements } = QueryBuilder.buildSocietyLookupQuery(
+        schemaName,
+        societyValidation.id
+      );
+      
+      const [societyResults] = await sequelize.query(societyQuery, { replacements: societyReplacements });
+      
+      if (!Array.isArray(societyResults) || societyResults.length === 0) {
+        console.log(`❌ Society not found: "${societyIdStr}"`);
+        return ESP32ResponseHelper.createErrorResponse('Invalid society ID');
+      }
+      
+      actualSocietyId = (societyResults[0] as SocietyLookupResult).id;
+      console.log(`✅ Found society: "${societyIdStr}" -> database ID: ${actualSocietyId}`);
+    }
 
     // PRIORITY 3: Validate Machine ID and create variants for flexible matching
     const machineIdValidation = InputValidator.validateMachineId(machineId);
@@ -128,10 +155,10 @@ async function handleRequest(
         SELECT 
           id, machine_id, statusU, statusS
         FROM \`${schemaName}\`.machines 
-        WHERE society_id = ? AND id = ?
+        WHERE (society_id = ? OR bmc_id = ?) AND id = ?
         LIMIT 1
       `;
-      queryReplacements = [actualSocietyId, parsedMachineId];
+      queryReplacements = [actualSocietyId, actualSocietyId, parsedMachineId];
     } else {
       // Alphanumeric machine ID - use variant matching by machine_id string
       const placeholders = machineIdVariants.map(() => '?').join(', ');
@@ -139,10 +166,10 @@ async function handleRequest(
         SELECT 
           id, machine_id, statusU, statusS
         FROM \`${schemaName}\`.machines 
-        WHERE society_id = ? AND machine_id IN (${placeholders})
+        WHERE (society_id = ? OR bmc_id = ?) AND machine_id IN (${placeholders})
         LIMIT 1
       `;
-      queryReplacements = [actualSocietyId, ...machineIdVariants];
+      queryReplacements = [actualSocietyId, actualSocietyId, ...machineIdVariants];
     }
 
     const [machineResults] = await sequelize.query(findMachineQuery, { 

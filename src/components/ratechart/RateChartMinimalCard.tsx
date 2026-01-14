@@ -145,6 +145,13 @@ interface Society {
   chartRecordId: number;
 }
 
+interface BMC {
+  bmcId: number;
+  bmcName: string;
+  bmcIdentifier: string;
+  chartRecordId: number;
+}
+
 interface RateChartMinimalCardProps {
   chartId: number;
   fileName: string;
@@ -152,7 +159,12 @@ interface RateChartMinimalCardProps {
   uploadedBy: string;
   createdAt: string;
   societies: Society[];
+  bmcs?: BMC[];
   status: number;
+  isBmcAssigned?: boolean;
+  bmcId?: number;
+  bmcName?: string;
+  bmcIdentifier?: string;
   isSelected: boolean;
   onToggleSelection: () => void;
   onDelete: () => void;
@@ -161,6 +173,7 @@ interface RateChartMinimalCardProps {
   onView: () => void;
   onResetDownload: () => void;
   onRemoveSociety?: (chartRecordId: number, societyId: number, societyName: string) => void;
+  onRemoveBmc?: (chartRecordId: number, bmcId: number, bmcName: string) => void;
   searchQuery?: string;
 }
 
@@ -171,7 +184,12 @@ export default function RateChartMinimalCard({
   uploadedBy,
   createdAt,
   societies,
+  bmcs = [],
   status,
+  isBmcAssigned = false,
+  bmcId,
+  bmcName,
+  bmcIdentifier,
   isSelected,
   onToggleSelection,
   onDelete,
@@ -180,21 +198,25 @@ export default function RateChartMinimalCard({
   onView,
   onResetDownload,
   onRemoveSociety,
+  onRemoveBmc,
   searchQuery = '',
 }: RateChartMinimalCardProps) {
   const { t } = useLanguage();
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
   const [showSocietiesDropdown, setShowSocietiesDropdown] = React.useState(false);
+  const [showBmcsDropdown, setShowBmcsDropdown] = React.useState(false);
   const [showMachineStatusDropdown, setShowMachineStatusDropdown] = React.useState(false);
   const [societyToRemove, setSocietyToRemove] = React.useState<{ chartRecordId: number; societyId: number; societyName: string } | null>(null);
+  const [bmcToRemove, setBmcToRemove] = React.useState<{ chartRecordId: number; bmcId: number; bmcName: string } | null>(null);
   const [downloadStatus, setDownloadStatus] = React.useState<DownloadStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const statusButtonRef = React.useRef<HTMLDivElement>(null);
 
-  // Fetch download status when component mounts or chartId changes
+  // Fetch download status when component mounts or chartId/status changes
   React.useEffect(() => {
     const fetchDownloadStatus = async () => {
-      if (status === 0) return; // Don't fetch if chart is inactive
+      if (status === 0) return;
       
       setLoadingStatus(true);
       try {
@@ -219,6 +241,10 @@ export default function RateChartMinimalCard({
     };
 
     fetchDownloadStatus();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchDownloadStatus, 30000);
+    return () => clearInterval(interval);
   }, [chartId, status]);
 
   // Close menu when clicking outside
@@ -265,135 +291,60 @@ export default function RateChartMinimalCard({
                 {highlightText(fileName, searchQuery)}
               </h3>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {/* Assignment Type Badge */}
+              {isBmcAssigned ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+                  <Building2 className="w-3 h-3" />
+                  BMC
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700">
+                  <Building2 className="w-3 h-3" />
+                  Society
+                </span>
+              )}
+              
+              {/* Channel Badge */}
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
                 channel === 'COW' 
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700'
                   : channel === 'BUF'
-                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                  : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                  ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700'
+                  : 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700'
               }`}>
                 {highlightText(getChannelDisplay(channel), searchQuery)}
               </span>
               
-              {/* Status Indicator - Now Clickable with Dropdown */}
-              <div className="relative">
-                <div className={`inline-flex items-center px-2.5 py-0.5 rounded-md ${
-                  status === 0
-                    ? 'bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800'
-                    : downloadStatus?.allDownloaded
-                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                    : downloadStatus?.totalMachines === 0
-                    ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
-                    : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                }`}>
-                  {getStatusIndicator(
-                    status,
-                    downloadStatus,
-                    loadingStatus,
-                    downloadStatus && downloadStatus.totalMachines > 0
-                      ? () => setShowMachineStatusDropdown(!showMachineStatusDropdown)
-                      : undefined,
-                    !!(downloadStatus && downloadStatus.totalMachines > 0)
-                  )}
-                </div>
-
-                {/* Compact Machine Status Dropdown */}
-                {showMachineStatusDropdown && downloadStatus && downloadStatus.totalMachines > 0 && (
-                  <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 max-h-80 overflow-y-auto">
-                    {/* Dropdown Header */}
-                    <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-t-lg flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
-                          {downloadStatus.totalDownloaded}/{downloadStatus.totalMachines} Downloaded
-                        </h4>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowMachineStatusDropdown(false);
-                        }}
-                        className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Society-wise Machine List */}
-                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {Object.entries(downloadStatus.societies).map(([societyName, societyData]) => (
-                        <div key={societyName} className="p-2">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <h5 className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
-                              {societyName}
-                            </h5>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              {societyData.downloadedMachines}/{societyData.totalMachines}
-                            </span>
-                          </div>
-
-                          {/* Downloaded Machines */}
-                          {societyData.machines.filter(m => m.downloaded).length > 0 && (
-                            <div className="mb-1.5">
-                              <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-1 flex items-center gap-1">
-                                <CheckCircle className="w-2.5 h-2.5" />
-                                <span>Done</span>
-                              </div>
-                              <div className="space-y-0.5">
-                                {societyData.machines
-                                  .filter(m => m.downloaded)
-                                  .map((machine) => (
-                                    <div
-                                      key={machine.id}
-                                      className="text-xs bg-green-50 dark:bg-green-900/20 rounded px-1.5 py-1"
-                                    >
-                                      <div className="font-medium text-green-700 dark:text-green-300 truncate">
-                                        {machine.machineId}
-                                      </div>
-                                      <div className="text-[10px] text-green-600 dark:text-green-400 truncate">
-                                        {machine.machineType} • {machine.location}
-                                      </div>
-                                    </div>
-                                  ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Pending Machines */}
-                          {societyData.machines.filter(m => !m.downloaded).length > 0 && (
-                            <div>
-                              <div className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5" />
-                                <span>Pending</span>
-                              </div>
-                              <div className="space-y-0.5">
-                                {societyData.machines
-                                  .filter(m => !m.downloaded)
-                                  .map((machine) => (
-                                    <div
-                                      key={machine.id}
-                                      className="text-xs bg-amber-50 dark:bg-amber-900/20 rounded px-1.5 py-1"
-                                    >
-                                      <div className="font-medium text-amber-700 dark:text-amber-300 truncate">
-                                        {machine.machineId}
-                                      </div>
-                                      <div className="text-[10px] text-amber-600 dark:text-amber-400 truncate">
-                                        {machine.machineType} • {machine.location}
-                                      </div>
-                                    </div>
-                                  ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              {/* Status Indicator */}
+              <div 
+                ref={statusButtonRef}
+                className={`relative inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium ${
+                status === 0
+                  ? 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                  : downloadStatus?.allDownloaded
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
+                  : downloadStatus?.totalMachines === 0
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                  : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+              } ${
+                downloadStatus && downloadStatus.totalMachines > 0 ? 'cursor-pointer hover:opacity-80' : ''
+              }`}
+              onClick={downloadStatus && downloadStatus.totalMachines > 0 ? () => setShowMachineStatusDropdown(!showMachineStatusDropdown) : undefined}
+              >
+                {getStatusIndicator(
+                  status,
+                  downloadStatus,
+                  loadingStatus,
+                  undefined,
+                  !!(downloadStatus && downloadStatus.totalMachines > 0)
                 )}
               </div>
             </div>
           </div>
         </div>
+
+
 
         {/* Right: Actions Menu */}
         <div className="relative" ref={menuRef}>
@@ -426,7 +377,7 @@ export default function RateChartMinimalCard({
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <UserPlus className="w-4 h-4 text-green-600 dark:text-green-400" />
-                <span>{t.common.add} {t.ratechartManagement.societies}</span>
+                <span>{t.common.add} {isBmcAssigned ? 'BMCs' : t.ratechartManagement.societies}</span>
               </button>
               <button
                 onClick={() => {
@@ -489,29 +440,93 @@ export default function RateChartMinimalCard({
         </div>
       </div>
 
-      {/* Societies Section */}
+      {/* Societies/BMC Section */}
       <div className="relative bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700 mb-3">
-        <button
-          onClick={() => setShowSocietiesDropdown(!showSocietiesDropdown)}
-          className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-green-600 dark:text-green-400" />
-            <span>{t.ratechartManagement.societies} ({societies.length})</span>
-          </div>
-          {showSocietiesDropdown ? (
-            <ChevronUp className="w-4 h-4" />
-          ) : (
-            <ChevronDown className="w-4 h-4" />
-          )}
-        </button>
+        {isBmcAssigned && bmcs && bmcs.length > 0 ? (
+          // BMC Card - Show BMCs dropdown with management
+          <button
+            onClick={() => setShowBmcsDropdown(!showBmcsDropdown)}
+            className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>BMCs ({bmcs.length})</span>
+            </div>
+            {showBmcsDropdown ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
+        ) : (
+          // Society Card - Show societies dropdown
+          <button
+            onClick={() => setShowSocietiesDropdown(!showSocietiesDropdown)}
+            className="w-full flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+              <span>{t.ratechartManagement.societies} ({societies.length})</span>
+            </div>
+            {showSocietiesDropdown ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
+        )}
 
-        {/* Societies Dropdown */}
-        {showSocietiesDropdown && (
+        {/* BMCs Dropdown */}
+        {isBmcAssigned && showBmcsDropdown && bmcs && bmcs.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 overflow-hidden max-h-64 overflow-y-auto">
+            {bmcs.map((bmc) => (
+              <div
+                key={`${bmc.bmcId}-${bmc.chartRecordId}`}
+                className="group flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={bmc.bmcName}>
+                      {highlightText(bmc.bmcName, searchQuery)}
+                    </p>
+                    {bmc.bmcIdentifier && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {highlightText(bmc.bmcIdentifier, searchQuery)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {onRemoveBmc && bmcs.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setBmcToRemove({
+                        chartRecordId: bmc.chartRecordId,
+                        bmcId: bmc.bmcId,
+                        bmcName: bmc.bmcName
+                      });
+                    }}
+                    className="ml-2 p-1.5 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    title={`Remove ${bmc.bmcName}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Societies Dropdown - Only show for society-assigned cards */}
+        {!isBmcAssigned && showSocietiesDropdown && (
           <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 overflow-hidden max-h-64 overflow-y-auto">
             {societies.map((society) => (
               <div
-                key={society.societyId}
+                key={`${society.societyId}-${society.chartRecordId}`}
                 className="group flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -554,6 +569,48 @@ export default function RateChartMinimalCard({
         )}
       </div>
 
+      {/* Machine Status Dropdown */}
+      {showMachineStatusDropdown && downloadStatus && downloadStatus.totalMachines > 0 && statusButtonRef.current && (
+        <div 
+          className="absolute w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden max-h-64 overflow-y-auto z-[60]"
+          style={{
+            top: `${statusButtonRef.current.offsetTop + statusButtonRef.current.offsetHeight + 4}px`,
+            left: `${statusButtonRef.current.offsetLeft}px`
+          }}
+        >
+          {Object.values(downloadStatus.societies).map((society) => (
+            <div key={society.societyId} className="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+              <div className="bg-gray-50 dark:bg-gray-900/50 px-3 py-1.5">
+                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{society.societyName}</p>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                  {society.downloadedMachines}/{society.totalMachines} downloaded
+                </p>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {society.machines.map((machine) => (
+                  <div key={machine.id} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        machine.downloaded ? 'bg-green-500' : 'bg-blue-500'
+                      }`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">{machine.machineId}</p>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{machine.machineType}</p>
+                      </div>
+                    </div>
+                    {machine.downloaded && machine.downloadedAt && (
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+                        {new Date(machine.downloadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Remove Society Confirmation Modal */}
       <ConfirmDeleteModal
         isOpen={!!societyToRemove}
@@ -572,6 +629,26 @@ export default function RateChartMinimalCard({
         title={`${t.common.delete} ${t.ratechartManagement.society}`}
         message={t.common.confirm}
         confirmText={`${t.common.delete} ${t.ratechartManagement.society}`}
+      />
+
+      {/* Remove BMC Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={!!bmcToRemove}
+        onClose={() => setBmcToRemove(null)}
+        onConfirm={() => {
+          if (bmcToRemove && onRemoveBmc) {
+            onRemoveBmc(bmcToRemove.chartRecordId, bmcToRemove.bmcId, bmcToRemove.bmcName);
+            if (bmcs && bmcs.length === 2) {
+              setShowBmcsDropdown(false);
+            }
+          }
+          setBmcToRemove(null);
+        }}
+        itemName={bmcToRemove?.bmcName || ''}
+        itemType="BMC"
+        title={`${t.common.delete} BMC`}
+        message={t.common.confirm}
+        confirmText={`${t.common.delete} BMC`}
       />
     </div>
   );

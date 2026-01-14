@@ -34,22 +34,28 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = user.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${user.dbKey.toLowerCase()}`;
 
-    // Query rate charts with society information
     const [rateCharts] = await sequelize.query(`
       SELECT 
         rc.id,
         rc.society_id AS societyId,
         s.name AS societyName,
         s.society_id AS societyIdentifier,
+        rc.bmc_id AS directBmcId,
         rc.channel,
         rc.uploaded_at AS uploadedAt,
         rc.uploaded_by AS uploadedBy,
         rc.file_name AS fileName,
         rc.record_count AS recordCount,
         rc.shared_chart_id,
-        rc.status
+        rc.status,
+        rc.is_bmc_assigned AS isBmcAssigned,
+        COALESCE(rc.bmc_id, s.bmc_id) AS bmcId,
+        COALESCE(b1.name, b2.name) AS bmcName,
+        COALESCE(b1.bmc_id, b2.bmc_id) AS bmcIdentifier
       FROM ${schemaName}.rate_charts rc
       LEFT JOIN ${schemaName}.societies s ON rc.society_id = s.id
+      LEFT JOIN ${schemaName}.bmcs b1 ON rc.bmc_id = b1.id
+      LEFT JOIN ${schemaName}.bmcs b2 ON s.bmc_id = b2.id
       ORDER BY rc.uploaded_at DESC
     `);
 

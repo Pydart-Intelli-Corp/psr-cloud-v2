@@ -107,13 +107,13 @@ export async function POST(request: NextRequest) {
     };
 
     // Generate JWT tokens with proper options
-    const jwtOptions = {
+    const jwtOptions: jwt.SignOptions = {
       expiresIn: '7d',
       issuer: 'poornasree-equipments-cloud',
       audience: 'psr-client'
     };
     
-    const refreshJwtOptions = {
+    const refreshJwtOptions: jwt.SignOptions = {
       expiresIn: '30d',
       issuer: 'poornasree-equipments-cloud',
       audience: 'psr-client'

@@ -37,12 +37,13 @@ export async function GET(request: NextRequest) {
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
 
-    // Fetch all collection records with joined data including dairy farm info
+    // Fetch all collection records with joined data including dairy farm info and farmer UID
     const query = `
       SELECT 
         mc.id,
         mc.farmer_id,
         COALESCE(f.name, 'No Name') as farmer_name,
+        f.farmeruid as farmer_uid,
         s.society_id,
         s.name as society_name,
         s.bmc_id,
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
       LEFT JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
       LEFT JOIN \`${schemaName}\`.farmers f ON f.farmer_id = mc.farmer_id AND f.society_id = mc.society_id
+      WHERE mc.society_id IS NOT NULL
       ORDER BY mc.collection_date DESC, mc.collection_time DESC
       LIMIT 1000
     `;

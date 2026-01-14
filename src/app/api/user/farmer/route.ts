@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/database';
 import { createSuccessResponse, createErrorResponse } from '@/lib/utils/response';
+import { generateUniqueFarmerUID, generateUniqueFarmerUIDsBatch } from '@/lib/farmeruid-generator';
 
 // Helper function to check email uniqueness across ALL entities in the entire system
 async function checkGlobalEmailUniqueness(
@@ -183,6 +184,7 @@ interface FarmerQueryResult {
   id: number;
   farmer_id: string;
   rf_id?: string;
+  farmeruid?: string; // Unique farmer identifier
   name: string;
   password?: string;
   phone?: string;
@@ -246,7 +248,7 @@ export async function GET(request: NextRequest) {
       // Query single farmer
       query = `
         SELECT 
-          f.id, f.farmer_id, f.rf_id, f.name, f.password, f.phone, f.email, f.sms_enabled, 
+          f.id, f.farmer_id, f.rf_id, f.farmeruid, f.name, f.password, f.phone, f.email, f.sms_enabled, 
           f.email_notifications_enabled, f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
           f.society_id, f.machine_id, f.status, f.notes, f.cattle_count, f.created_at, f.updated_at,
           s.name as society_name, s.society_id as society_identifier,
@@ -261,7 +263,7 @@ export async function GET(request: NextRequest) {
       // Query all farmers
       query = `
         SELECT 
-          f.id, f.farmer_id, f.rf_id, f.name, f.password, f.phone, f.email, f.sms_enabled, 
+          f.id, f.farmer_id, f.rf_id, f.farmeruid, f.name, f.password, f.phone, f.email, f.sms_enabled, 
           f.email_notifications_enabled, f.bonus, f.address, f.bank_name, f.bank_account_number, f.ifsc_code, 
           f.society_id, f.machine_id, f.status, f.notes, f.cattle_count, f.created_at, f.updated_at,
           s.name as society_name, s.society_id as society_identifier,
@@ -279,6 +281,7 @@ export async function GET(request: NextRequest) {
       id: farmer.id,
       farmerId: farmer.farmer_id,
       rfId: farmer.rf_id,
+      farmeruid: farmer.farmeruid, // Unique farmer identifier
       farmerName: farmer.name,
       password: farmer.password,
       contactNumber: farmer.phone,
@@ -351,9 +354,13 @@ export async function POST(request: NextRequest) {
       // Bulk upload
       console.log(`🔄 Processing bulk upload of ${bulkFarmers.length} farmers...`);
       
-      const insertData = bulkFarmers.map((farmer: FarmerData) => [
+      // Generate unique farmeruids for all farmers
+      const farmeruids = await generateUniqueFarmerUIDsBatch(bulkFarmers.length, schemaName, sequelize);
+      
+      const insertData = bulkFarmers.map((farmer: FarmerData, index: number) => [
         farmer.farmerId,
         farmer.rfId || null,
+        farmeruids[index], // Add generated farmeruid
         farmer.farmerName,
         farmer.password || null,
         farmer.contactNumber || null,
@@ -373,27 +380,44 @@ export async function POST(request: NextRequest) {
 
       const query = `
         INSERT INTO \`${schemaName}\`.farmers 
-        (farmer_id, rf_id, name, password, phone, email, sms_enabled, email_notifications_enabled, bonus, address,
+        (farmer_id, rf_id, farmeruid, name, password, phone, email, sms_enabled, email_notifications_enabled, bonus, address,
          bank_name, bank_account_number, ifsc_code, society_id, machine_id, status, notes)
-        VALUES ${insertData.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+        VALUES ${insertData.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
       `;
 
       const replacements = insertData.flat();
       await sequelize.query(query, { replacements });
       
       console.log(`✅ Successfully uploaded ${bulkFarmers.length} farmers to schema: ${schemaName}`);
-      return createSuccessResponse(`Successfully uploaded ${bulkFarmers.length} farmers`, null);
+      return createSuccessResponse(`Successfully uploaded ${bulkFarmers.length} farmers with unique IDs`, { 
+        count: bulkFarmers.length,
+        farmeruids: farmeruids.slice(0, 5) // Return first 5 as sample
+      });
 
     } else {
       // Single farmer creation
       const { 
-        farmerId, rfId, farmerName, password, contactNumber, email, smsEnabled, 
+        farmerId, farmeruid, rfId, farmerName, password, contactNumber, email, smsEnabled, 
         emailNotificationsEnabled, bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
         machineId, status, notes 
-      }: FarmerData = singleFarmer;
+      }: FarmerData & { farmeruid?: string } = singleFarmer;
 
       if (!farmerId || !farmerName) {
         return createErrorResponse('Farmer ID and name are required', 400);
+      }
+
+      if (!farmeruid || !farmeruid.trim()) {
+        return createErrorResponse('Farmer UID is required', 400);
+      }
+
+      // Check if farmeruid already exists
+      const [existingUid] = await sequelize.query(
+        `SELECT id FROM \`${schemaName}\`.farmers WHERE farmeruid = ?`,
+        { replacements: [farmeruid.trim()] }
+      );
+      
+      if ((existingUid as unknown[]).length > 0) {
+        return createErrorResponse('This Farmer UID already exists. Please use a different UID.', 400);
       }
 
       // Check for global email uniqueness across ALL entities in the system
@@ -411,13 +435,13 @@ export async function POST(request: NextRequest) {
 
       const query = `
         INSERT INTO \`${schemaName}\`.farmers 
-        (farmer_id, rf_id, name, password, phone, email, sms_enabled, email_notifications_enabled, bonus, address, 
+        (farmer_id, rf_id, farmeruid, name, password, phone, email, sms_enabled, email_notifications_enabled, bonus, address, 
          bank_name, bank_account_number, ifsc_code, society_id, machine_id, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const replacements = [
-        farmerId, rfId || null, farmerName, password || null, contactNumber || null,
+        farmerId, rfId || null, farmeruid.trim(), farmerName, password || null, contactNumber || null,
         email || null, smsEnabled || 'OFF', emailNotificationsEnabled || 'ON', bonus || 0, address || null, bankName || null,
         bankAccountNumber || null, ifscCode || null, societyId || null,
         machineId || null, status || 'active', notes || null
@@ -426,7 +450,13 @@ export async function POST(request: NextRequest) {
       await sequelize.query(query, { replacements });
       
       console.log(`✅ Successfully created farmer: ${farmerId} in schema: ${schemaName}`);
-      return createSuccessResponse('Farmer created successfully', null);
+      return createSuccessResponse('Farmer created successfully', {
+        farmerId,
+        farmeruid: farmeruid.trim(),
+        rfId,
+        name: farmerName,
+        message: `Farmer created with UID: ${farmeruid.trim()}`
+      });
     }
 
   } catch (error: any) {
@@ -536,7 +566,7 @@ export async function PUT(request: NextRequest) {
 
     // Single farmer update
     const { 
-      id, farmerId, rfId, farmerName, password, contactNumber, email, smsEnabled, 
+      id, farmerId, farmeruid, rfId, farmerName, password, contactNumber, email, smsEnabled, 
       emailNotificationsEnabled, bonus, address, bankName, bankAccountNumber, ifscCode, societyId, 
       machineId, status, notes 
     } = body;
@@ -560,7 +590,7 @@ export async function PUT(request: NextRequest) {
 
     const query = `
       UPDATE \`${schemaName}\`.farmers 
-      SET farmer_id = ?, rf_id = ?, name = ?, password = ?, phone = ?, email = ?,
+      SET farmer_id = ?, farmeruid = ?, rf_id = ?, name = ?, password = ?, phone = ?, email = ?,
           sms_enabled = ?, email_notifications_enabled = ?, bonus = ?, address = ?, bank_name = ?,
           bank_account_number = ?, ifsc_code = ?, society_id = ?, 
           machine_id = ?, status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
@@ -568,7 +598,7 @@ export async function PUT(request: NextRequest) {
     `;
 
     const replacements = [
-      farmerId, rfId || null, farmerName, password || null, contactNumber || null,
+      farmerId, farmeruid || null, rfId || null, farmerName, password || null, contactNumber || null,
       email || null, smsEnabled || 'OFF', emailNotificationsEnabled || 'ON', bonus || 0, address || null, bankName || null,
       bankAccountNumber || null, ifscCode || null, societyId || null,
       machineId || null, status || 'active', notes || null, id

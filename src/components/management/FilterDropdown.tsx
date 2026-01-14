@@ -20,7 +20,7 @@ interface FilterDropdownProps {
   bmcs?: Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>;
   societies: Array<{ id: number; name: string; society_id: string; bmc_id?: number }>;
   machines: Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string; collectionCount?: number }>;
-  farmers?: Array<{ id: number; farmerId: string; farmerName: string; societyId?: number }>;
+  farmers?: Array<{ id: number; farmerId: string; farmerName: string; farmeruid?: string; societyId?: number }>;
   filteredCount: number;
   totalCount: number;
   searchQuery?: string;
@@ -39,6 +39,7 @@ interface FilterDropdownProps {
   showChannelFilter?: boolean;
   showShiftFilter?: boolean;
   showMachineFilter?: boolean;
+  showFarmerFilter?: boolean;
   hideMainFilterButton?: boolean;
   hideSocietyFilter?: boolean;
 }
@@ -82,6 +83,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   showChannelFilter = false,
   showShiftFilter = false,
   showMachineFilter = false,
+  showFarmerFilter = false,
   hideMainFilterButton = false,
   hideSocietyFilter = false
 }) => {
@@ -94,6 +96,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   const [bmcDropdownOpen, setBmcDropdownOpen] = useState(false);
   const [shiftDropdownOpen, setShiftDropdownOpen] = useState(false);
   const [farmerDropdownOpen, setFarmerDropdownOpen] = useState(false);
+  const [farmerSearchTerm, setFarmerSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dateRangeRef = useRef<HTMLDivElement>(null);
   const societyDropdownRef = useRef<HTMLDivElement>(null);
@@ -154,6 +157,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
       }
       if (farmerDropdownRef.current && !farmerDropdownRef.current.contains(event.target as Node)) {
         setFarmerDropdownOpen(false);
+        setFarmerSearchTerm('');
       }
     };
 
@@ -177,6 +181,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     Array.isArray(bmcFilter) ? bmcFilter.length > 0 : (bmcFilter !== undefined && bmcFilter !== 'all'),
     Array.isArray(societyFilter) ? societyFilter.length > 0 : societyFilter !== 'all',
     Array.isArray(machineFilter) ? machineFilter.length > 0 : machineFilter !== 'all',
+    Array.isArray(farmerFilter) ? farmerFilter.length > 0 : (farmerFilter !== undefined && farmerFilter !== 'all'),
     dateFilter && dateFilter !== '',
     dateFromFilter && dateFromFilter !== '',
     dateToFilter && dateToFilter !== '',
@@ -189,6 +194,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     if (onBmcChange) onBmcChange([]);
     onSocietyChange([]);
     onMachineChange([]);
+    if (onFarmerChange) onFarmerChange([]);
     if (onDateChange) onDateChange('');
     if (onDateFromChange) onDateFromChange('');
     if (onDateToChange) onDateToChange('');
@@ -842,7 +848,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         )}
 
         {/* Farmer Filter Button */}
-        {farmers && farmers.length > 0 && onFarmerChange && (
+        {showFarmerFilter && farmers && farmers.length > 0 && onFarmerChange && (
         <div className="relative" ref={farmerDropdownRef}>
           <button
             onClick={() => setFarmerDropdownOpen(!farmerDropdownOpen)}
@@ -885,6 +891,17 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   </button>
                 </div>
 
+                {/* Search input for farmers */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search by farmer name, ID, or UID..."
+                    value={farmerSearchTerm}
+                    onChange={(e) => setFarmerSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-transparent"
+                  />
+                </div>
+
                 <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md">
                   <div className="space-y-1 p-2">
                     {farmers.length === 0 ? (
@@ -892,34 +909,105 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                         No farmers available
                       </div>
                     ) : (
-                      farmers.map((farmer) => (
-                        <label
-                          key={farmer.id}
-                          className="flex items-center gap-3 px-4 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={Array.isArray(farmerFilter) && farmerFilter.includes(farmer.id.toString())}
-                            onChange={(e) => {
-                              const currentFilter = Array.isArray(farmerFilter) ? farmerFilter : [];
-                              if (e.target.checked) {
-                                onFarmerChange([...currentFilter, farmer.id.toString()]);
-                              } else {
-                                onFarmerChange(currentFilter.filter(id => id !== farmer.id.toString()));
-                              }
-                            }}
-                            className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
-                          />
-                          <div className="flex-1">
-                            <span className="text-sm text-gray-900 dark:text-gray-100 block">
-                              {farmer.farmerName}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {farmer.farmerId}
-                            </span>
-                          </div>
-                        </label>
-                      ))
+                      (() => {
+                        // Filter farmers based on selected societies and search term
+                        let filteredFarmers = farmers;
+                        
+                        const societyFilterArray = Array.isArray(societyFilter) ? societyFilter : [];
+                        
+                        // If society filter is active, show only farmers under those societies
+                        if (societyFilterArray.length > 0) {
+                          const selectedSocietyIds = societyFilterArray.map(id => parseInt(id));
+                          filteredFarmers = farmers.filter(f => 
+                            f.societyId && selectedSocietyIds.includes(f.societyId)
+                          );
+                        }
+
+                        // Apply search filter
+                        if (farmerSearchTerm.trim()) {
+                          const searchLower = farmerSearchTerm.toLowerCase();
+                          filteredFarmers = filteredFarmers.filter(f => 
+                            f.farmerName.toLowerCase().includes(searchLower) ||
+                            f.farmerId.toLowerCase().includes(searchLower) ||
+                            (f.farmeruid && f.farmeruid.toLowerCase().includes(searchLower))
+                          );
+                        }
+
+                        if (filteredFarmers.length === 0) {
+                          const message = societyFilterArray.length > 0
+                            ? 'No farmers available for selected societies'
+                            : 'No farmers available';
+                          return (
+                            <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                              {message}
+                            </div>
+                          );
+                        }
+
+                        // Group farmers by society
+                        const farmersBySociety = filteredFarmers.reduce((acc, farmer) => {
+                          const societyId = farmer.societyId || 'unassigned';
+                          if (!acc[societyId]) acc[societyId] = [];
+                          acc[societyId].push(farmer);
+                          return acc;
+                        }, {} as Record<string | number, typeof filteredFarmers>);
+
+                        return Object.entries(farmersBySociety).map(([societyId, societyFarmers]) => {
+                          const society = societies.find(s => s.id.toString() === societyId);
+                          const bmc = society?.bmc_id ? bmcs.find(b => b.id === society.bmc_id) : null;
+                          const dairy = bmc?.dairyFarmId ? dairies.find(d => d.id === bmc.dairyFarmId) : null;
+                          
+                          return (
+                            <div key={societyId} className="mb-3">
+                              {/* Hierarchy Header: Dairy → BMC → Society */}
+                              <div className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                                {societyId === 'unassigned' ? (
+                                  'Unassigned Farmers'
+                                ) : (
+                                  <>
+                                    {dairy && <span className="text-blue-600 dark:text-blue-400">{dairy.name} → </span>}
+                                    {bmc && <span className="text-emerald-600 dark:text-emerald-400">{bmc.name} → </span>}
+                                    <span className="text-purple-600 dark:text-purple-400">{society?.name || `Society ${societyId}`}</span>
+                                  </>
+                                )}
+                              </div>
+                              
+                              {/* Farmers under this society */}
+                              {societyFarmers.map((farmer) => (
+                                <label
+                                  key={farmer.id}
+                                  className="flex items-center gap-3 px-4 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Array.isArray(farmerFilter) && farmerFilter.includes(farmer.id.toString())}
+                                    onChange={(e) => {
+                                      const currentFilter = Array.isArray(farmerFilter) ? farmerFilter : [];
+                                      if (e.target.checked) {
+                                        onFarmerChange([...currentFilter, farmer.id.toString()]);
+                                      } else {
+                                        onFarmerChange(currentFilter.filter(id => id !== farmer.id.toString()));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
+                                  />
+                                  <div className="flex-1">
+                                    <span className="text-sm text-gray-900 dark:text-gray-100 block">
+                                      {farmer.farmerName}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      ID: {farmer.farmerId}
+                                      {farmer.farmeruid && (
+                                        <span className="ml-2">UID: {farmer.farmeruid}</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          );
+                        });
+                      })()
                     )}
                   </div>
                 </div>
@@ -928,6 +1016,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   <button
                     onClick={() => {
                       onFarmerChange([]);
+                      setFarmerSearchTerm('');
                       setFarmerDropdownOpen(false);
                     }}
                     className="flex-1 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
@@ -935,7 +1024,10 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                     Clear All
                   </button>
                   <button
-                    onClick={() => setFarmerDropdownOpen(false)}
+                    onClick={() => {
+                      setFarmerSearchTerm('');
+                      setFarmerDropdownOpen(false);
+                    }}
                     className="flex-1 px-3 py-2 text-sm text-white bg-psr-primary-600 rounded-md hover:bg-psr-primary-700 transition-colors"
                   >
                     Apply
@@ -1422,10 +1514,18 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                       </button>
                     </span>
                   )}
-                  {machineFilter !== 'all' && (
+                  {Array.isArray(machineFilter) && machineFilter.length > 0 && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-emerald-100 dark:bg-psr-emerald-900/30 text-psr-emerald-700 dark:text-psr-emerald-300 text-xs rounded">
-                      Machine: {machines.find(m => m.id.toString() === machineFilter)?.machineId}
-                      <button onClick={() => onMachineChange('all')} className="hover:text-psr-emerald-900 dark:hover:text-psr-emerald-100">
+                      Machine: {machineFilter.length} selected
+                      <button onClick={() => onMachineChange([])} className="hover:text-psr-emerald-900 dark:hover:text-psr-emerald-100">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {Array.isArray(farmerFilter) && farmerFilter.length > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-blue-100 dark:bg-psr-blue-900/30 text-psr-blue-700 dark:text-psr-blue-300 text-xs rounded">
+                      Farmer: {farmerFilter.length} selected
+                      <button onClick={() => onFarmerChange && onFarmerChange([])} className="hover:text-psr-blue-900 dark:hover:text-psr-blue-100">
                         <X className="w-3 h-3" />
                       </button>
                     </span>

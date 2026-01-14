@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
               b.name as bmc_name
             FROM \`${schemaName}\`.machines m
             LEFT JOIN \`${schemaName}\`.societies s ON m.society_id = s.id
-            LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
+            LEFT JOIN \`${schemaName}\`.bmcs b ON (s.bmc_id = b.id OR m.bmc_id = b.id)
             ORDER BY m.created_at DESC
           `);
           machines = adminMachines as any[];

@@ -17,7 +17,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import StatsCard from '@/components/management/StatsCard';
 import { FlowerSpinner, PageLoader } from '@/components';
-import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar, EmailReportModal } from '@/components/management';
+import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } from '@/components/management';
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
 import EnhancedEmailReportModal from '@/components/dialogs/EnhancedEmailReportModal';
 import DownloadModal from '@/components/dialogs/DownloadModal';
@@ -52,12 +52,12 @@ interface SalesStats {
 }
 
 // Column configuration for sales reports
-const SALES_COLUMNS: ColumnConfig[] = [
+const getSalesColumns = (reportSource: 'society' | 'bmc'): ColumnConfig[] => [
   { key: 'sales_date', label: 'Date', required: true, description: 'Sales date' },
   { key: 'sales_time', label: 'Time', required: true, description: 'Sales time' },
   { key: 'count', label: 'Count', description: 'Sales count identifier' },
-  { key: 'society_id', label: 'Society ID', required: true, description: 'Society identifier' },
-  { key: 'society_name', label: 'Society', required: true, description: 'Society name' },
+  { key: reportSource === 'bmc' ? 'bmc_id' : 'society_id', label: reportSource === 'bmc' ? 'BMC ID' : 'Society ID', required: true, description: reportSource === 'bmc' ? 'BMC identifier' : 'Society identifier' },
+  { key: reportSource === 'bmc' ? 'bmc_name' : 'society_name', label: reportSource === 'bmc' ? 'BMC' : 'Society', required: true, description: reportSource === 'bmc' ? 'BMC name' : 'Society name' },
   { key: 'machine_id', label: 'Machine ID', description: 'Machine identifier' },
   { key: 'machine_type', label: 'Machine Type', description: 'Type of machine used' },
   { key: 'shift_type', label: 'Shift', description: 'Morning or evening shift' },
@@ -65,14 +65,16 @@ const SALES_COLUMNS: ColumnConfig[] = [
   { key: 'quantity', label: 'Quantity (L)', required: true, description: 'Milk quantity in liters' },
   { key: 'rate_per_liter', label: 'Rate/L', required: true, description: 'Rate per liter' },
   { key: 'total_amount', label: 'Total Amount', required: true, description: 'Total payment amount' },
-  { key: 'bmc_name', label: 'BMC', description: 'BMC name' },
+  { key: reportSource === 'bmc' ? 'society_name' : 'bmc_name', label: reportSource === 'bmc' ? 'Society' : 'BMC', description: reportSource === 'bmc' ? 'Society name' : 'BMC name' },
   { key: 'dairy_name', label: 'Dairy', description: 'Dairy name' }
 ];
 
 // Default columns for sales reports
-const DEFAULT_SALES_COLUMNS = [
-  'sales_date', 'sales_time', 'count', 'society_id', 
-  'society_name', 'channel', 'shift_type', 'quantity', 
+const getDefaultSalesColumns = (reportSource: 'society' | 'bmc') => [
+  'sales_date', 'sales_time', 'count', 
+  reportSource === 'bmc' ? 'bmc_id' : 'society_id', 
+  reportSource === 'bmc' ? 'bmc_name' : 'society_name', 
+  'channel', 'shift_type', 'quantity', 
   'rate_per_liter', 'total_amount'
 ];
 
@@ -119,9 +121,10 @@ const getChannelDisplay = (channel: string): string => {
 
 interface SalesReportsProps {
   globalSearch?: string;
+  reportSource?: 'society' | 'bmc';
 }
 
-export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
+export default function SalesReports({ globalSearch = '', reportSource = 'society' }: SalesReportsProps) {
   const [records, setRecords] = useState<SalesRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<SalesRecord[]>([]);
   const [stats, setStats] = useState<SalesStats>({
@@ -443,7 +446,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
     try {
       if (showLoading) setLoading(true);
-      const response = await fetch('/api/user/reports/sales', {
+      const endpoint = reportSource === 'bmc' ? '/api/user/reports/bmc-sales' : '/api/user/reports/sales';
+      const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -465,7 +469,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [calculateStats]);
+  }, [calculateStats, reportSource]);
 
   useEffect(() => {
     fetchData(true);
@@ -636,7 +640,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       record.sales_time,
       record.channel,
       `${record.machine_id} (${record.machine_type})`,
-      `${record.society_name} (${record.society_id})`,
+      reportSource === 'bmc' ? `${record.bmc_name || 'N/A'}` : `${record.society_name} (${record.society_id})`,
       record.rate_per_liter,
       record.quantity,
       record.total_amount
@@ -648,7 +652,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       '',
       'DETAILED SALES DATA',
       '',
-      'Date,Time,Channel,Machine,Society,Rate,Quantity (L),Total Amount',
+      'Date,Time,Channel,Machine,' + (reportSource === 'bmc' ? 'BMC' : 'Society') + ',Rate,Quantity (L),Total Amount',
       ...dataRows.map(row => row.join(',')),
       '',
       '',
@@ -705,7 +709,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
       record.sales_time,
       getChannelDisplay(record.channel),
       `${record.machine_id} (${record.machine_type})`,
-      `${record.society_name} (${record.society_id})`,
+      reportSource === 'bmc' ? `${record.bmc_name || 'N/A'}` : `${record.society_name} (${record.society_id})`,
       record.rate_per_liter,
       record.quantity,
       record.total_amount
@@ -713,7 +717,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
     autoTable(doc, {
       startY: 32,
-      head: [['SI No', 'Date', 'Time', 'Channel', 'Machine', 'Society', 'Rate', 'Quantity (L)', 'Total Amount']],
+      head: [['SI No', 'Date', 'Time', 'Channel', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Rate', 'Quantity (L)', 'Total Amount']],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
@@ -788,7 +792,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         record.channel,
         record.shift_type,
         `${record.machine_id} (${record.machine_type})`,
-        record.society_name || '',
+        reportSource === 'bmc' ? (record.bmc_name || 'N/A') : (record.society_name || ''),
         record.quantity,
         record.rate_per_liter,
         record.total_amount
@@ -805,7 +809,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         ['Total Amount (₹):', stats.totalAmount.toFixed(2)],
         ['Average Rate (₹/L):', stats.averageRate.toFixed(2)],
         [],
-        ['Count', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Quantity (L)', 'Rate (₹/L)', 'Total Amount (₹)'],
+        ['Count', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Quantity (L)', 'Rate (₹/L)', 'Total Amount (₹)'],
         ...dataRows
       ].map(row => row.join(',')).join('\n');
 
@@ -837,7 +841,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         getChannelDisplay(record.channel),
         record.shift_type,
         `${record.machine_id} (${record.machine_type})`,
-        `${record.society_name} (${record.society_id})`,
+        reportSource === 'bmc' ? `${record.bmc_name || 'N/A'}` : `${record.society_name} (${record.society_id})`,
         record.quantity,
         record.rate_per_liter,
         record.total_amount
@@ -845,7 +849,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
       autoTable(doc, {
         startY: 32,
-        head: [['SI No', 'Count', 'Date', 'Time', 'Channel', 'Shift', 'Machine', 'Society', 'Quantity (L)', 'Rate', 'Total Amount']],
+        head: [['SI No', 'Count', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Quantity (L)', 'Rate', 'Total Amount']],
         body: tableData,
         theme: 'grid',
         styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
@@ -954,7 +958,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
       // Get column labels for headers
       const columnLabels = selectedColumns.map(col => 
-        SALES_COLUMNS.find(c => c.key === col)?.label || col
+        getSalesColumns(reportSource).find(c => c.key === col)?.label || col
       );
 
       const dataRows = filteredRecords.map(record => 
@@ -965,6 +969,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
             case 'count': return record.count || '';
             case 'society_id': return record.society_id;
             case 'society_name': return record.society_name || '';
+            case 'bmc_id': return record.bmc_id || '';
             case 'bmc_name': return record.bmc_name || '';
             case 'dairy_name': return record.dairy_name || '';
             case 'machine_id': return record.machine_id;
@@ -1148,7 +1153,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
         // Get column labels for headers
         const columnLabels = selectedColumns.map(col => 
-          SALES_COLUMNS.find(c => c.key === col)?.label || col
+          getSalesColumns(reportSource).find(c => c.key === col)?.label || col
         );
 
         const dataRows = filteredRecords.map(record => 
@@ -1159,6 +1164,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
               case 'count': return record.count || '';
               case 'society_id': return record.society_id;
               case 'society_name': return record.society_name || '';
+              case 'bmc_id': return record.bmc_id || '';
               case 'bmc_name': return record.bmc_name || '';
               case 'dairy_name': return record.dairy_name || '';
               case 'machine_id': return record.machine_id;
@@ -1223,7 +1229,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
 
         // Get column labels for headers
         const columnLabels = selectedColumns.map(col => 
-          SALES_COLUMNS.find(c => c.key === col)?.label || col
+          getSalesColumns(reportSource).find(c => c.key === col)?.label || col
         );
 
         // Table with selected columns
@@ -1236,6 +1242,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
               case 'count': return record.count || '';
               case 'society_id': return record.society_id;
               case 'society_name': return record.society_name || '';
+              case 'bmc_id': return record.bmc_id || '';
               case 'bmc_name': return record.bmc_name || '';
               case 'dairy_name': return record.dairy_name || '';
               case 'machine_id': return record.machine_id;
@@ -1442,7 +1449,7 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Count</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Society</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{reportSource === 'bmc' ? 'BMC' : 'Society'}</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Shift</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Channel</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Machine</th>
@@ -1483,8 +1490,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
                         #{highlightText(record.count, combinedSearch)}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
-                        <div className="font-medium">{highlightText(record.society_name, combinedSearch)}</div>
-                        <div className="text-xs text-gray-500">ID: {highlightText(record.society_id, combinedSearch)}</div>
+                        <div className="font-medium">{highlightText(reportSource === 'bmc' ? (record.bmc_name || 'N/A') : record.society_name, combinedSearch)}</div>
+                        <div className="text-xs text-gray-500">ID: {highlightText(reportSource === 'bmc' ? (record.bmc_id?.toString() || 'N/A') : record.society_id, combinedSearch)}</div>
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -1593,8 +1600,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         defaultEmail={adminEmail}
         recordCount={filteredRecords.length}
         reportType="Sales Report"
-        availableColumns={SALES_COLUMNS}
-        defaultColumns={DEFAULT_SALES_COLUMNS}
+        availableColumns={getSalesColumns(reportSource)}
+        defaultColumns={getDefaultSalesColumns(reportSource)}
       />
 
       {/* Download Modal */}
@@ -1604,8 +1611,8 @@ export default function SalesReports({ globalSearch = '' }: SalesReportsProps) {
         onDownload={handleDownloadWithColumns}
         recordCount={filteredRecords.length}
         reportType="Sales Report"
-        availableColumns={SALES_COLUMNS}
-        defaultColumns={DEFAULT_SALES_COLUMNS}
+        availableColumns={getSalesColumns(reportSource)}
+        defaultColumns={getDefaultSalesColumns(reportSource)}
       />
 
       {/* Status Messages */}

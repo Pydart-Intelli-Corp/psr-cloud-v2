@@ -76,8 +76,11 @@ interface Machine {
   machineId: string;
   machineType: string;
   societyId: number;
+  bmcId?: number;
   societyName?: string;
   societyIdentifier?: string;
+  bmcName?: string;
+  bmcIdentifier?: string;
   location?: string;
   installationDate?: string;
   lastMaintenanceDate?: string;
@@ -105,6 +108,8 @@ interface MachineFormData {
   machineId: string;
   machineType: string;
   societyId: string;
+  bmcId: string;
+  assignmentType: 'society' | 'bmc';
   location: string;
   installationDate: string;
   operatorName: string;
@@ -138,6 +143,8 @@ const initialFormData: MachineFormData = {
   machineId: '',
   machineType: '',
   societyId: '',
+  bmcId: '',
+  assignmentType: 'society',
   location: '',
   installationDate: '',
   operatorName: '',
@@ -227,7 +234,7 @@ function MachineManagement() {
   }>({});
 
   // Folder view state
-  const [expandedSocieties, setExpandedSocieties] = useState<Set<number>>(new Set());
+  const [expandedSocieties, setExpandedSocieties] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'folder' | 'list'>('folder');
   const [selectedSocieties, setSelectedSocieties] = useState<Set<number>>(new Set());
   
@@ -623,9 +630,12 @@ function MachineManagement() {
 
       const data = await response.json();
       if (data.success) {
-        // Sort machines: master machines first, then by ID
+        // Sort machines: BMC machines first, then master machines, then by ID
         const sortedMachines = (data.data || []).sort((a: Machine, b: Machine) => {
-          // Master machines come first
+          // BMC machines come first
+          if (a.bmcId && !b.bmcId) return -1;
+          if (!a.bmcId && b.bmcId) return 1;
+          // If both are BMC or both are not, master machines come next
           if (a.isMasterMachine && !b.isMasterMachine) return -1;
           if (!a.isMasterMachine && b.isMasterMachine) return 1;
           // If both are master or both are not, sort by ID
@@ -817,8 +827,8 @@ function MachineManagement() {
       return;
     }
 
-    if (!formData.societyId) {
-      setError('Please select a society for the machine.');
+    if (!formData.societyId && !formData.bmcId) {
+      setError('Please select a society or BMC for the machine.');
       setSuccess('');
       return;
     }
@@ -904,8 +914,8 @@ function MachineManagement() {
       return;
     }
 
-    if (!formData.societyId) {
-      setError('Please select a society for the machine.');
+    if (!formData.societyId && !formData.bmcId) {
+      setError('Please select a society or BMC for the machine.');
       setSuccess('');
       return;
     }
@@ -1008,13 +1018,13 @@ function MachineManagement() {
   };
 
   // Toggle society folder expansion
-  const toggleSocietyExpansion = (societyId: number) => {
+  const toggleSocietyExpansion = (uniqueKey: string) => {
     setExpandedSocieties(prev => {
       const newExpanded = new Set(prev);
-      if (newExpanded.has(societyId)) {
-        newExpanded.delete(societyId);
+      if (newExpanded.has(uniqueKey)) {
+        newExpanded.delete(uniqueKey);
       } else {
-        newExpanded.add(societyId);
+        newExpanded.add(uniqueKey);
       }
       return newExpanded;
     });
@@ -1450,7 +1460,9 @@ function MachineManagement() {
     setFormData({
       machineId: machine.machineId,
       machineType: machine.machineType,
-      societyId: machine.societyId.toString(),
+      societyId: machine.societyId ? machine.societyId.toString() : '',
+      bmcId: machine.bmcId ? machine.bmcId.toString() : '',
+      assignmentType: machine.bmcId ? 'bmc' : 'society',
       location: machine.location || '',
       installationDate: machine.installationDate || '',
       operatorName: machine.operatorName || '',
@@ -2052,33 +2064,60 @@ function MachineManagement() {
           </div>
         ) : filteredMachines.length > 0 ? (
           viewMode === 'folder' ? (
-            // Folder View - Grouped by Society
+            // Folder View - Grouped by Society or BMC
             <div className="space-y-4">
               {(() => {
-                // Group machines by society
+                // Group machines by society or BMC
                 const machinesBySociety = filteredMachines.reduce((acc, machine) => {
-                  const societyId = machine.societyId || 0;
-                  const societyName = machine.societyName || 'Unassigned';
-                  const societyIdentifier = machine.societyIdentifier || 'N/A';
+                  let groupId: number;
+                  let groupName: string;
+                  let groupIdentifier: string;
+                  let groupType: 'society' | 'bmc';
                   
-                  if (!acc[societyId]) {
-                    acc[societyId] = {
-                      id: societyId,
-                      name: societyName,
-                      identifier: societyIdentifier,
+                  if (machine.bmcId) {
+                    // Machine assigned to BMC
+                    groupId = machine.bmcId;
+                    groupName = machine.bmcName || 'Unknown BMC';
+                    groupIdentifier = machine.bmcIdentifier || 'N/A';
+                    groupType = 'bmc';
+                  } else if (machine.societyId) {
+                    // Machine assigned to Society
+                    groupId = machine.societyId;
+                    groupName = machine.societyName || 'Unknown Society';
+                    groupIdentifier = machine.societyIdentifier || 'N/A';
+                    groupType = 'society';
+                  } else {
+                    // Unassigned (shouldn't happen but handle it)
+                    groupId = 0;
+                    groupName = 'Unassigned';
+                    groupIdentifier = 'N/A';
+                    groupType = 'society';
+                  }
+                  
+                  const key = `${groupType}_${groupId}`;
+                  if (!acc[key]) {
+                    acc[key] = {
+                      id: groupId,
+                      name: groupName,
+                      identifier: groupIdentifier,
+                      type: groupType,
                       machines: []
                     };
                   }
-                  acc[societyId].machines.push(machine);
+                  acc[key].machines.push(machine);
                   return acc;
-                }, {} as Record<number, {id: number; name: string; identifier: string; machines: Machine[]}>);
+                }, {} as Record<string, {id: number; name: string; identifier: string; type: 'society' | 'bmc'; machines: Machine[]}>);
 
-                const societyGroups = Object.values(machinesBySociety).sort((a, b) => 
-                  a.name.localeCompare(b.name)
-                );
+                const societyGroups = Object.values(machinesBySociety).sort((a, b) => {
+                  // BMC folders first, then society folders
+                  if (a.type === 'bmc' && b.type !== 'bmc') return -1;
+                  if (a.type !== 'bmc' && b.type === 'bmc') return 1;
+                  return a.name.localeCompare(b.name);
+                });
 
-                return societyGroups.map(society => {
-                  const isExpanded = expandedSocieties.has(society.id);
+                return societyGroups.map((society, index) => {
+                  const uniqueKey = `${society.type}_${society.id}`;
+                  const isExpanded = expandedSocieties.has(uniqueKey);
                   const machineCount = society.machines.length;
                   const activeCount = society.machines.filter(m => m.status === 'active').length;
                   const inactiveCount = society.machines.filter(m => m.status === 'inactive').length;
@@ -2088,16 +2127,16 @@ function MachineManagement() {
 
                   return (
                     <div 
-                      key={society.id} 
+                      key={uniqueKey} 
                       className={`relative bg-white dark:bg-gray-800 rounded-lg border-2 transition-colors hover:z-10 ${
                         isSocietySelected 
                           ? 'border-blue-500 dark:border-blue-400' 
                           : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
-                      {/* Society Folder Header */}
+                      {/* Folder Header */}
                       <div className="flex items-center">
-                        {/* Checkbox for selecting the entire society */}
+                        {/* Checkbox for selecting the entire folder */}
                         <div 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2109,13 +2148,17 @@ function MachineManagement() {
                             type="checkbox"
                             checked={isSocietySelected}
                             onChange={() => {}}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
                           />
                         </div>
 
                         {/* Expandable folder button */}
                         <button
-                          onClick={() => toggleSocietyExpansion(society.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSocietyExpansion(uniqueKey);
+                          }}
                           className="flex-1 flex items-center justify-between p-4 pl-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                         >
                           <div className="flex items-center space-x-3">
@@ -2125,14 +2168,23 @@ function MachineManagement() {
                               <ChevronRight className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                             )}
                             {isExpanded ? (
-                              <FolderOpen className="w-5 h-5 text-green-600 dark:text-green-400" />
+                              <FolderOpen className={`w-5 h-5 ${society.type === 'bmc' ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`} />
                             ) : (
-                              <Folder className="w-5 h-5 text-green-600 dark:text-green-400" />
+                              <Folder className={`w-5 h-5 ${society.type === 'bmc' ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`} />
                             )}
                             <div className="text-left">
-                              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-                                {society.name}
-                              </h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                                  {society.name}
+                                </h3>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                  society.type === 'bmc' 
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                    : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                }`}>
+                                  {society.type === 'bmc' ? 'BMC' : 'Society'}
+                                </span>
+                              </div>
                               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                 ID: {society.identifier}
                               </p>
@@ -2187,10 +2239,18 @@ function MachineManagement() {
                                 icon={<Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
                                 showStatus={true}
                                 imageUrl={machine.imageUrl}
-                                badge={machine.isMasterMachine ? {
+                                badge={machine.bmcId ? {
+                                  text: 'BMC',
+                                  color: 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white border-blue-600',
+                                  onClick: undefined
+                                } : machine.isMasterMachine ? {
                                   text: 'Master',
                                   color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
                                   onClick: () => handleMasterBadgeClick(society.id)
+                                } : machine.societyId ? {
+                                  text: 'Society',
+                                  color: 'bg-gradient-to-r from-green-400 to-emerald-500 text-white border-green-600',
+                                  onClick: undefined
                                 } : undefined}
                                 selectable={true}
                                 selected={selectedMachines.has(machine.id)}
@@ -2218,6 +2278,14 @@ function MachineManagement() {
                                   }
                                 }}
                                 details={[
+                                  ...(machine.bmcId && machine.bmcName ? [{ 
+                                    icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                                    text: machine.bmcIdentifier 
+                                      ? `BMC: ${machine.bmcName} (${machine.bmcIdentifier})` 
+                                      : `BMC: ${machine.bmcName}`,
+                                    highlight: true,
+                                    className: 'text-blue-600 dark:text-blue-400'
+                                  }] : []),
                                   ...(machine.location ? [{ icon: <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.location }] : []),
                                   ...(machine.operatorName ? [{ icon: <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.operatorName }] : []),
                                   ...(machine.contactPhone ? [{ icon: <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, text: machine.contactPhone }] : []),
@@ -2301,10 +2369,18 @@ function MachineManagement() {
                   icon={<Wrench className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />}
                   showStatus={true}
                   imageUrl={machine.imageUrl}
-                  badge={machine.isMasterMachine ? {
+                  badge={machine.bmcId ? {
+                    text: 'BMC',
+                    color: 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white border-blue-600',
+                    onClick: undefined
+                  } : machine.isMasterMachine ? {
                     text: 'Master',
                     color: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 border-yellow-600',
                     onClick: () => handleMasterBadgeClick(machine.societyId)
+                  } : machine.societyId ? {
+                    text: 'Society',
+                    color: 'bg-gradient-to-r from-green-400 to-emerald-500 text-white border-green-600',
+                    onClick: undefined
                   } : undefined}
                   selectable={true}
                   selected={selectedMachines.has(machine.id)}
@@ -2332,6 +2408,14 @@ function MachineManagement() {
                     }
                   }}
                   details={[
+                    ...(machine.bmcId && machine.bmcName ? [{ 
+                      icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
+                      text: machine.bmcIdentifier 
+                        ? `BMC: ${machine.bmcName} (${machine.bmcIdentifier})` 
+                        : `BMC: ${machine.bmcName}`,
+                      highlight: true,
+                      className: 'text-blue-600 dark:text-blue-400'
+                    }] : []),
                     ...(machine.societyName ? [{ 
                       icon: <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, 
                       text: machine.societyIdentifier 
@@ -2451,23 +2535,71 @@ function MachineManagement() {
               error={fieldErrors.machineType}
             />
 
-            <FormSelect
-              label="Society"
-              value={formData.societyId}
-              onChange={(value) => {
-                console.log('Society selected:', value, 'Type:', typeof value);
-                setFormData({ ...formData, societyId: value });
-                checkMasterMachineStatus(value);
-              }}
-              options={societies.map(society => ({ 
-                value: society.id, 
-                label: `${society.name} (${society.society_id})` 
-              }))}
-              placeholder="Select Society"
-              required
-              disabled={societiesLoading}
-              error={fieldErrors.societyId}
-            />
+            {/* Assignment Type Toggle */}
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Assign To
+              </label>
+              <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, assignmentType: 'society', bmcId: '' })}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    formData.assignmentType === 'society'
+                      ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Society
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, assignmentType: 'bmc', societyId: '' })}
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    formData.assignmentType === 'bmc'
+                      ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  BMC
+                </button>
+              </div>
+            </div>
+
+            {/* Society or BMC Selection */}
+            {formData.assignmentType === 'society' ? (
+              <FormSelect
+                label="Society"
+                value={formData.societyId}
+                onChange={(value) => {
+                  console.log('Society selected:', value, 'Type:', typeof value);
+                  setFormData({ ...formData, societyId: value });
+                  checkMasterMachineStatus(value);
+                }}
+                options={societies.map(society => ({ 
+                  value: society.id, 
+                  label: `${society.name} (${society.society_id})` 
+                }))}
+                placeholder="Select Society"
+                required
+                disabled={societiesLoading}
+                error={fieldErrors.societyId}
+                colSpan={2}
+              />
+            ) : (
+              <FormSelect
+                label="BMC"
+                value={formData.bmcId}
+                onChange={(value) => setFormData({ ...formData, bmcId: value })}
+                options={bmcs.map(bmc => ({ 
+                  value: bmc.id, 
+                  label: `${bmc.name} (${bmc.bmcId})` 
+                }))}
+                placeholder="Select BMC"
+                required
+                colSpan={2}
+              />
+            )}
 
             <FormInput
               label="Location"
@@ -2649,7 +2781,7 @@ function MachineManagement() {
             onCancel={closeAddModal}
             submitText="Add Machine"
             isLoading={isSubmitting}
-            isSubmitDisabled={!formData.machineId || !formData.machineType || !formData.societyId}
+            isSubmitDisabled={!formData.machineId || !formData.machineType || (!formData.societyId && !formData.bmcId)}
           />
         </form>
       </FormModal>
@@ -2687,19 +2819,69 @@ function MachineManagement() {
               error={fieldErrors.machineType}
             />
 
-            <FormSelect
-              label="Society"
-              value={formData.societyId}
-              onChange={(value) => setFormData({ ...formData, societyId: value })}
-              options={societies.map(society => ({ 
-                value: society.id, 
-                label: `${society.name} (${society.society_id})` 
-              }))}
-              placeholder="Select Society"
-              required
-              disabled={societiesLoading}
-              error={fieldErrors.societyId}
-            />
+            {/* Assignment Type Toggle - Disabled in Edit Mode */}
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Assign To
+              </label>
+              <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg opacity-60 cursor-not-allowed">
+                <button
+                  type="button"
+                  disabled
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium ${
+                    formData.assignmentType === 'society'
+                      ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  Society
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className={`flex-1 px-4 py-2 rounded-md text-sm font-medium ${
+                    formData.assignmentType === 'bmc'
+                      ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  BMC
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Assignment type cannot be changed after creation</p>
+            </div>
+
+            {/* Society or BMC Selection - Disabled in Edit Mode */}
+            {formData.assignmentType === 'society' ? (
+              <FormSelect
+                label="Society"
+                value={formData.societyId}
+                onChange={(value) => setFormData({ ...formData, societyId: value })}
+                options={societies.map(society => ({ 
+                  value: society.id, 
+                  label: `${society.name} (${society.society_id})` 
+                }))}
+                placeholder="Select Society"
+                required
+                disabled={true}
+                error={fieldErrors.societyId}
+                colSpan={2}
+              />
+            ) : (
+              <FormSelect
+                label="BMC"
+                value={formData.bmcId}
+                onChange={(value) => setFormData({ ...formData, bmcId: value })}
+                options={bmcs.map(bmc => ({ 
+                  value: bmc.id, 
+                  label: `${bmc.name} (${bmc.bmcId})` 
+                }))}
+                placeholder="Select BMC"
+                required
+                disabled={true}
+                colSpan={2}
+              />
+            )}
 
             <FormInput
               label="Location"
@@ -2771,7 +2953,7 @@ function MachineManagement() {
             onCancel={closeEditModal}
             submitText="Update Machine"
             isLoading={isSubmitting}
-            isSubmitDisabled={!formData.machineId || !formData.machineType || !formData.societyId}
+            isSubmitDisabled={!formData.machineId || !formData.machineType || (!formData.societyId && !formData.bmcId)}
           />
         </form>
       </FormModal>
@@ -2856,7 +3038,7 @@ function MachineManagement() {
                 />
                 <div className="flex-1">
                   <label htmlFor="applyPasswordsToOthers" className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
-                    Apply these passwords to other machines in this society
+                    Apply these passwords to other machines in this {selectedMachine.bmcId ? 'BMC' : 'society'}
                   </label>
                   <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                     Select machines below to update their passwords with the same values
@@ -2874,14 +3056,20 @@ function MachineManagement() {
                     <button
                       type="button"
                       onClick={() => {
-                        const societyMachines = machines.filter(
-                          m => m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id
+                        const groupMachines = machines.filter(
+                          m => {
+                            if (selectedMachine.bmcId) {
+                              return m.bmcId === selectedMachine.bmcId && m.id !== selectedMachine.id;
+                            } else {
+                              return m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id;
+                            }
+                          }
                         );
                         if (selectAllMachinesForPassword) {
                           setSelectedMachinesForPassword(new Set());
                           setSelectAllMachinesForPassword(false);
                         } else {
-                          setSelectedMachinesForPassword(new Set(societyMachines.map(m => m.id)));
+                          setSelectedMachinesForPassword(new Set(groupMachines.map(m => m.id)));
                           setSelectAllMachinesForPassword(true);
                         }
                       }}
@@ -2893,7 +3081,13 @@ function MachineManagement() {
                   
                   <div className="space-y-2">
                     {machines
-                      .filter(m => m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id)
+                      .filter(m => {
+                        if (selectedMachine.bmcId) {
+                          return m.bmcId === selectedMachine.bmcId && m.id !== selectedMachine.id;
+                        } else {
+                          return m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id;
+                        }
+                      })
                       .map(machine => (
                         <label
                           key={machine.id}
@@ -2926,9 +3120,15 @@ function MachineManagement() {
                       ))}
                   </div>
                   
-                  {machines.filter(m => m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id).length === 0 && (
+                  {machines.filter(m => {
+                    if (selectedMachine.bmcId) {
+                      return m.bmcId === selectedMachine.bmcId && m.id !== selectedMachine.id;
+                    } else {
+                      return m.societyId === selectedMachine.societyId && m.id !== selectedMachine.id;
+                    }
+                  }).length === 0 && (
                     <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                      No other machines in this society
+                      No other machines in this {selectedMachine.bmcId ? 'BMC' : 'society'}
                     </p>
                   )}
                 </div>
