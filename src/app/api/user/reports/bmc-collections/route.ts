@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         mc.id,
         mc.farmer_id,
-        COALESCE(f.name, 'No Name') as farmer_name,
+        COALESCE(s_farmer.name, 'No Name') as farmer_name,
         f.farmeruid as farmer_uid,
         mc.society_id,
         COALESCE(s.name, 'Direct BMC') as society_name,
@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       FROM \`${schemaName}\`.milk_collections mc
       INNER JOIN \`${schemaName}\`.machines m ON mc.machine_id = m.id
       LEFT JOIN \`${schemaName}\`.societies s ON mc.society_id = s.id
+      LEFT JOIN \`${schemaName}\`.societies s_farmer ON s_farmer.society_id = mc.farmer_id
       LEFT JOIN \`${schemaName}\`.bmcs b ON s.bmc_id = b.id
       LEFT JOIN \`${schemaName}\`.bmcs bmc_direct ON m.bmc_id = bmc_direct.id
       LEFT JOIN \`${schemaName}\`.dairy_farms df ON b.dairy_farm_id = df.id
