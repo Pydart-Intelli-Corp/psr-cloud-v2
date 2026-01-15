@@ -513,76 +513,77 @@ function ReportsPage() {
                     </button>
                   </div>
                   
-                  {/* Time Period Selection */}
-                  <div className="inline-flex bg-blue-50 dark:bg-gray-800 rounded-lg p-1 shadow-inner">
-                    <button
-                      onClick={() => {
-                        setTimePeriod('daily');
-                        setCustomDate('');
-                        setCustomWeekStart('');
-                        setCustomMonth('');
-                        setCustomYear('');
-                      }}
-                      className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                        timePeriod === 'daily'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                      }`}
-                    >
-                      Daily
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTimePeriod('weekly');
-                        setCustomDate('');
-                        setCustomWeekStart('');
-                        setCustomMonth('');
-                        setCustomYear('');
-                      }}
-                      className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                        timePeriod === 'weekly'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                      }`}
-                    >
-                      Weekly
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTimePeriod('monthly');
-                        setCustomDate('');
-                        setCustomWeekStart('');
-                        setCustomMonth('');
-                        setCustomYear('');
-                      }}
-                      className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                        timePeriod === 'monthly'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                      }`}
-                    >
-                      Monthly
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTimePeriod('yearly');
-                        setCustomDate('');
-                        setCustomWeekStart('');
-                        setCustomMonth('');
-                        setCustomYear('');
-                      }}
-                      className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                        timePeriod === 'yearly'
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                      }`}
-                    >
-                      Yearly
-                    </button>
-                  </div>
-                  
-                  {/* Custom Date Selection */}
-                  <div className="flex items-center gap-2">
+                  {/* Time Period Selection with Custom Date in Same Row */}
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex bg-blue-50 dark:bg-gray-800 rounded-lg p-1 shadow-inner">
+                      <button
+                        onClick={() => {
+                          setTimePeriod('daily');
+                          setCustomDate('');
+                          setCustomWeekStart('');
+                          setCustomMonth('');
+                          setCustomYear('');
+                        }}
+                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
+                          timePeriod === 'daily'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
+                        }`}
+                      >
+                        Daily
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTimePeriod('weekly');
+                          setCustomDate('');
+                          setCustomWeekStart('');
+                          setCustomMonth('');
+                          setCustomYear('');
+                        }}
+                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
+                          timePeriod === 'weekly'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
+                        }`}
+                      >
+                        Weekly
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTimePeriod('monthly');
+                          setCustomDate('');
+                          setCustomWeekStart('');
+                          setCustomMonth('');
+                          setCustomYear('');
+                        }}
+                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
+                          timePeriod === 'monthly'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
+                        }`}
+                      >
+                        Monthly
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTimePeriod('yearly');
+                          setCustomDate('');
+                          setCustomWeekStart('');
+                          setCustomMonth('');
+                          setCustomYear('');
+                        }}
+                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
+                          timePeriod === 'yearly'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
+                        }`}
+                      >
+                        Yearly
+                      </button>
+                    </div>
+                    
+                    {/* Custom Date Selection */}
+                    <div className="flex items-center gap-2">
                     {timePeriod === 'daily' && (
                       <>
                         <input
@@ -667,8 +668,7 @@ function ReportsPage() {
                           </button>
                         )}
                       </>
-                    )}
-                  </div>
+                    )}                    </div>                  </div>
                 </div>
               ) : (
                 <div className="inline-flex bg-psr-green-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
