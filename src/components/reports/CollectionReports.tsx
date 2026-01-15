@@ -886,7 +886,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
       '',
       'DETAILED COLLECTION DATA',
       '',
-      'Date,Time,Channel,Shift,Machine,' + (reportSource === 'bmc' ? 'BMC' : 'Society') + ',Farmer ID,Farmer Name,Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive',
+      'Date,Time,Channel,Shift,Machine,' + (reportSource === 'bmc' ? 'BMC' : 'Society') + ',' + (reportSource === 'bmc' ? 'Society ID' : 'Farmer ID') + ',' + (reportSource === 'bmc' ? 'Society' : 'Farmer Name') + ',Fat (%),SNF (%),CLR,Water (%),Rate,Quantity (L),Total Amount,Incentive',
       ...dataRows.map(row => row.join(',')),
       '',
       '',
@@ -962,7 +962,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
 
     autoTable(doc, {
       startY: 32,
-      head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
+      head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', reportSource === 'bmc' ? 'Society ID' : 'Farmer ID', reportSource === 'bmc' ? 'Society' : 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 6, cellPadding: 1, halign: 'center' },
@@ -1073,7 +1073,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
         ['Weighted SNF (%):', stats.weightedSnf.toFixed(2)],
         ['Weighted CLR:', stats.weightedClr.toFixed(2)],
         [],
-        ['Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate (₹/L)', 'Quantity (L)', 'Total Amount (₹)', 'Incentive'],
+        ['Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', reportSource === 'bmc' ? 'Society ID' : 'Farmer ID', reportSource === 'bmc' ? 'Society' : 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate (₹/L)', 'Quantity (L)', 'Total Amount (₹)', 'Incentive'],
         ...dataRows
       ].map(row => row.join(',')).join('\n');
 
@@ -1119,7 +1119,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
 
       autoTable(doc, {
         startY: 32,
-        head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', 'Farmer ID', 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
+        head: [['SI No', 'Date', 'Time', 'Channel', 'Shift', 'Machine', reportSource === 'bmc' ? 'BMC' : 'Society', reportSource === 'bmc' ? 'Society ID' : 'Farmer ID', reportSource === 'bmc' ? 'Society' : 'Farmer Name', 'Fat (%)', 'SNF (%)', 'CLR', 'Water (%)', 'Rate', 'Quantity (L)', 'Total Amount', 'Incentive']],
         body: tableData,
         theme: 'grid',
         styles: { fontSize: 6, cellPadding: 1, halign: 'center' },
