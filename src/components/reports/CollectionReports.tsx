@@ -456,6 +456,29 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
   }, [machinesData, records]);
   
   const farmers = useMemo(() => {
+    if (reportSource === 'bmc') {
+      // For BMC reports, farmer_id is actually society_id, so return societies as farmers
+      if (!societiesData.length || !records.length) return [];
+      
+      const societyIdsInCollections = new Set(
+        records
+          .filter(r => r.farmer_id)
+          .map(r => r.farmer_id)
+      );
+      
+      // Map societies to farmer format for filter compatibility
+      return societiesData
+        .filter(society => societyIdsInCollections.has(society.society_id))
+        .map(society => ({
+          id: society.id,
+          farmerId: society.society_id,
+          farmerName: society.name,
+          farmeruid: society.society_id,
+          societyId: society.bmc_id
+        }));
+    }
+    
+    // For society reports, use actual farmers
     if (!farmersData.length || !records.length) return farmersData;
     
     const farmerIdsInCollections = new Set(
@@ -465,7 +488,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
     );
     
     return farmersData.filter(farmer => farmerIdsInCollections.has(farmer.farmerId));
-  }, [farmersData, records]);
+  }, [farmersData, records, reportSource, societiesData]);
 
   // Clear all filters
   const clearFilters = () => {
@@ -761,19 +784,30 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
       }
     }
 
-    // Farmer filter - filter by farmer UID (farmer_id) and farmer ID
+    // Farmer filter - for BMC reports, farmer_id is society_id
     if (farmerFilter.length > 0) {
-      const selectedFarmerIds = farmerFilter
-        .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
-        .filter(Boolean) as string[];
-      const selectedFarmerUIDs = farmerFilter
-        .map(id => farmers.find(f => f.id.toString() === id)?.farmeruid)
-        .filter(Boolean) as string[];
-      if (selectedFarmerIds.length > 0 || selectedFarmerUIDs.length > 0) {
-        filtered = filtered.filter(record => 
-          selectedFarmerIds.includes(record.farmer_id) ||
-          (record.farmer_uid && selectedFarmerUIDs.includes(record.farmer_uid))
-        );
+      if (reportSource === 'bmc') {
+        // For BMC reports, filter by society_id stored in farmer_id field
+        const selectedSocietyIds = farmerFilter
+          .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
+          .filter(Boolean) as string[];
+        if (selectedSocietyIds.length > 0) {
+          filtered = filtered.filter(record => selectedSocietyIds.includes(record.farmer_id));
+        }
+      } else {
+        // For society reports, filter by actual farmer IDs
+        const selectedFarmerIds = farmerFilter
+          .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
+          .filter(Boolean) as string[];
+        const selectedFarmerUIDs = farmerFilter
+          .map(id => farmers.find(f => f.id.toString() === id)?.farmeruid)
+          .filter(Boolean) as string[];
+        if (selectedFarmerIds.length > 0 || selectedFarmerUIDs.length > 0) {
+          filtered = filtered.filter(record => 
+            selectedFarmerIds.includes(record.farmer_id) ||
+            (record.farmer_uid && selectedFarmerUIDs.includes(record.farmer_uid))
+          );
+        }
       }
     }
 
@@ -1795,6 +1829,8 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
             showShiftFilter
             showMachineFilter
             showFarmerFilter
+            farmerFilterLabel={reportSource === 'bmc' ? 'Society' : 'Farmer'}
+            simpleFarmerFilter={reportSource === 'bmc'}
             hideMainFilterButton={true}
           />
         </div>
@@ -1814,6 +1850,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
                     className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
                   />
                 </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Sl. No</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{reportSource === 'bmc' ? 'Society' : 'Farmer'}</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{reportSource === 'bmc' ? 'BMC' : 'Society'}</th>
@@ -1838,12 +1875,12 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={20} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={21} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No collection records found
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
+                filteredRecords.map((record, index) => (
                   <tr key={record.id} className={`transition-colors ${
                     selectedRecords.has(record.id)
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
@@ -1856,6 +1893,9 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
                         onChange={() => handleSelectOne(record.id)}
                         className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
                       />
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap font-medium">
+                      {index + 1}
                     </td>
                     <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
                       <div>{highlightText(record.collection_date, combinedSearch)}</div>

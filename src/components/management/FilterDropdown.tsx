@@ -40,8 +40,11 @@ interface FilterDropdownProps {
   showShiftFilter?: boolean;
   showMachineFilter?: boolean;
   showFarmerFilter?: boolean;
+  farmerFilterLabel?: string;
+  simpleFarmerFilter?: boolean;
   hideMainFilterButton?: boolean;
   hideSocietyFilter?: boolean;
+  hideDairyFilter?: boolean;
 }
 
 /**
@@ -84,8 +87,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   showShiftFilter = false,
   showMachineFilter = false,
   showFarmerFilter = false,
+  farmerFilterLabel = 'Farmer',
+  simpleFarmerFilter = false,
   hideMainFilterButton = false,
-  hideSocietyFilter = false
+  hideSocietyFilter = false,
+  hideDairyFilter = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [dateRangeOpen, setDateRangeOpen] = useState(false);
@@ -231,7 +237,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
         )}
 
         {/* Dairy Filter Button */}
-        {dairies && dairies.length > 0 && onDairyChange && (
+        {!hideDairyFilter && dairies && dairies.length > 0 && onDairyChange && (
         <div className="relative" ref={dairyDropdownRef}>
           <button
             onClick={() => setDairyDropdownOpen(!dairyDropdownOpen)}
@@ -860,7 +866,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
           >
             <Filter className="w-4 h-4" />
             <span className="text-sm font-medium">
-              Farmer
+              {farmerFilterLabel}
               {Array.isArray(farmerFilter) && farmerFilter.length > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 bg-psr-primary-600 dark:bg-psr-primary-500 text-white text-xs rounded-full min-w-[18px] text-center">
                   {farmerFilter.length}
@@ -876,7 +882,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    Select Farmers
+                    Select {farmerFilterLabel}s
                     {Array.isArray(farmerFilter) && farmerFilter.length > 0 && (
                       <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
                         ({farmerFilter.length} selected)
@@ -892,15 +898,17 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 </div>
 
                 {/* Search input for farmers */}
+                {!simpleFarmerFilter && (
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Search by farmer name, ID, or UID..."
+                    placeholder={`Search by ${farmerFilterLabel.toLowerCase()} name, ID, or UID...`}
                     value={farmerSearchTerm}
                     onChange={(e) => setFarmerSearchTerm(e.target.value)}
                     className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-transparent"
                   />
                 </div>
+                )}
 
                 <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md">
                   <div className="space-y-1 p-2">
@@ -935,8 +943,8 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
                         if (filteredFarmers.length === 0) {
                           const message = societyFilterArray.length > 0
-                            ? 'No farmers available for selected societies'
-                            : 'No farmers available';
+                            ? `No ${farmerFilterLabel.toLowerCase()}s available for selected societies`
+                            : `No ${farmerFilterLabel.toLowerCase()}s available`;
                           return (
                             <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
                               {message}
@@ -960,9 +968,10 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                           return (
                             <div key={societyId} className="mb-3">
                               {/* Hierarchy Header: Dairy → BMC → Society */}
+                              {!simpleFarmerFilter && (
                               <div className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
                                 {societyId === 'unassigned' ? (
-                                  'Unassigned Farmers'
+                                  `Unassigned ${farmerFilterLabel}s`
                                 ) : (
                                   <>
                                     {dairy && <span className="text-blue-600 dark:text-blue-400">{dairy.name} → </span>}
@@ -971,6 +980,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                                   </>
                                 )}
                               </div>
+                              )}
                               
                               {/* Farmers under this society */}
                               {societyFarmers.map((farmer) => (
@@ -995,13 +1005,20 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                                     <span className="text-sm text-gray-900 dark:text-gray-100 block">
                                       {farmer.farmerName}
                                     </span>
+                                    {!simpleFarmerFilter && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
                                       ID: {farmer.farmerId}
                                       {farmer.farmeruid && (
                                         <span className="ml-2">UID: {farmer.farmeruid}</span>
                                       )}
                                     </span>
+                                    )}
                                   </div>
+                                  {simpleFarmerFilter && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      ({farmer.farmerId})
+                                    </span>
+                                  )}
                                 </label>
                               ))}
                             </div>
@@ -1524,7 +1541,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   )}
                   {Array.isArray(farmerFilter) && farmerFilter.length > 0 && (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-psr-blue-100 dark:bg-psr-blue-900/30 text-psr-blue-700 dark:text-psr-blue-300 text-xs rounded">
-                      Farmer: {farmerFilter.length} selected
+                      {farmerFilterLabel}: {farmerFilter.length} selected
                       <button onClick={() => onFarmerChange && onFarmerChange([])} className="hover:text-psr-blue-900 dark:hover:text-psr-blue-100">
                         <X className="w-3 h-3" />
                       </button>

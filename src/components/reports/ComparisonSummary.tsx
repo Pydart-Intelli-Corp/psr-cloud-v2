@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Download, FileText } from 'lucide-react';
 import FilterDropdown from '@/components/management/FilterDropdown';
+import { FlowerSpinner } from '@/components';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ComparisonData {
   totalCollections: number;
@@ -23,6 +26,7 @@ interface ComparisonSummaryProps {
   onDairyChange?: (value: string[]) => void;
   onBmcChange?: (value: string[]) => void;
   onSocietyChange?: (value: string[]) => void;
+  reportSource?: 'society' | 'bmc';
 }
 
 export default function ComparisonSummary({ 
@@ -33,7 +37,8 @@ export default function ComparisonSummary({
   societyFilter = [],
   onDairyChange,
   onBmcChange,
-  onSocietyChange
+  onSocietyChange,
+  reportSource = 'society'
 }: ComparisonSummaryProps) {
   const [currentData, setCurrentData] = useState<ComparisonData | null>(null);
   const [previousData, setPreviousData] = useState<ComparisonData | null>(null);
@@ -103,9 +108,13 @@ export default function ComparisonSummary({
     }
   };
 
+  // Create stable dependency key
+  const dependencyKey = `${currentDate.from}-${currentDate.to}-${previousDate.from}-${previousDate.to}-${dairyFilter.join(',')}-${bmcFilter.join(',')}-${societyFilter.join(',')}`;
+
   useEffect(() => {
     fetchComparisonData();
-  }, [currentDate, previousDate, dairyFilter, bmcFilter, societyFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dependencyKey]);
 
   const fetchComparisonData = async () => {
     setLoading(true);
@@ -116,9 +125,13 @@ export default function ComparisonSummary({
       console.log('Current Date Range:', currentDate);
       console.log('Previous Date Range:', previousDate);
       
-      // Fetch all collection data
+      // Fetch all collection data - use BMC endpoint if reportSource is 'bmc'
+      const collectionEndpoint = reportSource === 'bmc'
+        ? '/api/user/reports/bmc-collections'
+        : '/api/user/reports/collections';
+      
       const response = await fetch(
-        '/api/user/reports/collections',
+        collectionEndpoint,
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       
@@ -311,6 +324,156 @@ export default function ComparisonSummary({
     return { diff, percentChange };
   };
 
+  const exportToCSV = () => {
+    if (!currentData || !previousData) return;
+
+    const currentDateTime = new Date().toLocaleString('en-IN', { 
+      year: 'numeric', month: '2-digit', day: '2-digit', 
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+    });
+
+    const csvContent = [
+      'POORNASREE EQUIPMENTS - Collection Comparison Report',
+      'LactoConnect Milk Collection System',
+      '',
+      `Report Generated: ${currentDateTime}`,
+      `Comparison Period: ${previousDate.label} vs ${currentDate.label}`,
+      '',
+      'COMPARISON DATA',
+      '',
+      'Metric,Total Collections,Total Quantity (L),Weighted FAT (%),Weighted SNF (%),Weighted CLR,Total Amount (Rs),Avg Rate (Rs/L)',
+      `${currentDate.label},${currentData.totalCollections},${currentData.totalQuantity.toFixed(2)},${currentData.weightedFat.toFixed(2)},${currentData.weightedSnf.toFixed(2)},${currentData.weightedClr.toFixed(2)},${currentData.totalAmount.toFixed(2)},${currentData.averageRate.toFixed(2)}`,
+      `${previousDate.label},${previousData.totalCollections},${previousData.totalQuantity.toFixed(2)},${previousData.weightedFat.toFixed(2)},${previousData.weightedSnf.toFixed(2)},${previousData.weightedClr.toFixed(2)},${previousData.totalAmount.toFixed(2)},${previousData.averageRate.toFixed(2)}`,
+      `Difference,${(currentData.totalCollections - previousData.totalCollections).toFixed(0)},${(currentData.totalQuantity - previousData.totalQuantity).toFixed(2)},${(currentData.weightedFat - previousData.weightedFat).toFixed(2)},${(currentData.weightedSnf - previousData.weightedSnf).toFixed(2)},${(currentData.weightedClr - previousData.weightedClr).toFixed(2)},${(currentData.totalAmount - previousData.totalAmount).toFixed(2)},${(currentData.averageRate - previousData.averageRate).toFixed(2)}`,
+      '',
+      'SUMMARY',
+      `Current Period (${currentDate.label}):,${currentData.totalCollections} collections,${currentData.totalQuantity.toFixed(2)} L,Rs ${currentData.totalAmount.toFixed(2)}`,
+      `Previous Period (${previousDate.label}):,${previousData.totalCollections} collections,${previousData.totalQuantity.toFixed(2)} L,Rs ${previousData.totalAmount.toFixed(2)}`,
+      '',
+      'Thank you',
+      'Poornasree Equipments',
+      'Contact: marketing@poornasree.com',
+      `Generated on: ${currentDateTime}`
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `collection-comparison-${currentDate.from}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToPDF = () => {
+    if (!currentData || !previousData) return;
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    // Add Logo
+    const logoPath = '/fulllogo.png';
+    doc.addImage(logoPath, 'PNG', 14, 8, 0, 12);
+
+    // Header
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Collection Comparison Report - LactoConnect System', 148.5, 15, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Comparison: ${previousDate.label} vs ${currentDate.label}`, 148.5, 21, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('COMPARISON DATA', 148.5, 28, { align: 'center' });
+
+    // Comparison Table
+    autoTable(doc, {
+      startY: 32,
+      head: [['Metric', 'Total Collections', 'Total Quantity (L)', 'Weighted FAT (%)', 'Weighted SNF (%)', 'Weighted CLR', 'Total Amount (Rs)', 'Avg Rate (Rs/L)']],
+      body: [
+        [
+          currentDate.label,
+          currentData.totalCollections,
+          currentData.totalQuantity.toFixed(2),
+          currentData.weightedFat.toFixed(2),
+          currentData.weightedSnf.toFixed(2),
+          currentData.weightedClr.toFixed(2),
+          currentData.totalAmount.toFixed(2),
+          currentData.averageRate.toFixed(2)
+        ],
+        [
+          previousDate.label,
+          previousData.totalCollections,
+          previousData.totalQuantity.toFixed(2),
+          previousData.weightedFat.toFixed(2),
+          previousData.weightedSnf.toFixed(2),
+          previousData.weightedClr.toFixed(2),
+          previousData.totalAmount.toFixed(2),
+          previousData.averageRate.toFixed(2)
+        ],
+        [
+          'Difference',
+          (currentData.totalCollections - previousData.totalCollections).toFixed(0),
+          (currentData.totalQuantity - previousData.totalQuantity).toFixed(2),
+          (currentData.weightedFat - previousData.weightedFat).toFixed(2),
+          (currentData.weightedSnf - previousData.weightedSnf).toFixed(2),
+          (currentData.weightedClr - previousData.weightedClr).toFixed(2),
+          (currentData.totalAmount - previousData.totalAmount).toFixed(2),
+          (currentData.averageRate - previousData.averageRate).toFixed(2)
+        ]
+      ],
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
+      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8, lineWidth: 0.5, lineColor: [0, 0, 0] },
+      bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] }
+    });
+
+    // Summary Section
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    
+    // Left side - Current Period Summary
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CURRENT PERIOD SUMMARY', 14, finalY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    let leftY = finalY + 6;
+    doc.text(`Period: ${currentDate.label}`, 14, leftY);
+    leftY += 5;
+    doc.text(`Total Collections: ${currentData.totalCollections}`, 14, leftY);
+    leftY += 5;
+    doc.text(`Total Quantity: ${currentData.totalQuantity.toFixed(2)} L`, 14, leftY);
+    leftY += 5;
+    doc.text(`Total Amount: Rs ${currentData.totalAmount.toFixed(2)}`, 14, leftY);
+    leftY += 5;
+    doc.text(`Weighted FAT: ${currentData.weightedFat.toFixed(2)}%`, 14, leftY);
+    leftY += 5;
+    doc.text(`Weighted SNF: ${currentData.weightedSnf.toFixed(2)}%`, 14, leftY);
+    leftY += 5;
+    doc.text(`Weighted CLR: ${currentData.weightedClr.toFixed(2)}`, 14, leftY);
+
+    // Right side - Company Info
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORT NOTES', 283, finalY, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    let rightY = finalY + 6;
+    doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
+    rightY += 5;
+    doc.text('Contact: marketing@poornasree.com', 283, rightY, { align: 'right' });
+    rightY += 8;
+    doc.setFont('helvetica', 'bold');
+    doc.text('POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    rightY += 5;
+    doc.text('Thank you for using LactoConnect', 283, rightY, { align: 'right' });
+    rightY += 5;
+    doc.text('For support, visit: www.poornasree.com', 283, rightY, { align: 'right' });
+
+    doc.save(`collection-comparison-${currentDate.from}.pdf`);
+  };
+
   const renderDifferenceCell = (current: number, previous: number, decimals: number = 2) => {
     const { diff, percentChange } = getDifference(current, previous);
     const isPositive = diff > 0;
@@ -337,7 +500,7 @@ export default function ComparisonSummary({
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-psr-green-600"></div>
+          <FlowerSpinner size={48} />
         </div>
       </div>
     );
@@ -372,41 +535,75 @@ export default function ComparisonSummary({
             </p>
           </div>
           
-          {/* Filter Dropdown */}
-          {onDairyChange && onBmcChange && onSocietyChange && (() => {
-            console.log('FilterDropdown Render - Societies:', societies.length, societies);
-            console.log('FilterDropdown Render - Dairies:', dairies.length);
-            console.log('FilterDropdown Render - BMCs:', bmcs.length);
-            console.log('FilterDropdown Render - SocietyFilter:', societyFilter);
-            return true;
-          })() && (
-            <div className="flex-shrink-0">
-              <FilterDropdown
-                statusFilter="all"
-                onStatusChange={() => {}}
-                dairyFilter={dairyFilter}
-                onDairyChange={(value) => onDairyChange(Array.isArray(value) ? value : [value])}
-                bmcFilter={bmcFilter}
-                onBmcChange={(value) => onBmcChange(Array.isArray(value) ? value : [value])}
-                societyFilter={Array.isArray(societyFilter) ? societyFilter : []}
-                onSocietyChange={(value) => onSocietyChange(Array.isArray(value) ? value : [value])}
-                machineFilter="all"
-                onMachineChange={() => {}}
-                dairies={dairies}
-                bmcs={bmcs}
-                societies={societies}
-                machines={[]}
-                filteredCount={0}
-                totalCount={0}
-                hideMainFilterButton={true}
-                hideSocietyFilter={false}
-                showShiftFilter={false}
-                showMachineFilter={false}
-                showFarmerFilter={false}
-                showDateFilter={false}
-                showChannelFilter={false}
-              />
+          {/* Export Buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              CSV
+            </button>
+            <button
+              onClick={exportToPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              PDF
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between gap-4">
+          {/* BMC Filter Dropdown - Always Visible */}
+          {onBmcChange && bmcs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                BMC:
+              </label>
+              <select
+                value={bmcFilter.length > 0 ? bmcFilter[0] : ''}
+                onChange={(e) => onBmcChange(e.target.value ? [e.target.value] : [])}
+                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">All BMCs</option>
+                {bmcs.map((bmc) => (
+                  <option key={bmc.id} value={bmc.id.toString()}>
+                    {bmc.name} ({bmc.bmcId})
+                  </option>
+                ))}
+              </select>
             </div>
+          )}
+          
+          {/* Additional Filters */}
+          {onDairyChange && onSocietyChange && (
+            <FilterDropdown
+              statusFilter="all"
+              onStatusChange={() => {}}
+              dairyFilter={dairyFilter}
+              onDairyChange={(value) => onDairyChange(Array.isArray(value) ? value : [value])}
+              bmcFilter={[]}
+              onBmcChange={() => {}}
+              societyFilter={Array.isArray(societyFilter) ? societyFilter : []}
+              onSocietyChange={(value) => onSocietyChange(Array.isArray(value) ? value : [value])}
+              machineFilter="all"
+              onMachineChange={() => {}}
+              dairies={dairies}
+              bmcs={[]}
+              societies={societies}
+              machines={[]}
+              filteredCount={0}
+              totalCount={0}
+              hideMainFilterButton={true}
+              hideBmcFilter={true}
+              hideSocietyFilter={false}
+              showShiftFilter={false}
+              showMachineFilter={false}
+              showFarmerFilter={false}
+              showDateFilter={false}
+              showChannelFilter={false}
+            />
           )}
         </div>
       </div>

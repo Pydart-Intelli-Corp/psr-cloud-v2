@@ -11,6 +11,10 @@ import SalesReports from '@/components/reports/SalesReports';
 import ComparisonSummary from '@/components/reports/ComparisonSummary';
 import CollectionDispatchComparison from '@/components/reports/CollectionDispatchComparison';
 import DispatchComparison from '@/components/reports/DispatchComparison';
+import SalesComparison from '@/components/reports/SalesComparison';
+import BmcComparisonSummary from '@/components/reports/BmcComparisonSummary';
+import BmcCollectionDispatchComparison from '@/components/reports/BmcCollectionDispatchComparison';
+import BmcVsSocietyComparison from '@/components/reports/BmcVsSocietyComparison';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +58,7 @@ function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportType>('collection');
   const [reportSource, setReportSource] = useState<ReportSource>('society');
   const [comparisonMode, setComparisonMode] = useState(false);
-  const [comparisonType, setComparisonType] = useState<'collection-collection' | 'collection-dispatch' | 'collection-sales' | 'dispatch-dispatch' | 'dispatch-sales' | 'sales-sales'>('collection-collection');
+  const [comparisonType, setComparisonType] = useState<'collection-collection' | 'collection-dispatch' | 'collection-sales' | 'dispatch-dispatch' | 'dispatch-sales' | 'sales-sales' | 'bmc-society'>('collection-collection');
   const [timePeriod, setTimePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [customDate, setCustomDate] = useState('');
   const [customWeekStart, setCustomWeekStart] = useState('');
@@ -66,6 +70,9 @@ function ReportsPage() {
   const [comparisonDairyFilter, setComparisonDairyFilter] = useState<string[]>([]);
   const [comparisonBmcFilter, setComparisonBmcFilter] = useState<string[]>([]);
   const [comparisonSocietyFilter, setComparisonSocietyFilter] = useState<string[]>([]);
+  const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string }>>([]);
+  const [showBmcDialog, setShowBmcDialog] = useState(false);
+  const [tempBmcSelection, setTempBmcSelection] = useState<string[]>([]);
   const [initialSocietyId, setInitialSocietyId] = useState<string | null>(null);
   const [initialSocietyName, setInitialSocietyName] = useState<string | null>(null);
   const [initialFromDate, setInitialFromDate] = useState<string | null>(null);
@@ -110,6 +117,42 @@ function ReportsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
+
+  useEffect(() => {
+    const fetchBmcs = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+        const res = await fetch('/api/user/bmc', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          setBmcs(data.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching BMCs:', error);
+      }
+    };
+    fetchBmcs();
+  }, []);
+
+  const handleComparisonToggle = () => {
+    if (!comparisonMode && reportSource === 'bmc') {
+      setTempBmcSelection(comparisonBmcFilter.length > 0 ? [comparisonBmcFilter[0]] : []);
+      setShowBmcDialog(true);
+    } else {
+      setComparisonMode(!comparisonMode);
+    }
+  };
+
+  const confirmBmcSelection = () => {
+    if (tempBmcSelection.length === 0) {
+      alert('Please select one BMC');
+      return;
+    }
+    setComparisonBmcFilter(tempBmcSelection);
+    setShowBmcDialog(false);
+    setComparisonMode(true);
+  };
 
   // Listen to global search event from header
   useEffect(() => {
@@ -220,6 +263,7 @@ function ReportsPage() {
       
       return (
         <ComparisonSummary 
+          key={`collection-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
           currentDate={dates.current} 
           previousDate={dates.previous}
           dairyFilter={comparisonDairyFilter}
@@ -238,6 +282,7 @@ function ReportsPage() {
       
       return (
         <CollectionDispatchComparison 
+          key={`collection-dispatch-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
           dateRange={dates.current}
           dairyFilter={comparisonDairyFilter}
           bmcFilter={comparisonBmcFilter}
@@ -255,6 +300,7 @@ function ReportsPage() {
       
       return (
         <DispatchComparison 
+          key={`dispatch-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
           currentDate={dates.current} 
           previousDate={dates.previous}
           dairyFilter={comparisonDairyFilter}
@@ -263,6 +309,119 @@ function ReportsPage() {
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={setComparisonSocietyFilter}
+        />
+      );
+    }
+
+    // Special comparison view for Society Sales vs Sales
+    if (comparisonMode && reportSource === 'society' && comparisonType === 'sales-sales') {
+      const dates = getComparisonDates();
+      
+      return (
+        <SalesComparison 
+          key={`sales-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
+          currentDate={dates.current} 
+          previousDate={dates.previous}
+          dairyFilter={comparisonDairyFilter}
+          bmcFilter={comparisonBmcFilter}
+          societyFilter={comparisonSocietyFilter}
+          onDairyChange={setComparisonDairyFilter}
+          onBmcChange={setComparisonBmcFilter}
+          onSocietyChange={setComparisonSocietyFilter}
+        />
+      );
+    }
+    
+    // Special comparison view for BMC Collection vs Collection
+    if (comparisonMode && reportSource === 'bmc' && comparisonType === 'collection-collection') {
+      const dates = getComparisonDates();
+      
+      return (
+        <BmcComparisonSummary 
+          key={`bmc-collection-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
+          currentDate={dates.current} 
+          previousDate={dates.previous}
+          dairyFilter={comparisonDairyFilter}
+          bmcFilter={comparisonBmcFilter}
+          onDairyChange={setComparisonDairyFilter}
+          onBmcChange={setComparisonBmcFilter}
+          reportSource={reportSource}
+        />
+      );
+    }
+
+    // Special comparison view for BMC Collection vs Dispatch
+    if (comparisonMode && reportSource === 'bmc' && comparisonType === 'collection-dispatch') {
+      const dates = getComparisonDates();
+      
+      return (
+        <BmcCollectionDispatchComparison 
+          key={`bmc-collection-dispatch-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
+          dateRange={dates.current}
+          dairyFilter={comparisonDairyFilter}
+          bmcFilter={comparisonBmcFilter}
+          onDairyChange={setComparisonDairyFilter}
+          onBmcChange={setComparisonBmcFilter}
+          reportSource={reportSource}
+        />
+      );
+    }
+
+    // Special comparison view for BMC Dispatch vs Dispatch
+    if (comparisonMode && reportSource === 'bmc' && comparisonType === 'dispatch-dispatch') {
+      const dates = getComparisonDates();
+      
+      return (
+        <DispatchComparison 
+          key={`bmc-dispatch-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
+          currentDate={dates.current} 
+          previousDate={dates.previous}
+          dairyFilter={comparisonDairyFilter}
+          bmcFilter={comparisonBmcFilter}
+          societyFilter={[]}
+          onDairyChange={setComparisonDairyFilter}
+          onBmcChange={setComparisonBmcFilter}
+          onSocietyChange={() => {}}
+          reportSource={reportSource}
+        />
+      );
+    }
+
+    // Special comparison view for BMC Sales vs Sales
+    if (comparisonMode && reportSource === 'bmc' && comparisonType === 'sales-sales') {
+      const dates = getComparisonDates();
+      
+      return (
+        <SalesComparison 
+          key={`bmc-sales-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
+          currentDate={dates.current} 
+          previousDate={dates.previous}
+          dairyFilter={comparisonDairyFilter}
+          bmcFilter={comparisonBmcFilter}
+          societyFilter={[]}
+          onDairyChange={setComparisonDairyFilter}
+          onBmcChange={setComparisonBmcFilter}
+          onSocietyChange={() => {}}
+          reportSource={reportSource}
+        />
+      );
+    }
+
+    // Special comparison view for BMC vs Society
+    if (comparisonMode && reportSource === 'bmc' && comparisonType === 'bmc-society') {
+      const dates = getComparisonDates();
+      
+      return (
+        <BmcVsSocietyComparison 
+          key={`bmc-society-comparison-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
+          dateRange={dates.current}
+          dairyFilter={comparisonDairyFilter}
+          bmcFilter={comparisonBmcFilter}
+          societyFilter={comparisonSocietyFilter}
+          onDairyChange={setComparisonDairyFilter}
+          onBmcChange={setComparisonBmcFilter}
+          onSocietyChange={setComparisonSocietyFilter}
+          reportSource={reportSource}
         />
       );
     }
@@ -330,58 +489,8 @@ function ReportsPage() {
       );
     }
     
-    // Comparison mode with BMC - show Society vs BMC side by side
-    if (comparisonMode && reportSource === 'bmc' && (activeTab === 'collection' || activeTab === 'dispatch')) {
-      return (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Society Report */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-300 dark:border-gray-600 p-4">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Society Reports</h2>
-            </div>
-            {activeTab === 'collection' ? (
-              <CollectionReports 
-                key={`collection-society`} 
-                globalSearch={globalSearch} 
-                reportSource="society" 
-                initialSocietyId={initialSocietyId} 
-                initialSocietyName={initialSocietyName} 
-                initialFromDate={initialFromDate} 
-                initialToDate={initialToDate} 
-                initialBmcFilter={initialBmcFilter} 
-                initialMachineFilter={initialMachineFilter} 
-              />
-            ) : (
-              <DispatchReports key={`dispatch-society`} globalSearch={globalSearch} reportSource="society" />
-            )}
-          </div>
-
-          {/* BMC Report */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-300 dark:border-gray-600 p-4">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-              <Building2 className="w-5 h-5 text-green-600 dark:text-green-400" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">BMC Reports</h2>
-            </div>
-            {activeTab === 'collection' ? (
-              <CollectionReports 
-                key={`collection-bmc`} 
-                globalSearch={globalSearch} 
-                reportSource="bmc" 
-                initialSocietyId={initialSocietyId} 
-                initialSocietyName={initialSocietyName} 
-                initialFromDate={initialFromDate} 
-                initialToDate={initialToDate} 
-                initialBmcFilter={initialBmcFilter} 
-                initialMachineFilter={initialMachineFilter} 
-              />
-            ) : (
-              <DispatchReports key={`dispatch-bmc`} globalSearch={globalSearch} reportSource="bmc" />
-            )}
-          </div>
-        </div>
-      );
-    }
+    // Comparison mode with BMC - removed old side-by-side view
+    // Now BMC uses same comparison structure as society (handled above)
 
     // Normal single view mode
     const key = `${activeTab}-${reportSource}`;
@@ -455,9 +564,9 @@ function ReportsPage() {
                 </div>
 
               {/* Comparison Button */}
-              {(activeTab === 'collection' || activeTab === 'dispatch') && (
+              {(activeTab === 'collection' || activeTab === 'dispatch' || activeTab === 'sales') && (
                 <button
-                  onClick={() => setComparisonMode(!comparisonMode)}
+                  onClick={handleComparisonToggle}
                   className={`
                     flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-md font-medium text-sm
                     transition-all duration-200
@@ -477,109 +586,53 @@ function ReportsPage() {
               )}
 
               {/* Report Type Toggle - Show comparison options when comparison mode is active */}
-              {comparisonMode && reportSource === 'society' ? (
+              {comparisonMode && (reportSource === 'society' || reportSource === 'bmc') ? (
                 <div className="flex flex-col gap-2">
-                  {/* Comparison Type Selection */}
-                  <div className="inline-flex bg-psr-green-50 dark:bg-gray-800 rounded-xl p-1 shadow-inner">
-                    <button
-                      onClick={() => setComparisonType('collection-collection')}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 ${
-                        comparisonType === 'collection-collection'
-                          ? 'bg-psr-green-600 text-white shadow-md'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-psr-green-600'
-                      }`}
+                  {/* Comparison Type Dropdown */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Comparison Type:</label>
+                    <select
+                      value={comparisonType}
+                      onChange={(e) => {
+                        const newType = e.target.value as typeof comparisonType;
+                        setComparisonType(newType);
+                        if (reportSource === 'bmc' && newType === 'bmc-society' && comparisonBmcFilter.length === 0) {
+                          setTempBmcSelection([]);
+                          setShowBmcDialog(true);
+                        }
+                      }}
+                      className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-psr-green-500 focus:border-transparent"
                     >
-                      Collection vs Collection
-                    </button>
-                    <button
-                      onClick={() => setComparisonType('collection-dispatch')}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 ${
-                        comparisonType === 'collection-dispatch'
-                          ? 'bg-psr-green-600 text-white shadow-md'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-psr-green-600'
-                      }`}
-                    >
-                      Collection vs Dispatch
-                    </button>
-                    <button
-                      onClick={() => setComparisonType('dispatch-dispatch')}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 ${
-                        comparisonType === 'dispatch-dispatch'
-                          ? 'bg-psr-green-600 text-white shadow-md'
-                          : 'text-gray-600 dark:text-gray-400 hover:text-psr-green-600'
-                      }`}
-                    >
-                      Dispatch vs Dispatch
-                    </button>
+                      <option value="collection-collection">Collection vs Collection</option>
+                      <option value="collection-dispatch">Collection vs Dispatch</option>
+                      <option value="dispatch-dispatch">Dispatch vs Dispatch</option>
+                      <option value="sales-sales">Sales vs Sales</option>
+                      {reportSource === 'bmc' && (
+                        <option value="bmc-society">BMC vs Society</option>
+                      )}
+                    </select>
                   </div>
                   
                   {/* Time Period Selection with Custom Date in Same Row */}
                   <div className="flex items-center gap-3">
-                    <div className="inline-flex bg-blue-50 dark:bg-gray-800 rounded-lg p-1 shadow-inner">
-                      <button
-                        onClick={() => {
-                          setTimePeriod('daily');
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Time Period:</label>
+                      <select
+                        value={timePeriod}
+                        onChange={(e) => {
+                          setTimePeriod(e.target.value as typeof timePeriod);
                           setCustomDate('');
                           setCustomWeekStart('');
                           setCustomMonth('');
                           setCustomYear('');
                         }}
-                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                          timePeriod === 'daily'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                        }`}
+                        className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       >
-                        Daily
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTimePeriod('weekly');
-                          setCustomDate('');
-                          setCustomWeekStart('');
-                          setCustomMonth('');
-                          setCustomYear('');
-                        }}
-                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                          timePeriod === 'weekly'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                        }`}
-                      >
-                        Weekly
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTimePeriod('monthly');
-                          setCustomDate('');
-                          setCustomWeekStart('');
-                          setCustomMonth('');
-                          setCustomYear('');
-                        }}
-                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                          timePeriod === 'monthly'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                        }`}
-                      >
-                        Monthly
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTimePeriod('yearly');
-                          setCustomDate('');
-                          setCustomWeekStart('');
-                          setCustomMonth('');
-                          setCustomYear('');
-                        }}
-                        className={`px-3 py-1 rounded-md font-medium text-xs transition-all duration-200 ${
-                          timePeriod === 'yearly'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-blue-600'
-                        }`}
-                      >
-                        Yearly
-                      </button>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
                     </div>
                     
                     {/* Custom Date Selection */}
@@ -716,6 +769,50 @@ function ReportsPage() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {showBmcDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <Building2 className="w-6 h-6 text-psr-green-600" />
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Select BMC</h3>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Select one BMC for comparison</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {bmcs.length > 0 ? (
+                <div className="space-y-2">
+                  {bmcs.map((bmc) => (
+                    <label key={bmc.id} className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer rounded-lg border border-gray-200 dark:border-gray-600">
+                      <input
+                        type="radio"
+                        name="bmcSelection"
+                        checked={tempBmcSelection.includes(bmc.id.toString())}
+                        onChange={() => setTempBmcSelection([bmc.id.toString()])}
+                        className="w-4 h-4 text-psr-green-600 border-gray-300 focus:ring-psr-green-500"
+                      />
+                      <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">{bmc.name}</span>
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({bmc.bmcId})</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">Loading BMCs...</p>
+              )}
+              {tempBmcSelection.length > 0 && (
+                <p className="text-sm text-psr-green-600 dark:text-psr-green-400 mt-4 text-center">
+                  ✓ {bmcs.find(b => b.id.toString() === tempBmcSelection[0])?.name} selected
+                </p>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+              <button onClick={() => { setShowBmcDialog(false); setTempBmcSelection([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium">Cancel</button>
+              <button onClick={confirmBmcSelection} className="flex-1 px-4 py-2 bg-psr-green-600 text-white rounded-lg hover:bg-psr-green-700 font-medium">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -728,3 +825,5 @@ export default function ReportsPageWrapper() {
     </Suspense>
   );
 }
+
+

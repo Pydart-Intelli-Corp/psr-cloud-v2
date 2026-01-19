@@ -67,18 +67,18 @@ async function handleRequest(
       return ESP32ResponseHelper.createErrorResponse('Invalid DB Key');
     }
 
-    // Parse input string format: societyId|machineType|version|machineId|passwordType
-    // Example: S-s12|ECOD|LE3.34|M00001|U or S-s12|ECOD|LE3.34|M00001|S
+    // Parse input string format: societyId|machineType|version|machineId|passwordType (optional)
+    // Example: S-s12|ECOD|LE3.34|M00001|U or S-s12|ECOD|LE3.34|M00001 (updates both)
     const inputParts = inputString.split('|');
     
-    if (inputParts.length !== 5) {
-      console.log(`❌ Invalid InputString format. Expected 5 parts, got ${inputParts.length}`);
-      return ESP32ResponseHelper.createErrorResponse('Invalid InputString format. Expected: societyId|machineType|version|machineId|passwordType');
+    if (inputParts.length !== 4 && inputParts.length !== 5) {
+      console.log(`❌ Invalid InputString format. Expected 4 or 5 parts, got ${inputParts.length}`);
+      return ESP32ResponseHelper.createErrorResponse('Invalid InputString format. Expected: societyId|machineType|version|machineId|passwordType(optional)');
     }
 
     const [societyIdStr, machineType, machineModel, machineId, passwordType] = inputParts;
     
-    console.log(`🔍 Parsed InputString parts:`, { societyIdStr, machineType, machineModel, machineId, passwordType });
+    console.log(`🔍 Parsed InputString parts:`, { societyIdStr, machineType, machineModel, machineId, passwordType: passwordType || 'both' });
     
     // PRIORITY 2: Validate Society/BMC ID and find actual database ID
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -133,15 +133,17 @@ async function handleRequest(
     const parsedMachineId = machineIdValidation.numericId || null;
     const machineIdVariants = machineIdValidation.variants || [];
 
-    // PRIORITY 4: Validate Password Type
-    if (!passwordType || (passwordType !== 'U' && passwordType !== 'S')) {
+    // PRIORITY 4: Validate Password Type (optional - if not provided, update both)
+    const updateBoth = !passwordType;
+    const isUserPassword = passwordType === 'U';
+    const isSupervisorPassword = passwordType === 'S';
+    
+    if (passwordType && passwordType !== 'U' && passwordType !== 'S') {
       console.log(`❌ Invalid password type: "${passwordType}". Must be 'U' for User or 'S' for Supervisor`);
       return ESP32ResponseHelper.createErrorResponse('Invalid password type. Must be U or S');
     }
     
-    const isUserPassword = passwordType === 'U';
-    
-    console.log(`🔍 Password type: ${passwordType} (${isUserPassword ? 'User' : 'Supervisor'} password)`);
+    console.log(`🔍 Password type: ${passwordType || 'both'} (${updateBoth ? 'Both passwords' : isUserPassword ? 'User password' : 'Supervisor password'})`);
 
     console.log(`🔍 Using schema: ${schemaName} for society: ${actualSocietyId}, machine: ${machineId}`);
 
@@ -188,16 +190,23 @@ async function handleRequest(
     // PRIORITY 6: Update the appropriate password status
     let updateQuery: string;
     let statusField: string;
-    let currentStatus: number;
 
-    if (isUserPassword) {
+    if (updateBoth) {
+      updateQuery = `
+        UPDATE \`${schemaName}\`.machines 
+        SET statusU = 0, statusS = 0 
+        WHERE id = ?
+      `;
+      statusField = 'statusU and statusS';
+      console.log(`🔄 Updating both statusU (${machine.statusU}) and statusS (${machine.statusS}) to 0 for machine ID: ${machine.id}`);
+    } else if (isUserPassword) {
       updateQuery = `
         UPDATE \`${schemaName}\`.machines 
         SET statusU = 0 
         WHERE id = ?
       `;
       statusField = 'statusU';
-      currentStatus = machine.statusU;
+      console.log(`🔄 Updating ${statusField} from ${machine.statusU} to 0 for machine ID: ${machine.id}`);
     } else {
       updateQuery = `
         UPDATE \`${schemaName}\`.machines 
@@ -205,10 +214,8 @@ async function handleRequest(
         WHERE id = ?
       `;
       statusField = 'statusS';
-      currentStatus = machine.statusS;
+      console.log(`🔄 Updating ${statusField} from ${machine.statusS} to 0 for machine ID: ${machine.id}`);
     }
-
-    console.log(`🔄 Updating ${statusField} from ${currentStatus} to 0 for machine ID: ${machine.id}`);
 
     // Execute the update
     await sequelize.query(updateQuery, { replacements: [machine.id] });
@@ -228,7 +235,9 @@ async function handleRequest(
     console.log(`🔍 Verification - Updated status - User: ${updatedMachine.statusU}, Supervisor: ${updatedMachine.statusS}`);
 
     // Return success response
-    const successMessage = isUserPassword 
+    const successMessage = updateBoth
+      ? `Both password statuses updated to 0 for machine ${machine.machine_id}`
+      : isUserPassword 
       ? `User password status updated to 0 for machine ${machine.machine_id}`
       : `Supervisor password status updated to 0 for machine ${machine.machine_id}`;
 

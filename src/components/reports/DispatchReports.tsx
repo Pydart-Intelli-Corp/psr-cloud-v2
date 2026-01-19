@@ -1578,6 +1578,7 @@ export default function DispatchReports({ globalSearch = '', reportSource = 'soc
                     className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
                   />
                 </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Sl. No</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Dispatch ID</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{reportSource === 'bmc' ? 'BMC' : 'Society'}</th>
@@ -1596,12 +1597,12 @@ export default function DispatchReports({ globalSearch = '', reportSource = 'soc
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={15} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No dispatch records found
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
+                filteredRecords.map((record, index) => (
                   <React.Fragment key={record.id}>
                     <tr className={`transition-colors ${
                       selectedRecords.has(record.id)
@@ -1615,6 +1616,9 @@ export default function DispatchReports({ globalSearch = '', reportSource = 'soc
                           onChange={() => handleSelectOne(record.id)}
                           className="w-4 h-4 text-emerald-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
                         />
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap font-medium">
+                        {index + 1}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white whitespace-nowrap">
                         <div>{highlightText(record.dispatch_date, combinedSearch)}</div>
