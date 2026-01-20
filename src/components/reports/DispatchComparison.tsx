@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Minus, Download, FileText } from 'lucide-react';
-import FilterDropdown from '@/components/management/FilterDropdown';
 import { FlowerSpinner } from '@/components';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { LineChart, Line, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ComparisonData {
   totalDispatches: number;
@@ -27,6 +27,7 @@ interface DispatchComparisonProps {
   onBmcChange?: (value: string[]) => void;
   onSocietyChange?: (value: string[]) => void;
   reportSource?: 'society' | 'bmc';
+  timePeriod?: 'daily' | 'weekly' | 'monthly' | 'yearly';
 }
 
 export default function DispatchComparison({ 
@@ -38,10 +39,12 @@ export default function DispatchComparison({
   onDairyChange,
   onBmcChange,
   onSocietyChange,
-  reportSource = 'society'
+  reportSource = 'society',
+  timePeriod = 'daily'
 }: DispatchComparisonProps) {
   const [currentData, setCurrentData] = useState<ComparisonData | null>(null);
   const [previousData, setPreviousData] = useState<ComparisonData | null>(null);
+  const [dailyData, setDailyData] = useState<Array<{ date: string; data: ComparisonData }>>([]);
   const [loading, setLoading] = useState(true);
   
   // Filter data states
@@ -256,6 +259,28 @@ export default function DispatchComparison({
       console.log('Previous Stats:', previousStats);
       setPreviousData(previousStats);
 
+      // Calculate daily variations if in daily mode with date range
+      if (timePeriod === 'daily' && currentDate.from !== currentDate.to) {
+        const dailyBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startDate = new Date(currentDate.from);
+        const endDate = new Date(currentDate.to);
+        
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          const dayRecords = currentRecords.filter((r: any) => {
+            const recordDate = r.dispatch_date || r.date;
+            return recordDate === dateStr;
+          });
+          dailyBreakdown.push({
+            date: dateStr,
+            data: calculateStats(dayRecords)
+          });
+        }
+        setDailyData(dailyBreakdown);
+      } else {
+        setDailyData([]);
+      }
+
     } catch (error) {
       console.error('Error fetching comparison data:', error);
     } finally {
@@ -332,31 +357,61 @@ export default function DispatchComparison({
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
     });
 
-    const csvContent = [
+    // Get filter details
+    const selectedDairy = dairyFilter.length > 0 ? dairies.find(d => d.id.toString() === dairyFilter[0]) : null;
+    const selectedBmc = bmcFilter.length > 0 ? bmcs.find(b => b.id.toString() === bmcFilter[0]) : null;
+    const selectedSociety = societyFilter.length > 0 ? societies.find(s => s.id.toString() === societyFilter[0]) : null;
+
+    let csvContent = [
       'POORNASREE EQUIPMENTS - Dispatch Comparison Report',
       'LactoConnect Milk Collection System',
       '',
       `Report Generated: ${currentDateTime}`,
       `Comparison Period: ${previousDate.label} vs ${currentDate.label}`,
-      '',
-      'COMPARISON DATA',
-      '',
-      'Metric,Total Dispatches,Total Quantity (L),Weighted FAT (%),Weighted SNF (%),Weighted CLR,Total Amount (Rs),Avg Rate (Rs/L)',
-      `${currentDate.label},${currentData.totalDispatches},${currentData.totalQuantity.toFixed(2)},${currentData.weightedFat.toFixed(2)},${currentData.weightedSnf.toFixed(2)},${currentData.weightedClr.toFixed(2)},${currentData.totalAmount.toFixed(2)},${currentData.averageRate.toFixed(2)}`,
-      `${previousDate.label},${previousData.totalDispatches},${previousData.totalQuantity.toFixed(2)},${previousData.weightedFat.toFixed(2)},${previousData.weightedSnf.toFixed(2)},${previousData.weightedClr.toFixed(2)},${previousData.totalAmount.toFixed(2)},${previousData.averageRate.toFixed(2)}`,
-      `Difference,${(currentData.totalDispatches - previousData.totalDispatches).toFixed(0)},${(currentData.totalQuantity - previousData.totalQuantity).toFixed(2)},${(currentData.weightedFat - previousData.weightedFat).toFixed(2)},${(currentData.weightedSnf - previousData.weightedSnf).toFixed(2)},${(currentData.weightedClr - previousData.weightedClr).toFixed(2)},${(currentData.totalAmount - previousData.totalAmount).toFixed(2)},${(currentData.averageRate - previousData.averageRate).toFixed(2)}`,
-      '',
+      ''
+    ];
+
+    // Add filter information
+    if (selectedDairy || selectedBmc || selectedSociety) {
+      csvContent.push('FILTERS APPLIED', '');
+      if (selectedDairy) csvContent.push(`Dairy: ${selectedDairy.name} (${selectedDairy.dairyId})`);
+      if (selectedBmc) csvContent.push(`BMC: ${selectedBmc.name} (${selectedBmc.bmcId})`);
+      if (selectedSociety) csvContent.push(`Society: ${selectedSociety.name} (${selectedSociety.society_id})`);
+      csvContent.push('');
+    }
+
+    if (dailyData.length > 0) {
+      csvContent.push('DAY-BY-DAY BREAKDOWN', '');
+      csvContent.push('Date,Dispatches,Quantity (L),FAT (%),SNF (%),CLR,Amount (Rs),Rate (Rs/L)');
+      dailyData.forEach((day) => {
+        csvContent.push(`${day.date},${day.data.totalDispatches},${day.data.totalQuantity.toFixed(2)},${day.data.weightedFat.toFixed(2)},${day.data.weightedSnf.toFixed(2)},${day.data.weightedClr.toFixed(2)},${day.data.totalAmount.toFixed(2)},${day.data.averageRate.toFixed(2)}`);
+      });
+      csvContent.push('');
+    }
+
+    const isSamePeriod = currentDate.from === previousDate.from && currentDate.to === previousDate.to;
+
+    csvContent = csvContent.concat([
       'SUMMARY',
-      `Current Period (${currentDate.label}):,${currentData.totalDispatches} dispatches,${currentData.totalQuantity.toFixed(2)} L,Rs ${currentData.totalAmount.toFixed(2)}`,
-      `Previous Period (${previousDate.label}):,${previousData.totalDispatches} dispatches,${previousData.totalQuantity.toFixed(2)} L,Rs ${previousData.totalAmount.toFixed(2)}`,
+      '',
+      'Period,Total Dispatches,Total Quantity (L),Weighted FAT (%),Weighted SNF (%),Weighted CLR,Total Amount (Rs),Avg Rate (Rs/L)',
+      `${currentDate.from} to ${currentDate.to},${currentData.totalDispatches},${currentData.totalQuantity.toFixed(2)},${currentData.weightedFat.toFixed(2)},${currentData.weightedSnf.toFixed(2)},${currentData.weightedClr.toFixed(2)},${currentData.totalAmount.toFixed(2)},${currentData.averageRate.toFixed(2)}`,
+    ]);
+
+    if (!isSamePeriod) {
+      csvContent.push(`${previousDate.from} to ${previousDate.to},${previousData.totalDispatches},${previousData.totalQuantity.toFixed(2)},${previousData.weightedFat.toFixed(2)},${previousData.weightedSnf.toFixed(2)},${previousData.weightedClr.toFixed(2)},${previousData.totalAmount.toFixed(2)},${previousData.averageRate.toFixed(2)}`);
+      csvContent.push(`Difference,${(currentData.totalDispatches - previousData.totalDispatches).toFixed(0)},${(currentData.totalQuantity - previousData.totalQuantity).toFixed(2)},${(currentData.weightedFat - previousData.weightedFat).toFixed(2)},${(currentData.weightedSnf - previousData.weightedSnf).toFixed(2)},${(currentData.weightedClr - previousData.weightedClr).toFixed(2)},${(currentData.totalAmount - previousData.totalAmount).toFixed(2)},${(currentData.averageRate - previousData.averageRate).toFixed(2)}`);
+    }
+
+    csvContent = csvContent.concat([
       '',
       'Thank you',
       'Poornasree Equipments',
       'Contact: marketing@poornasree.com',
       `Generated on: ${currentDateTime}`
-    ].join('\n');
+    ]);
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -379,85 +434,95 @@ export default function DispatchComparison({
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text(`Comparison: ${previousDate.label} vs ${currentDate.label}`, 148.5, 21, { align: 'center' });
+
+    // Get filter details
+    const selectedDairy = dairyFilter.length > 0 ? dairies.find(d => d.id.toString() === dairyFilter[0]) : null;
+    const selectedBmc = bmcFilter.length > 0 ? bmcs.find(b => b.id.toString() === bmcFilter[0]) : null;
+    const selectedSociety = societyFilter.length > 0 ? societies.find(s => s.id.toString() === societyFilter[0]) : null;
+
+    let startY = 28;
+
+    // Add filter information
+    if (selectedDairy || selectedBmc || selectedSociety) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Filters Applied:', 14, startY);
+      doc.setFont('helvetica', 'normal');
+      startY += 5;
+      if (selectedDairy) {
+        doc.text(`Dairy: ${selectedDairy.name} (${selectedDairy.dairyId})`, 14, startY);
+        startY += 4;
+      }
+      if (selectedBmc) {
+        doc.text(`BMC: ${selectedBmc.name} (${selectedBmc.bmcId})`, 14, startY);
+        startY += 4;
+      }
+      if (selectedSociety) {
+        doc.text(`Society: ${selectedSociety.name} (${selectedSociety.society_id})`, 14, startY);
+        startY += 4;
+      }
+      startY += 2;
+    }
+
+    if (dailyData.length > 0) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DAY-BY-DAY BREAKDOWN', 148.5, startY, { align: 'center' });
+
+      const dailyRows = dailyData.map(day => [
+        day.date,
+        day.data.totalDispatches,
+        day.data.totalQuantity.toFixed(2),
+        day.data.weightedFat.toFixed(2),
+        day.data.weightedSnf.toFixed(2),
+        day.data.weightedClr.toFixed(2),
+        day.data.totalAmount.toFixed(2),
+        day.data.averageRate.toFixed(2)
+      ]);
+
+      autoTable(doc, {
+        startY: startY + 4,
+        head: [['Date', 'Dispatches', 'Qty (L)', 'FAT (%)', 'SNF (%)', 'CLR', 'Amt (Rs)', 'Rate (Rs/L)']],
+        body: dailyRows,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+        bodyStyles: { lineWidth: 0.2, lineColor: [200, 200, 200] }
+      });
+
+      startY = (doc as any).lastAutoTable.finalY + 8;
+    }
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('COMPARISON DATA', 148.5, 28, { align: 'center' });
+    doc.text('SUMMARY', 148.5, startY, { align: 'center' });
+
+    const isSamePeriod = currentDate.from === previousDate.from && currentDate.to === previousDate.to;
+
+    const summaryBody = isSamePeriod 
+      ? [[`${currentDate.from} to ${currentDate.to}`, currentData.totalDispatches, currentData.totalQuantity.toFixed(2), currentData.weightedFat.toFixed(2), currentData.weightedSnf.toFixed(2), currentData.weightedClr.toFixed(2), currentData.totalAmount.toFixed(2), currentData.averageRate.toFixed(2)]]
+      : [
+          [`${currentDate.from} to ${currentDate.to}`, currentData.totalDispatches, currentData.totalQuantity.toFixed(2), currentData.weightedFat.toFixed(2), currentData.weightedSnf.toFixed(2), currentData.weightedClr.toFixed(2), currentData.totalAmount.toFixed(2), currentData.averageRate.toFixed(2)],
+          [`${previousDate.from} to ${previousDate.to}`, previousData.totalDispatches, previousData.totalQuantity.toFixed(2), previousData.weightedFat.toFixed(2), previousData.weightedSnf.toFixed(2), previousData.weightedClr.toFixed(2), previousData.totalAmount.toFixed(2), previousData.averageRate.toFixed(2)],
+          ['Difference', (currentData.totalDispatches - previousData.totalDispatches).toFixed(0), (currentData.totalQuantity - previousData.totalQuantity).toFixed(2), (currentData.weightedFat - previousData.weightedFat).toFixed(2), (currentData.weightedSnf - previousData.weightedSnf).toFixed(2), (currentData.weightedClr - previousData.weightedClr).toFixed(2), (currentData.totalAmount - previousData.totalAmount).toFixed(2), (currentData.averageRate - previousData.averageRate).toFixed(2)]
+        ];
 
     autoTable(doc, {
-      startY: 32,
-      head: [['Metric', 'Total Dispatches', 'Total Quantity (L)', 'Weighted FAT (%)', 'Weighted SNF (%)', 'Weighted CLR', 'Total Amount (Rs)', 'Avg Rate (Rs/L)']],
-      body: [
-        [
-          currentDate.label,
-          currentData.totalDispatches,
-          currentData.totalQuantity.toFixed(2),
-          currentData.weightedFat.toFixed(2),
-          currentData.weightedSnf.toFixed(2),
-          currentData.weightedClr.toFixed(2),
-          currentData.totalAmount.toFixed(2),
-          currentData.averageRate.toFixed(2)
-        ],
-        [
-          previousDate.label,
-          previousData.totalDispatches,
-          previousData.totalQuantity.toFixed(2),
-          previousData.weightedFat.toFixed(2),
-          previousData.weightedSnf.toFixed(2),
-          previousData.weightedClr.toFixed(2),
-          previousData.totalAmount.toFixed(2),
-          previousData.averageRate.toFixed(2)
-        ],
-        [
-          'Difference',
-          (currentData.totalDispatches - previousData.totalDispatches).toFixed(0),
-          (currentData.totalQuantity - previousData.totalQuantity).toFixed(2),
-          (currentData.weightedFat - previousData.weightedFat).toFixed(2),
-          (currentData.weightedSnf - previousData.weightedSnf).toFixed(2),
-          (currentData.weightedClr - previousData.weightedClr).toFixed(2),
-          (currentData.totalAmount - previousData.totalAmount).toFixed(2),
-          (currentData.averageRate - previousData.averageRate).toFixed(2)
-        ]
-      ],
+      startY: startY + 4,
+      head: [['Period', 'Total Dispatches', 'Total Quantity (L)', 'Weighted FAT (%)', 'Weighted SNF (%)', 'Weighted CLR', 'Total Amount (Rs)', 'Avg Rate (Rs/L)']],
+      body: summaryBody,
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
-      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 8, lineWidth: 0.5, lineColor: [0, 0, 0] },
-      bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] }
+      styles: { fontSize: 7, cellPadding: 2, halign: 'center' },
+      headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 7, lineWidth: 0.5, lineColor: [0, 0, 0] },
+      bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] },
+      columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
     });
 
     const finalY = (doc as any).lastAutoTable.finalY + 8;
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CURRENT PERIOD SUMMARY', 14, finalY);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    let leftY = finalY + 6;
-    doc.text(`Period: ${currentDate.label}`, 14, leftY);
-    leftY += 5;
-    doc.text(`Total Dispatches: ${currentData.totalDispatches}`, 14, leftY);
-    leftY += 5;
-    doc.text(`Total Quantity: ${currentData.totalQuantity.toFixed(2)} L`, 14, leftY);
-    leftY += 5;
-    doc.text(`Total Amount: Rs ${currentData.totalAmount.toFixed(2)}`, 14, leftY);
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('REPORT NOTES', 283, finalY, { align: 'right' });
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    let rightY = finalY + 6;
-    doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
-    rightY += 5;
-    doc.text('Contact: marketing@poornasree.com', 283, rightY, { align: 'right' });
-    rightY += 8;
-    doc.setFont('helvetica', 'bold');
-    doc.text('POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    rightY += 5;
-    doc.text('Thank you for using LactoConnect', 283, rightY, { align: 'right' });
-    rightY += 5;
-    doc.text('For support, visit: www.poornasree.com', 283, rightY, { align: 'right' });
+    doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, finalY, { align: 'right' });
+    doc.text('Contact: marketing@poornasree.com', 283, finalY + 5, { align: 'right' });
 
     doc.save(`dispatch-comparison-${currentDate.from}.pdf`);
   };
@@ -541,59 +606,211 @@ export default function DispatchComparison({
           </div>
         </div>
         
-        <div className="flex items-center justify-between gap-4">
-          {/* BMC Filter Dropdown - Always Visible */}
-          {onBmcChange && bmcs.length > 0 && (
+        <div className="flex items-center gap-4">
+          {/* Dairy Filter Dropdown */}
+          {onDairyChange && dairies.length > 0 && (
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">BMC:</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Dairy:
+              </label>
               <select
-                value={bmcFilter.length > 0 ? bmcFilter[0] : ''}
-                onChange={(e) => onBmcChange(e.target.value ? [e.target.value] : [])}
+                value={dairyFilter.length > 0 ? dairyFilter[0] : ''}
+                onChange={(e) => {
+                  onDairyChange(e.target.value ? [e.target.value] : []);
+                  if (onBmcChange) onBmcChange([]);
+                  if (onSocietyChange) onSocietyChange([]);
+                }}
                 className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="">All BMCs</option>
-                {bmcs.map((bmc) => (
-                  <option key={bmc.id} value={bmc.id.toString()}>
-                    {bmc.name} ({bmc.bmcId})
+                <option value="">Dairies</option>
+                {dairies.map((dairy) => (
+                  <option key={dairy.id} value={dairy.id.toString()}>
+                    {dairy.name} ({dairy.dairyId})
                   </option>
                 ))}
               </select>
             </div>
           )}
           
-          {onDairyChange && onSocietyChange && (
-            <FilterDropdown
-              statusFilter="all"
-              onStatusChange={() => {}}
-              dairyFilter={dairyFilter}
-              onDairyChange={(value) => onDairyChange(Array.isArray(value) ? value : [value])}
-              bmcFilter={[]}
-              onBmcChange={() => {}}
-              societyFilter={Array.isArray(societyFilter) ? societyFilter : []}
-              onSocietyChange={(value) => onSocietyChange(Array.isArray(value) ? value : [value])}
-              machineFilter="all"
-              onMachineChange={() => {}}
-              dairies={dairies}
-              bmcs={[]}
-              societies={societies}
-              machines={[]}
-              filteredCount={0}
-              totalCount={0}
-              hideMainFilterButton={true}
-              hideBmcFilter={true}
-              hideSocietyFilter={false}
-              showShiftFilter={false}
-              showMachineFilter={false}
-              showFarmerFilter={false}
-              showDateFilter={false}
-              showChannelFilter={false}
-            />
+          {/* BMC Filter Dropdown */}
+          {onBmcChange && bmcs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                BMC:
+              </label>
+              <select
+                value={bmcFilter.length > 0 ? bmcFilter[0] : ''}
+                onChange={(e) => {
+                  onBmcChange(e.target.value ? [e.target.value] : []);
+                  if (onSocietyChange) onSocietyChange([]);
+                }}
+                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">BMCs</option>
+                {bmcs
+                  .filter(bmc => {
+                    if (dairyFilter.length > 0) {
+                      const selectedDairyId = parseInt(dairyFilter[0]);
+                      return bmc.dairyFarmId === selectedDairyId;
+                    }
+                    return true;
+                  })
+                  .map((bmc) => (
+                    <option key={bmc.id} value={bmc.id.toString()}>
+                      {bmc.name} ({bmc.bmcId})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+          
+          {/* Society Filter Dropdown */}
+          {onSocietyChange && societies.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Society:
+              </label>
+              <select
+                value={societyFilter.length > 0 ? societyFilter[0] : ''}
+                onChange={(e) => onSocietyChange(e.target.value ? [e.target.value] : [])}
+                className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">Societies</option>
+                {societies
+                  .filter(society => {
+                    if (bmcFilter.length > 0) {
+                      const selectedBmcId = parseInt(bmcFilter[0]);
+                      return society.bmc_id === selectedBmcId;
+                    }
+                    if (dairyFilter.length > 0) {
+                      const selectedDairyId = parseInt(dairyFilter[0]);
+                      const dairyBmcIds = bmcs
+                        .filter(bmc => bmc.dairyFarmId === selectedDairyId)
+                        .map(bmc => bmc.id);
+                      return society.bmc_id && dairyBmcIds.includes(society.bmc_id);
+                    }
+                    return true;
+                  })
+                  .map((society) => (
+                    <option key={society.id} value={society.id.toString()}>
+                      {society.name} ({society.society_id})
+                    </option>
+                  ))}
+              </select>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Comparison Table */}
+      {/* Day-by-Day Table */}
+      {dailyData.length > 0 && (
       <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-900/40 dark:to-cyan-900/40">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Date</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Dispatches</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Quantity (L)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">FAT (%)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">SNF (%)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">CLR</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Amount (₹)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Rate (₹/L)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyData.map((day, index) => {
+                const isEven = index % 2 === 0;
+                return (
+                  <tr key={day.date} className={isEven ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"></div>
+                        {day.date}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold">{day.data.totalDispatches}</span></td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-emerald-600 dark:text-emerald-300">{day.data.totalQuantity.toFixed(2)}</span></td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-amber-600 dark:text-amber-300">{day.data.weightedFat.toFixed(2)}</span></td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-purple-600 dark:text-purple-300">{day.data.weightedSnf.toFixed(2)}</span></td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-pink-600 dark:text-pink-300">{day.data.weightedClr.toFixed(2)}</span></td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-blue-600 dark:text-blue-300">₹{day.data.totalAmount.toFixed(2)}</span></td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-cyan-600 dark:text-cyan-300">₹{day.data.averageRate.toFixed(2)}</span></td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-gradient-to-r from-emerald-100 to-cyan-100 dark:from-emerald-900/50 dark:to-cyan-900/50 font-bold">
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Total / Average</td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">{currentData.totalDispatches}</td>
+                <td className="px-4 py-3 text-center text-sm text-emerald-700 dark:text-emerald-200 border border-gray-300 dark:border-gray-600">{currentData.totalQuantity.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-amber-700 dark:text-amber-200 border border-gray-300 dark:border-gray-600">{currentData.weightedFat.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-purple-700 dark:text-purple-200 border border-gray-300 dark:border-gray-600">{currentData.weightedSnf.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-pink-700 dark:text-pink-200 border border-gray-300 dark:border-gray-600">{currentData.weightedClr.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-blue-700 dark:text-blue-200 border border-gray-300 dark:border-gray-600">₹{currentData.totalAmount.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-cyan-700 dark:text-cyan-200 border border-gray-300 dark:border-gray-600">₹{currentData.averageRate.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+      </div>
+      )}
+
+      {/* Comparison Summary Table */}
+      <div className="mt-6 overflow-x-auto">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Comparison Summary</h3>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-50 dark:bg-gray-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Period</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Total Dispatches</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Total Quantity (L)</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Weighted FAT (%)</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Weighted SNF (%)</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Weighted CLR</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Total Amount (₹)</th>
+              <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Avg Rate (₹/L)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="bg-green-50 dark:bg-green-900/20">
+              <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">{currentDate.from} to {currentDate.to}</td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{currentData.totalDispatches}</span></td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{currentData.totalQuantity.toFixed(2)}</span></td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{currentData.weightedFat.toFixed(2)}</span></td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{currentData.weightedSnf.toFixed(2)}</span></td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{currentData.weightedClr.toFixed(2)}</span></td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{currentData.totalAmount.toFixed(2)}</span></td>
+              <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{currentData.averageRate.toFixed(2)}</span></td>
+            </tr>
+            {(currentDate.from !== previousDate.from || currentDate.to !== previousDate.to) && (
+              <>
+                <tr className="bg-blue-50 dark:bg-blue-900/20">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">{previousDate.from} to {previousDate.to}</td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{previousData.totalDispatches}</span></td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{previousData.totalQuantity.toFixed(2)}</span></td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{previousData.weightedFat.toFixed(2)}</span></td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{previousData.weightedSnf.toFixed(2)}</span></td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{previousData.weightedClr.toFixed(2)}</span></td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{previousData.totalAmount.toFixed(2)}</span></td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{previousData.averageRate.toFixed(2)}</span></td>
+                </tr>
+                <tr className="bg-yellow-50 dark:bg-yellow-900/20">
+                  <td className="px-4 py-3 text-sm font-bold text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">Difference</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.totalDispatches, previousData.totalDispatches, 0)}</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.totalQuantity, previousData.totalQuantity)}</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.weightedFat, previousData.weightedFat)}</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.weightedSnf, previousData.weightedSnf)}</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.weightedClr, previousData.weightedClr)}</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.totalAmount, previousData.totalAmount)}</td>
+                  <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(currentData.averageRate, previousData.averageRate)}</td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Comparison Table */}
+      <div className="overflow-x-auto mt-6" style={{display: 'none'}}>
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-700">
@@ -718,6 +935,384 @@ export default function DispatchComparison({
           Green indicates improvement, red indicates decline. Percentage changes show the relative difference between periods.
         </p>
       </div>
+
+      {/* Distribution Chart - Radar Style - Hide when daily data is available */}
+      {dailyData.length === 0 && (
+      <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Distribution Chart — Comparison Analysis</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Radar visualization showing all parameters normalized to 0-100 scale</p>
+        
+        {(() => {
+          const normalize = (value: number, min: number, max: number) => {
+            if (max === min) return 50;
+            return ((value - min) / (max - min)) * 100;
+          };
+
+          const qtyMin = Math.min(previousData.totalQuantity, currentData.totalQuantity) * 0.9;
+          const qtyMax = Math.max(previousData.totalQuantity, currentData.totalQuantity) * 1.1;
+          const amtMin = Math.min(previousData.totalAmount, currentData.totalAmount) * 0.9;
+          const amtMax = Math.max(previousData.totalAmount, currentData.totalAmount) * 1.1;
+          const fatMin = Math.min(previousData.weightedFat, currentData.weightedFat) * 0.9;
+          const fatMax = Math.max(previousData.weightedFat, currentData.weightedFat) * 1.1;
+          const snfMin = Math.min(previousData.weightedSnf, currentData.weightedSnf) * 0.9;
+          const snfMax = Math.max(previousData.weightedSnf, currentData.weightedSnf) * 1.1;
+          const clrMin = Math.min(previousData.weightedClr, currentData.weightedClr) * 0.9;
+          const clrMax = Math.max(previousData.weightedClr, currentData.weightedClr) * 1.1;
+          const rateMin = Math.min(previousData.averageRate, currentData.averageRate) * 0.9;
+          const rateMax = Math.max(previousData.averageRate, currentData.averageRate) * 1.1;
+
+          const previousNormalized = [
+            { parameter: 'Quantity', value: normalize(previousData.totalQuantity, qtyMin, qtyMax), actual: previousData.totalQuantity, unit: 'L' },
+            { parameter: 'Amount', value: normalize(previousData.totalAmount, amtMin, amtMax), actual: previousData.totalAmount, unit: '₹' },
+            { parameter: 'FAT %', value: normalize(previousData.weightedFat, fatMin, fatMax), actual: previousData.weightedFat, unit: '%' },
+            { parameter: 'SNF %', value: normalize(previousData.weightedSnf, snfMin, snfMax), actual: previousData.weightedSnf, unit: '%' },
+            { parameter: 'CLR', value: normalize(previousData.weightedClr, clrMin, clrMax), actual: previousData.weightedClr, unit: '' },
+            { parameter: 'Rate', value: normalize(previousData.averageRate, rateMin, rateMax), actual: previousData.averageRate, unit: '₹/L' }
+          ];
+
+          const currentNormalized = [
+            { parameter: 'Quantity', value: normalize(currentData.totalQuantity, qtyMin, qtyMax), actual: currentData.totalQuantity, unit: 'L' },
+            { parameter: 'Amount', value: normalize(currentData.totalAmount, amtMin, amtMax), actual: currentData.totalAmount, unit: '₹' },
+            { parameter: 'FAT %', value: normalize(currentData.weightedFat, fatMin, fatMax), actual: currentData.weightedFat, unit: '%' },
+            { parameter: 'SNF %', value: normalize(currentData.weightedSnf, snfMin, snfMax), actual: currentData.weightedSnf, unit: '%' },
+            { parameter: 'CLR', value: normalize(currentData.weightedClr, clrMin, clrMax), actual: currentData.weightedClr, unit: '' },
+            { parameter: 'Rate', value: normalize(currentData.averageRate, rateMin, rateMax), actual: currentData.averageRate, unit: '₹/L' }
+          ];
+
+          const combinedData = [
+            { parameter: 'Quantity', previous: normalize(previousData.totalQuantity, qtyMin, qtyMax), current: normalize(currentData.totalQuantity, qtyMin, qtyMax), prevActual: previousData.totalQuantity, currActual: currentData.totalQuantity, unit: 'L' },
+            { parameter: 'Amount', previous: normalize(previousData.totalAmount, amtMin, amtMax), current: normalize(currentData.totalAmount, amtMin, amtMax), prevActual: previousData.totalAmount, currActual: currentData.totalAmount, unit: '₹' },
+            { parameter: 'FAT %', previous: normalize(previousData.weightedFat, fatMin, fatMax), current: normalize(currentData.weightedFat, fatMin, fatMax), prevActual: previousData.weightedFat, currActual: currentData.weightedFat, unit: '%' },
+            { parameter: 'SNF %', previous: normalize(previousData.weightedSnf, snfMin, snfMax), current: normalize(currentData.weightedSnf, snfMin, snfMax), prevActual: previousData.weightedSnf, currActual: currentData.weightedSnf, unit: '%' },
+            { parameter: 'CLR', previous: normalize(previousData.weightedClr, clrMin, clrMax), current: normalize(currentData.weightedClr, clrMin, clrMax), prevActual: previousData.weightedClr, currActual: currentData.weightedClr, unit: '' },
+            { parameter: 'Rate', previous: normalize(previousData.averageRate, rateMin, rateMax), current: normalize(currentData.averageRate, rateMin, rateMax), prevActual: previousData.averageRate, currActual: currentData.averageRate, unit: '₹/L' }
+          ];
+
+          return (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div>
+                  <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{previousDate.label}</h4>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <RadarChart data={previousNormalized}>
+                      <PolarGrid stroke="#e5e7eb" />
+                      <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
+                      <Radar name={previousDate.label} dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.5} strokeWidth={2} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                          border: '1px solid rgba(75, 85, 99, 0.5)',
+                          borderRadius: '12px',
+                          padding: '12px 16px',
+                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                          color: '#fff'
+                        }}
+                        labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                        itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                        formatter={(value: any, name: string, props: any) => {
+                          const actual = props.payload.actual;
+                          const unit = props.payload.unit;
+                          return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                        }}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{previousData.totalQuantity.toFixed(2)} L</span></div>
+                    <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{previousData.totalAmount.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{previousData.weightedFat.toFixed(2)}%</span></div>
+                    <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{previousData.weightedSnf.toFixed(2)}%</span></div>
+                    <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{previousData.weightedClr.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{previousData.averageRate.toFixed(2)}/L</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{currentDate.label}</h4>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <RadarChart data={currentNormalized}>
+                      <PolarGrid stroke="#e5e7eb" />
+                      <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
+                      <Radar name={currentDate.label} dataKey="value" stroke="#10b981" fill="#10b981" fillOpacity={0.5} strokeWidth={2} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                          border: '1px solid rgba(75, 85, 99, 0.5)',
+                          borderRadius: '12px',
+                          padding: '12px 16px',
+                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                          color: '#fff'
+                        }}
+                        labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                        itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                        formatter={(value: any, name: string, props: any) => {
+                          const actual = props.payload.actual;
+                          const unit = props.payload.unit;
+                          return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                        }}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{currentData.totalQuantity.toFixed(2)} L</span></div>
+                    <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{currentData.totalAmount.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{currentData.weightedFat.toFixed(2)}%</span></div>
+                    <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{currentData.weightedSnf.toFixed(2)}%</span></div>
+                    <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{currentData.weightedClr.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{currentData.averageRate.toFixed(2)}/L</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8">
+                <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Overlay Comparison</h4>
+                <ResponsiveContainer width="100%" height={450}>
+                  <RadarChart data={combinedData}>
+                    <PolarGrid stroke="#e5e7eb" />
+                    <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 13, fill: '#374151', fontWeight: 500 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 11 }} />
+                    <Radar name={previousDate.label} dataKey="previous" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2.5} />
+                    <Radar name={currentDate.label} dataKey="current" stroke="#10b981" fill="#10b981" fillOpacity={0.3} strokeWidth={2.5} />
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                        border: '1px solid rgba(75, 85, 99, 0.5)',
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                        color: '#fff'
+                      }}
+                      labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                      itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                      formatter={(value: any, name: string, props: any) => {
+                        const actual = name === previousDate.label ? props.payload.prevActual : props.payload.currActual;
+                        const unit = props.payload.unit;
+                        return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                      }}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          );
+        })()}
+      </div>
+      )}
+
+      {/* Daily Variations - Single Normalized Chart */}
+      {dailyData.length > 0 && (
+        <div className="mt-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-cyan-600 bg-clip-text text-transparent">Daily Variations</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Normalized trends from {currentDate.from} to {currentDate.to}</p>
+            </div>
+            <div className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full text-white text-xs font-semibold shadow-lg">
+              0-100 Scale
+            </div>
+          </div>
+          
+          <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 shadow-inner border border-gray-200/50 dark:border-gray-700/50">
+            <ResponsiveContainer width="100%" height={450}>
+              <AreaChart data={dailyData.map(d => {
+                const allQty = dailyData.map(day => day.data.totalQuantity);
+                const allAmt = dailyData.map(day => day.data.totalAmount);
+                const allFat = dailyData.map(day => day.data.weightedFat);
+                const allSnf = dailyData.map(day => day.data.weightedSnf);
+                const allClr = dailyData.map(day => day.data.weightedClr);
+                const allRate = dailyData.map(day => day.data.averageRate);
+
+                const normalize = (value: number, values: number[]) => {
+                  const min = Math.min(...values);
+                  const max = Math.max(...values);
+                  if (max === min) return 50;
+                  return ((value - min) / (max - min)) * 100;
+                };
+
+                return {
+                  date: d.date.split('-').slice(1).join('/'),
+                  Quantity: normalize(d.data.totalQuantity, allQty),
+                  Amount: normalize(d.data.totalAmount, allAmt),
+                  FAT: normalize(d.data.weightedFat, allFat),
+                  SNF: normalize(d.data.weightedSnf, allSnf),
+                  CLR: normalize(d.data.weightedClr, allClr),
+                  Rate: normalize(d.data.averageRate, allRate),
+                  qtyActual: d.data.totalQuantity,
+                  amtActual: d.data.totalAmount,
+                  fatActual: d.data.weightedFat,
+                  snfActual: d.data.weightedSnf,
+                  clrActual: d.data.weightedClr,
+                  rateActual: d.data.averageRate
+                };
+              })} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <defs>
+                  <linearGradient id="colorQuantity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorFAT" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorSNF" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorCLR" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ec4899" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#ec4899" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12, fontWeight: 500 }}
+                  stroke="#6b7280"
+                  label={{ value: 'Date (MM/DD)', position: 'insideBottom', offset: -10, style: { fontSize: 12, fill: '#6b7280', fontWeight: 600 } }}
+                />
+                <YAxis 
+                  tick={{ fontSize: 12, fontWeight: 500 }}
+                  stroke="#6b7280"
+                  domain={[0, 100]}
+                  label={{ value: 'Normalized Value (0-100)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#6b7280', fontWeight: 600 } }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                    border: '1px solid rgba(75, 85, 99, 0.5)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+                    backdropFilter: 'blur(10px)',
+                    color: '#fff'
+                  }}
+                  labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                  itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                  formatter={(value: any, name: string, props: any) => {
+                    const payload = props.payload;
+                    if (name === 'Quantity (L)') return [`${payload.qtyActual.toFixed(2)} L`, name];
+                    if (name === 'Amount (₹)') return [`₹${payload.amtActual.toFixed(2)}`, name];
+                    if (name === 'FAT (%)') return [`${payload.fatActual.toFixed(2)}%`, name];
+                    if (name === 'SNF (%)') return [`${payload.snfActual.toFixed(2)}%`, name];
+                    if (name === 'CLR') return [`${payload.clrActual.toFixed(2)}`, name];
+                    if (name === 'Rate (₹/L)') return [`₹${payload.rateActual.toFixed(2)}/L`, name];
+                    return [value, name];
+                  }}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                  iconType="rect"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="Quantity" 
+                  stroke="#10b981" 
+                  strokeWidth={2.5}
+                  fill="url(#colorQuantity)"
+                  name="Quantity (L)"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="Amount" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2.5}
+                  fill="url(#colorAmount)"
+                  name="Amount (₹)"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="FAT" 
+                  stroke="#f59e0b" 
+                  strokeWidth={2.5}
+                  fill="url(#colorFAT)"
+                  name="FAT (%)"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="SNF" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={2.5}
+                  fill="url(#colorSNF)"
+                  name="SNF (%)"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="CLR" 
+                  stroke="#ec4899" 
+                  strokeWidth={2.5}
+                  fill="url(#colorCLR)"
+                  name="CLR"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="Rate" 
+                  stroke="#06b6d4" 
+                  strokeWidth={2.5}
+                  fill="url(#colorRate)"
+                  name="Rate (₹/L)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-2 text-xs">
+            {(() => {
+              const getRange = (values: number[]) => {
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                return { min, max };
+              };
+
+              const qtyRange = getRange(dailyData.map(d => d.data.totalQuantity));
+              const amtRange = getRange(dailyData.map(d => d.data.totalAmount));
+              const fatRange = getRange(dailyData.map(d => d.data.weightedFat));
+              const snfRange = getRange(dailyData.map(d => d.data.weightedSnf));
+              const clrRange = getRange(dailyData.map(d => d.data.weightedClr));
+              const rateRange = getRange(dailyData.map(d => d.data.averageRate));
+
+              return (
+                <>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Qty: {qtyRange.min.toFixed(0)}-{qtyRange.max.toFixed(0)}L
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Amt: ₹{amtRange.min.toFixed(0)}-₹{amtRange.max.toFixed(0)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    FAT: {fatRange.min.toFixed(1)}-{fatRange.max.toFixed(1)}%
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                    SNF: {snfRange.min.toFixed(1)}-{snfRange.max.toFixed(1)}%
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded">
+                    <span className="w-2 h-2 rounded-full bg-pink-500"></span>
+                    CLR: {clrRange.min.toFixed(1)}-{clrRange.max.toFixed(1)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded">
+                    <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                    Rate: ₹{rateRange.min.toFixed(1)}-₹{rateRange.max.toFixed(1)}/L
+                  </span>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

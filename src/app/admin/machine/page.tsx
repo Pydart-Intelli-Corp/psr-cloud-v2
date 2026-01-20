@@ -1035,7 +1035,7 @@ function MachineManagement() {
     const allSocietyIds = new Set(
       machines
         .filter(m => m.societyId)
-        .map(m => m.societyId as number)
+        .map(m => `society_${m.societyId}`)
     );
     setExpandedSocieties(allSocietyIds);
   };

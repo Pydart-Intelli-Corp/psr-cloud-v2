@@ -42,13 +42,13 @@ export async function POST(request: NextRequest) {
       FROM ${schemaName}.rate_charts rc
       WHERE rc.id = ?
       LIMIT 1
-    `, { replacements: [chartId] });
+    `, { replacements: [chartId] }) as any[];
 
     if (!sourceChart) {
       return createErrorResponse('Rate chart not found', 404);
     }
 
-    if (!sourceChart.is_bmc_assigned) {
+    if (!(sourceChart as any).is_bmc_assigned) {
       return createErrorResponse('This is not a BMC-assigned chart', 400);
     }
 
@@ -62,15 +62,15 @@ export async function POST(request: NextRequest) {
           SELECT id FROM ${schemaName}.rate_charts
           WHERE bmc_id IN (${bmcIds.join(',')}) AND channel = ? AND is_bmc_assigned = 1
         )
-      `, { replacements: [sourceChart.channel], transaction });
+      `, { replacements: [(sourceChart as any).channel], transaction });
 
       await sequelize.query(`
         DELETE FROM ${schemaName}.rate_charts
         WHERE bmc_id IN (${bmcIds.join(',')}) AND channel = ? AND is_bmc_assigned = 1
-      `, { replacements: [sourceChart.channel], transaction });
+      `, { replacements: [(sourceChart as any).channel], transaction });
 
       const values = bmcIds.map((bmcId: number) => 
-        `(${bmcId}, '${sourceChart.channel}', NOW(), '${user.fullName}', 'BMC Assignment', 0, 1, 1)`
+        `(${bmcId}, '${(sourceChart as any).channel}', NOW(), '${user.fullName}', 'BMC Assignment', 0, 1, 1)`
       ).join(',');
 
       await sequelize.query(`
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         UPDATE ${schemaName}.rate_charts
         SET shared_chart_id = ?
         WHERE bmc_id IN (${bmcIds.join(',')}) AND channel = ? AND is_bmc_assigned = 1
-      `, { replacements: [chartId, sourceChart.channel], transaction });
+      `, { replacements: [chartId, (sourceChart as any).channel], transaction });
 
       await transaction.commit();
 

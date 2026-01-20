@@ -61,6 +61,7 @@ function ReportsPage() {
   const [comparisonType, setComparisonType] = useState<'collection-collection' | 'collection-dispatch' | 'collection-sales' | 'dispatch-dispatch' | 'dispatch-sales' | 'sales-sales' | 'bmc-society'>('collection-collection');
   const [timePeriod, setTimePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [customDate, setCustomDate] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
   const [customWeekStart, setCustomWeekStart] = useState('');
   const [customMonth, setCustomMonth] = useState('');
   const [customYear, setCustomYear] = useState('');
@@ -71,8 +72,12 @@ function ReportsPage() {
   const [comparisonBmcFilter, setComparisonBmcFilter] = useState<string[]>([]);
   const [comparisonSocietyFilter, setComparisonSocietyFilter] = useState<string[]>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string }>>([]);
+  const [societies, setSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
   const [showBmcDialog, setShowBmcDialog] = useState(false);
+  const [showSocietyDialog, setShowSocietyDialog] = useState(false);
   const [tempBmcSelection, setTempBmcSelection] = useState<string[]>([]);
+  const [tempSocietySelection, setTempSocietySelection] = useState<string[]>([]);
+  const [filteredSocieties, setFilteredSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
   const [initialSocietyId, setInitialSocietyId] = useState<string | null>(null);
   const [initialSocietyName, setInitialSocietyName] = useState<string | null>(null);
   const [initialFromDate, setInitialFromDate] = useState<string | null>(null);
@@ -119,28 +124,53 @@ function ReportsPage() {
   }, []); // Run once on mount
 
   useEffect(() => {
-    const fetchBmcs = async () => {
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem('authToken');
         if (!token) return;
-        const res = await fetch('/api/user/bmc', { headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.ok) {
-          const data = await res.json();
+        
+        const [bmcsRes, societiesRes] = await Promise.all([
+          fetch('/api/user/bmc', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/user/society', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
+        
+        if (bmcsRes.ok) {
+          const data = await bmcsRes.json();
           setBmcs(data.data || []);
         }
+        
+        if (societiesRes.ok) {
+          const data = await societiesRes.json();
+          setSocieties(data.data || []);
+        }
       } catch (error) {
-        console.error('Error fetching BMCs:', error);
+        console.error('Error fetching data:', error);
       }
     };
-    fetchBmcs();
+    fetchData();
   }, []);
+
+  useEffect(() => {
+    if (comparisonBmcFilter.length > 0 && societies.length > 0) {
+      const selectedBmcId = parseInt(comparisonBmcFilter[0]);
+      const filtered = societies.filter(s => s.bmc_id === selectedBmcId);
+      setFilteredSocieties(filtered);
+    } else {
+      setFilteredSocieties([]);
+    }
+  }, [comparisonBmcFilter, societies]);
 
   const handleComparisonToggle = () => {
     if (!comparisonMode && reportSource === 'bmc') {
       setTempBmcSelection(comparisonBmcFilter.length > 0 ? [comparisonBmcFilter[0]] : []);
       setShowBmcDialog(true);
+      setComparisonType('bmc-society'); // Set default to BMC vs Society for BMC mode
     } else {
       setComparisonMode(!comparisonMode);
+      // Reset to collection-collection when exiting comparison mode
+      if (comparisonMode) {
+        setComparisonType('collection-collection');
+      }
     }
   };
 
@@ -152,6 +182,21 @@ function ReportsPage() {
     setComparisonBmcFilter(tempBmcSelection);
     setShowBmcDialog(false);
     setComparisonMode(true);
+    
+    // Show society selection dialog after BMC selection
+    setTimeout(() => {
+      setTempSocietySelection(comparisonSocietyFilter.length > 0 ? [comparisonSocietyFilter[0]] : []);
+      setShowSocietyDialog(true);
+    }, 300);
+  };
+
+  const confirmSocietySelection = () => {
+    if (tempSocietySelection.length === 0) {
+      alert('Please select one Society');
+      return;
+    }
+    setComparisonSocietyFilter(tempSocietySelection);
+    setShowSocietyDialog(false);
   };
 
   // Listen to global search event from header
@@ -172,23 +217,58 @@ function ReportsPage() {
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
     if (timePeriod === 'daily') {
-      // Use custom date if provided, otherwise use today
-      const currentDate = customDate ? new Date(customDate) : today;
-      const previousDate = new Date(currentDate);
-      previousDate.setDate(currentDate.getDate() - 1);
-      
-      return {
-        current: { 
-          from: formatDate(currentDate), 
-          to: formatDate(currentDate), 
-          label: customDate ? formatDate(currentDate) : 'Today' 
-        },
-        previous: { 
-          from: formatDate(previousDate), 
-          to: formatDate(previousDate), 
-          label: formatDate(previousDate)
-        }
-      };
+      // Use custom date range if provided, otherwise use today
+      if (customDate && customDateTo) {
+        // Date range mode
+        return {
+          current: { 
+            from: customDate, 
+            to: customDateTo, 
+            label: `${customDate} to ${customDateTo}` 
+          },
+          previous: { 
+            from: customDate, 
+            to: customDateTo, 
+            label: `${customDate} to ${customDateTo}`
+          }
+        };
+      } else if (customDate) {
+        // Single date comparison mode
+        const currentDate = new Date(customDate);
+        const previousDate = new Date(currentDate);
+        previousDate.setDate(currentDate.getDate() - 1);
+        
+        return {
+          current: { 
+            from: formatDate(currentDate), 
+            to: formatDate(currentDate), 
+            label: formatDate(currentDate) 
+          },
+          previous: { 
+            from: formatDate(previousDate), 
+            to: formatDate(previousDate), 
+            label: formatDate(previousDate)
+          }
+        };
+      } else {
+        // Default: today vs yesterday
+        const currentDate = today;
+        const previousDate = new Date(today);
+        previousDate.setDate(today.getDate() - 1);
+        
+        return {
+          current: { 
+            from: formatDate(currentDate), 
+            to: formatDate(currentDate), 
+            label: 'Today' 
+          },
+          previous: { 
+            from: formatDate(previousDate), 
+            to: formatDate(previousDate), 
+            label: formatDate(previousDate)
+          }
+        };
+      }
     } else if (timePeriod === 'weekly') {
       // Use custom week start if provided, otherwise use current week
       const baseDate = customWeekStart ? new Date(customWeekStart) : today;
@@ -272,6 +352,7 @@ function ReportsPage() {
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={setComparisonSocietyFilter}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -283,13 +364,15 @@ function ReportsPage() {
       return (
         <CollectionDispatchComparison 
           key={`collection-dispatch-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
-          dateRange={dates.current}
+          currentDate={dates.current}
+          previousDate={dates.previous}
           dairyFilter={comparisonDairyFilter}
           bmcFilter={comparisonBmcFilter}
           societyFilter={comparisonSocietyFilter}
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={setComparisonSocietyFilter}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -309,6 +392,7 @@ function ReportsPage() {
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={setComparisonSocietyFilter}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -328,6 +412,7 @@ function ReportsPage() {
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={setComparisonSocietyFilter}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -346,6 +431,7 @@ function ReportsPage() {
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           reportSource={reportSource}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -357,12 +443,14 @@ function ReportsPage() {
       return (
         <BmcCollectionDispatchComparison 
           key={`bmc-collection-dispatch-${timePeriod}-${customDate}-${customWeekStart}-${customMonth}-${customYear}`}
-          dateRange={dates.current}
+          currentDate={dates.current}
+          previousDate={dates.previous}
           dairyFilter={comparisonDairyFilter}
           bmcFilter={comparisonBmcFilter}
           onDairyChange={setComparisonDairyFilter}
           onBmcChange={setComparisonBmcFilter}
           reportSource={reportSource}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -383,6 +471,7 @@ function ReportsPage() {
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={() => {}}
           reportSource={reportSource}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -403,6 +492,7 @@ function ReportsPage() {
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={() => {}}
           reportSource={reportSource}
+          timePeriod={timePeriod}
         />
       );
     }
@@ -422,72 +512,12 @@ function ReportsPage() {
           onBmcChange={setComparisonBmcFilter}
           onSocietyChange={setComparisonSocietyFilter}
           reportSource={reportSource}
+          timePeriod={timePeriod}
         />
       );
     }
     
-    // Comparison mode with Society - show time-based comparisons
-    if (comparisonMode && reportSource === 'society') {
-      const dates = getComparisonDates();
-      const [leftType, rightType] = comparisonType.split('-') as ['collection' | 'dispatch' | 'sales', 'collection' | 'dispatch' | 'sales'];
-      
-      const renderReport = (type: 'collection' | 'dispatch' | 'sales', dateRange: { from: string, to: string }, key: string) => {
-        switch (type) {
-          case 'collection':
-            return <CollectionReports 
-              key={key} 
-              globalSearch={globalSearch} 
-              reportSource="society" 
-              initialSocietyId={initialSocietyId} 
-              initialSocietyName={initialSocietyName} 
-              initialFromDate={dateRange.from} 
-              initialToDate={dateRange.to} 
-              initialBmcFilter={initialBmcFilter} 
-              initialMachineFilter={initialMachineFilter} 
-            />;
-          case 'dispatch':
-            return <DispatchReports key={key} globalSearch={globalSearch} reportSource="society" />;
-          case 'sales':
-            return <SalesReports key={key} globalSearch={globalSearch} reportSource="society" />;
-        }
-      };
 
-      return (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Previous Period */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-300 dark:border-gray-600 p-4">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Droplet className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {leftType.charAt(0).toUpperCase() + leftType.slice(1)} - {dates.previous.label}
-                </h2>
-              </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {dates.previous.from} to {dates.previous.to}
-              </span>
-            </div>
-            {renderReport(leftType, dates.previous, `${leftType}-prev-${timePeriod}`)}
-          </div>
-
-          {/* Current Period */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-300 dark:border-gray-600 p-4">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-green-600 dark:text-green-400" />
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {rightType.charAt(0).toUpperCase() + rightType.slice(1)} - {dates.current.label}
-                </h2>
-              </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {dates.current.from} to {dates.current.to}
-              </span>
-            </div>
-            {renderReport(rightType, dates.current, `${rightType}-curr-${timePeriod}`)}
-          </div>
-        </div>
-      );
-    }
     
     // Comparison mode with BMC - removed old side-by-side view
     // Now BMC uses same comparison structure as society (handled above)
@@ -603,13 +633,13 @@ function ReportsPage() {
                       }}
                       className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-psr-green-500 focus:border-transparent"
                     >
+                      {reportSource === 'bmc' && (
+                        <option value="bmc-society">BMC vs Society</option>
+                      )}
                       <option value="collection-collection">Collection vs Collection</option>
                       <option value="collection-dispatch">Collection vs Dispatch</option>
                       <option value="dispatch-dispatch">Dispatch vs Dispatch</option>
                       <option value="sales-sales">Sales vs Sales</option>
-                      {reportSource === 'bmc' && (
-                        <option value="bmc-society">BMC vs Society</option>
-                      )}
                     </select>
                   </div>
                   
@@ -622,6 +652,7 @@ function ReportsPage() {
                         onChange={(e) => {
                           setTimePeriod(e.target.value as typeof timePeriod);
                           setCustomDate('');
+                          setCustomDateTo('');
                           setCustomWeekStart('');
                           setCustomMonth('');
                           setCustomYear('');
@@ -639,19 +670,39 @@ function ReportsPage() {
                     <div className="flex items-center gap-2">
                     {timePeriod === 'daily' && (
                       <>
+                        <label className="text-xs text-gray-600 dark:text-gray-400">From:</label>
                         <input
                           type="date"
                           value={customDate}
                           onChange={(e) => setCustomDate(e.target.value)}
                           max={new Date().toISOString().split('T')[0]}
                           className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="Select date"
+                          placeholder="From date"
                         />
-                        {customDate && (
+                        <label className="text-xs text-gray-600 dark:text-gray-400">To:</label>
+                        <input
+                          type="date"
+                          value={customDateTo}
+                          onChange={(e) => {
+                            const fromDate = new Date(customDate);
+                            const toDate = new Date(e.target.value);
+                            const daysDiff = Math.floor((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+                            if (daysDiff > 31) {
+                              alert('Maximum date range is 31 days');
+                              return;
+                            }
+                            setCustomDateTo(e.target.value);
+                          }}
+                          min={customDate}
+                          max={new Date().toISOString().split('T')[0]}
+                          className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="To date"
+                        />
+                        {(customDate || customDateTo) && (
                           <button
-                            onClick={() => setCustomDate('')}
+                            onClick={() => { setCustomDate(''); setCustomDateTo(''); }}
                             className="px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                            title="Clear date"
+                            title="Clear dates"
                           >
                             ✕
                           </button>
@@ -809,6 +860,50 @@ function ReportsPage() {
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
               <button onClick={() => { setShowBmcDialog(false); setTempBmcSelection([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium">Cancel</button>
               <button onClick={confirmBmcSelection} className="flex-1 px-4 py-2 bg-psr-green-600 text-white rounded-lg hover:bg-psr-green-700 font-medium">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSocietyDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <Users className="w-6 h-6 text-psr-green-600" />
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Select Society</h3>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Select one Society to compare with the selected BMC</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {filteredSocieties.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredSocieties.map((society) => (
+                    <label key={society.id} className="flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer rounded-lg border border-gray-200 dark:border-gray-600">
+                      <input
+                        type="radio"
+                        name="societySelection"
+                        checked={tempSocietySelection.includes(society.id.toString())}
+                        onChange={() => setTempSocietySelection([society.id.toString()])}
+                        className="w-4 h-4 text-psr-green-600 border-gray-300 focus:ring-psr-green-500"
+                      />
+                      <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">{society.name}</span>
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({society.society_id})</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No societies found for selected BMC</p>
+              )}
+              {tempSocietySelection.length > 0 && (
+                <p className="text-sm text-psr-green-600 dark:text-psr-green-400 mt-4 text-center">
+                  ✓ {filteredSocieties.find(s => s.id.toString() === tempSocietySelection[0])?.name} selected
+                </p>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+              <button onClick={() => { setShowSocietyDialog(false); setTempSocietySelection([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium">Cancel</button>
+              <button onClick={confirmSocietySelection} className="flex-1 px-4 py-2 bg-psr-green-600 text-white rounded-lg hover:bg-psr-green-700 font-medium">Confirm</button>
             </div>
           </div>
         </div>

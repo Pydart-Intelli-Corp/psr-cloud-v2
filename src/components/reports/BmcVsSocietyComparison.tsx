@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { TrendingUp, TrendingDown, Minus, Download, FileText } from 'lucide-react';
 import { FlowerSpinner } from '@/components';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ComparisonData {
   totalRecords: number;
@@ -25,6 +27,7 @@ interface BmcVsSocietyComparisonProps {
   onBmcChange?: (value: string[]) => void;
   onSocietyChange?: (value: string[]) => void;
   reportSource?: 'society' | 'bmc';
+  timePeriod?: 'daily' | 'weekly' | 'monthly' | 'yearly';
 }
 
 export default function BmcVsSocietyComparison({ 
@@ -35,10 +38,15 @@ export default function BmcVsSocietyComparison({
   onDairyChange,
   onBmcChange,
   onSocietyChange,
-  reportSource = 'bmc'
+  reportSource = 'bmc',
+  timePeriod = 'daily'
 }: BmcVsSocietyComparisonProps) {
   const [bmcData, setBmcData] = useState<ComparisonData | null>(null);
   const [societyData, setSocietyData] = useState<ComparisonData | null>(null);
+  const [dailyBmcData, setDailyBmcData] = useState<Array<{ date: string; data: ComparisonData }>>([]);
+  const [dailySocietyData, setDailySocietyData] = useState<Array<{ date: string; data: ComparisonData }>>([]);
+  const [lastWeekBmcData, setLastWeekBmcData] = useState<ComparisonData | null>(null);
+  const [lastWeekSocietyData, setLastWeekSocietyData] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState(true);
   const [societies, setSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string }>>([]);
@@ -163,6 +171,184 @@ export default function BmcVsSocietyComparison({
       console.log('BmcVsSociety - Filtered BMC records:', bmcRecords.length);
       setBmcData(calculateStats(bmcRecords));
 
+      // Calculate last period data for comparison
+      if (timePeriod === 'weekly' || timePeriod === 'monthly' || timePeriod === 'yearly') {
+        let lastPeriodStart: Date, lastPeriodEnd: Date;
+        
+        if (timePeriod === 'weekly') {
+          lastPeriodStart = new Date(effectiveFrom);
+          lastPeriodStart.setDate(lastPeriodStart.getDate() - 7);
+          lastPeriodEnd = new Date(effectiveTo);
+          lastPeriodEnd.setDate(lastPeriodEnd.getDate() - 7);
+        } else if (timePeriod === 'monthly') {
+          lastPeriodStart = new Date(effectiveFrom);
+          lastPeriodStart.setMonth(lastPeriodStart.getMonth() - 1);
+          lastPeriodEnd = new Date(effectiveTo);
+          lastPeriodEnd.setMonth(lastPeriodEnd.getMonth() - 1);
+        } else { // yearly
+          lastPeriodStart = new Date(effectiveFrom);
+          lastPeriodStart.setFullYear(lastPeriodStart.getFullYear() - 1);
+          lastPeriodEnd = new Date(effectiveTo);
+          lastPeriodEnd.setFullYear(lastPeriodEnd.getFullYear() - 1);
+        }
+        
+        const lastPeriodBmcRecords = allCollectionRecords.filter((r: any) => {
+          const recordDate = r.collection_date || r.date;
+          const matchesDate = recordDate >= lastPeriodStart.toISOString().split('T')[0] && 
+                             recordDate <= lastPeriodEnd.toISOString().split('T')[0];
+          const matchesBmc = reportSource === 'bmc' ? true : r.bmc_id === selectedBmcId;
+          return matchesDate && matchesBmc;
+        });
+        setLastWeekBmcData(calculateStats(lastPeriodBmcRecords));
+      } else if (timePeriod !== 'daily') {
+        setLastWeekBmcData(null);
+      }
+
+      // Calculate breakdown for BMC based on time period
+      if (timePeriod === 'daily') {
+        // Check if date range is selected (from !== to)
+        if (effectiveFrom !== effectiveTo) {
+          // Day-by-day breakdown for date range
+          const dailyBmcBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+          const startDate = new Date(effectiveFrom);
+          const endDate = new Date(effectiveTo);
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            
+            const dayBmcRecords = allCollectionRecords.filter((r: any) => {
+              const recordDate = r.collection_date || r.date;
+              const matchesDate = recordDate === dateStr;
+              const matchesBmc = reportSource === 'bmc' ? true : r.bmc_id === selectedBmcId;
+              return matchesDate && matchesBmc;
+            });
+            
+            dailyBmcBreakdown.push({
+              date: dateStr,
+              data: calculateStats(dayBmcRecords)
+            });
+          }
+          setDailyBmcData(dailyBmcBreakdown);
+          setLastWeekBmcData(null);
+        } else {
+          // Single day - calculate yesterday's data for comparison
+          const yesterday = new Date(effectiveFrom);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          
+          // Get yesterday's BMC records
+          const yesterdayBmcRecords = allCollectionRecords.filter((r: any) => {
+            const recordDate = r.collection_date || r.date;
+            const matchesDate = recordDate === yesterdayStr;
+            const matchesBmc = reportSource === 'bmc' ? true : r.bmc_id === selectedBmcId;
+            return matchesDate && matchesBmc;
+          });
+          setLastWeekBmcData(calculateStats(yesterdayBmcRecords));
+          
+          // Set daily breakdown for table display
+          const dailyBmcBreakdown: Array<{ date: string; data: ComparisonData }> = [
+            {
+              date: `Yesterday (${yesterdayStr})`,
+              data: calculateStats(yesterdayBmcRecords)
+            },
+            {
+              date: `Today (${effectiveFrom})`,
+              data: calculateStats(bmcRecords)
+            }
+          ];
+          setDailyBmcData(dailyBmcBreakdown);
+        }
+
+      } else if (timePeriod === 'weekly') {
+        // Weekly breakdown - show both this week and last week
+        const weeklyBmcBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startDate = new Date(effectiveFrom);
+        const endDate = new Date(effectiveTo);
+        
+        // Calculate last week's dates
+        const lastWeekStart = new Date(startDate);
+        lastWeekStart.setDate(startDate.getDate() - 7);
+        const lastWeekEnd = new Date(endDate);
+        lastWeekEnd.setDate(endDate.getDate() - 7);
+        
+        // Add last week data
+        const lastWeekBmcRecords = allCollectionRecords.filter((r: any) => {
+          const recordDate = r.collection_date || r.date;
+          const matchesDate = recordDate >= lastWeekStart.toISOString().split('T')[0] && 
+                 recordDate <= lastWeekEnd.toISOString().split('T')[0];
+          const matchesBmc = reportSource === 'bmc' ? true : r.bmc_id === selectedBmcId;
+          return matchesDate && matchesBmc;
+        });
+        
+        if (lastWeekBmcRecords.length > 0) {
+          weeklyBmcBreakdown.push({
+            date: `Last Week (${lastWeekStart.toISOString().split('T')[0]})`,
+            data: calculateStats(lastWeekBmcRecords)
+          });
+        }
+        
+        // Add this week data
+        const thisWeekBmcRecords = bmcRecords;
+        if (thisWeekBmcRecords.length > 0) {
+          weeklyBmcBreakdown.push({
+            date: `This Week (${startDate.toISOString().split('T')[0]})`,
+            data: calculateStats(thisWeekBmcRecords)
+          });
+        }
+        
+        setDailyBmcData(weeklyBmcBreakdown);
+      } else if (timePeriod === 'monthly') {
+        // Monthly breakdown
+        const monthlyBmcBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startDate = new Date(effectiveFrom);
+        const endDate = new Date(effectiveTo);
+        
+        let currentMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        
+        while (currentMonth <= endDate) {
+          const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+          
+          const monthBmcRecords = bmcRecords.filter((r: any) => {
+            const recordDate = r.collection_date || r.date;
+            return recordDate >= currentMonth.toISOString().split('T')[0] && 
+                   recordDate <= monthEnd.toISOString().split('T')[0];
+          });
+          
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          monthlyBmcBreakdown.push({
+            date: `${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`,
+            data: calculateStats(monthBmcRecords)
+          });
+          
+          currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        setDailyBmcData(monthlyBmcBreakdown);
+      } else if (timePeriod === 'yearly') {
+        // Yearly breakdown
+        const yearlyBmcBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startYear = new Date(effectiveFrom).getFullYear();
+        const endYear = new Date(effectiveTo).getFullYear();
+        
+        for (let year = startYear; year <= endYear; year++) {
+          const yearStart = new Date(year, 0, 1);
+          const yearEnd = new Date(year, 11, 31);
+          
+          const yearBmcRecords = bmcRecords.filter((r: any) => {
+            const recordDate = r.collection_date || r.date;
+            return recordDate >= yearStart.toISOString().split('T')[0] && 
+                   recordDate <= yearEnd.toISOString().split('T')[0];
+          });
+          
+          yearlyBmcBreakdown.push({
+            date: `${year}`,
+            data: calculateStats(yearBmcRecords)
+          });
+        }
+        setDailyBmcData(yearlyBmcBreakdown);
+      } else {
+        setDailyBmcData([]);
+      }
+
       // Fetch dispatch data for Society - always use society endpoint
       const dispatchResponse = await fetch('/api/user/reports/dispatches', {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -188,6 +374,184 @@ export default function BmcVsSocietyComparison({
       });
       console.log('BmcVsSociety - Filtered society records:', societyRecords.length);
       setSocietyData(calculateStats(societyRecords));
+
+      // Calculate last period data for comparison
+      if (timePeriod === 'weekly' || timePeriod === 'monthly' || timePeriod === 'yearly') {
+        let lastPeriodStart: Date, lastPeriodEnd: Date;
+        
+        if (timePeriod === 'weekly') {
+          lastPeriodStart = new Date(effectiveFrom);
+          lastPeriodStart.setDate(lastPeriodStart.getDate() - 7);
+          lastPeriodEnd = new Date(effectiveTo);
+          lastPeriodEnd.setDate(lastPeriodEnd.getDate() - 7);
+        } else if (timePeriod === 'monthly') {
+          lastPeriodStart = new Date(effectiveFrom);
+          lastPeriodStart.setMonth(lastPeriodStart.getMonth() - 1);
+          lastPeriodEnd = new Date(effectiveTo);
+          lastPeriodEnd.setMonth(lastPeriodEnd.getMonth() - 1);
+        } else { // yearly
+          lastPeriodStart = new Date(effectiveFrom);
+          lastPeriodStart.setFullYear(lastPeriodStart.getFullYear() - 1);
+          lastPeriodEnd = new Date(effectiveTo);
+          lastPeriodEnd.setFullYear(lastPeriodEnd.getFullYear() - 1);
+        }
+        
+        const lastPeriodSocietyRecords = allDispatchRecords.filter((r: any) => {
+          const recordDate = r.dispatch_date || r.date;
+          const matchesDate = recordDate >= lastPeriodStart.toISOString().split('T')[0] && 
+                             recordDate <= lastPeriodEnd.toISOString().split('T')[0];
+          const matchesSociety = r.society_id === selectedSocietyId;
+          return matchesDate && matchesSociety;
+        });
+        setLastWeekSocietyData(calculateStats(lastPeriodSocietyRecords));
+      } else {
+        setLastWeekSocietyData(null);
+      }
+
+      // Calculate breakdown for Society based on time period
+      if (timePeriod === 'daily') {
+        // Check if date range is selected (from !== to)
+        if (effectiveFrom !== effectiveTo) {
+          // Day-by-day breakdown for date range
+          const dailySocietyBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+          const startDate = new Date(effectiveFrom);
+          const endDate = new Date(effectiveTo);
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            
+            const daySocietyRecords = allDispatchRecords.filter((r: any) => {
+              const recordDate = r.dispatch_date || r.date;
+              const matchesDate = recordDate === dateStr;
+              const matchesSociety = r.society_id === selectedSocietyId;
+              return matchesDate && matchesSociety;
+            });
+            
+            dailySocietyBreakdown.push({
+              date: dateStr,
+              data: calculateStats(daySocietyRecords)
+            });
+          }
+          setDailySocietyData(dailySocietyBreakdown);
+          setLastWeekSocietyData(null);
+        } else {
+          // Single day - calculate yesterday's data for comparison
+          const yesterday = new Date(effectiveFrom);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          
+          // Get yesterday's Society records
+          const yesterdaySocietyRecords = allDispatchRecords.filter((r: any) => {
+            const recordDate = r.dispatch_date || r.date;
+            const matchesDate = recordDate === yesterdayStr;
+            const matchesSociety = r.society_id === selectedSocietyId;
+            return matchesDate && matchesSociety;
+          });
+          setLastWeekSocietyData(calculateStats(yesterdaySocietyRecords));
+          
+          // Set daily breakdown for table display
+          const dailySocietyBreakdown: Array<{ date: string; data: ComparisonData }> = [
+            {
+              date: `Yesterday (${yesterdayStr})`,
+              data: calculateStats(yesterdaySocietyRecords)
+            },
+            {
+              date: `Today (${effectiveFrom})`,
+              data: calculateStats(societyRecords)
+            }
+          ];
+          setDailySocietyData(dailySocietyBreakdown);
+        }
+      } else if (timePeriod === 'weekly') {
+        // Weekly breakdown - show both this week and last week
+        const weeklySocietyBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startDate = new Date(effectiveFrom);
+        const endDate = new Date(effectiveTo);
+        
+        // Calculate last week's dates
+        const lastWeekStart = new Date(startDate);
+        lastWeekStart.setDate(startDate.getDate() - 7);
+        const lastWeekEnd = new Date(endDate);
+        lastWeekEnd.setDate(endDate.getDate() - 7);
+        
+        // Add last week data
+        const lastWeekSocietyRecords = allDispatchRecords.filter((r: any) => {
+          const recordDate = r.dispatch_date || r.date;
+          const matchesDate = recordDate >= lastWeekStart.toISOString().split('T')[0] && 
+                 recordDate <= lastWeekEnd.toISOString().split('T')[0];
+          const matchesSociety = r.society_id === selectedSocietyId;
+          return matchesDate && matchesSociety;
+        });
+        
+        if (lastWeekSocietyRecords.length > 0) {
+          weeklySocietyBreakdown.push({
+            date: `Last Week (${lastWeekStart.toISOString().split('T')[0]})`,
+            data: calculateStats(lastWeekSocietyRecords)
+          });
+        }
+        
+        // Add this week data
+        const thisWeekSocietyRecords = societyRecords;
+        if (thisWeekSocietyRecords.length > 0) {
+          weeklySocietyBreakdown.push({
+            date: `This Week (${startDate.toISOString().split('T')[0]})`,
+            data: calculateStats(thisWeekSocietyRecords)
+          });
+        }
+        
+        setDailySocietyData(weeklySocietyBreakdown);
+      } else if (timePeriod === 'monthly') {
+        // Monthly breakdown
+        const monthlySocietyBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startDate = new Date(effectiveFrom);
+        const endDate = new Date(effectiveTo);
+        
+        let currentMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        
+        while (currentMonth <= endDate) {
+          const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+          
+          const monthSocietyRecords = societyRecords.filter((r: any) => {
+            const recordDate = r.dispatch_date || r.date;
+            return recordDate >= currentMonth.toISOString().split('T')[0] && 
+                   recordDate <= monthEnd.toISOString().split('T')[0];
+          });
+          
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          monthlySocietyBreakdown.push({
+            date: `${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`,
+            data: calculateStats(monthSocietyRecords)
+          });
+          
+          currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        setDailySocietyData(monthlySocietyBreakdown);
+      } else if (timePeriod === 'yearly') {
+        // Yearly breakdown
+        const yearlySocietyBreakdown: Array<{ date: string; data: ComparisonData }> = [];
+        const startYear = new Date(effectiveFrom).getFullYear();
+        const endYear = new Date(effectiveTo).getFullYear();
+        
+        for (let year = startYear; year <= endYear; year++) {
+          const yearStart = new Date(year, 0, 1);
+          const yearEnd = new Date(year, 11, 31);
+          
+          const yearSocietyRecords = societyRecords.filter((r: any) => {
+            const recordDate = r.dispatch_date || r.date;
+            return recordDate >= yearStart.toISOString().split('T')[0] && 
+                   recordDate <= yearEnd.toISOString().split('T')[0];
+          });
+          
+          yearlySocietyBreakdown.push({
+            date: `${year}`,
+            data: calculateStats(yearSocietyRecords)
+          });
+        }
+        setDailySocietyData(yearlySocietyBreakdown);
+      } else if (timePeriod !== 'daily') {
+        setDailySocietyData([]);
+        setLastWeekSocietyData(null);
+      }
 
     } catch (error) {
       console.error('Error fetching comparison data:', error);
@@ -269,29 +633,43 @@ export default function BmcVsSocietyComparison({
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
     });
 
-    const csvContent = [
+    let csvContent = [
       'POORNASREE EQUIPMENTS - BMC vs Society Comparison Report',
       'LactoConnect Milk Collection System',
       '',
       `Report Generated: ${currentDateTime}`,
-      `Period: ${dateRange.label}`,
+      `Period: ${dateRange.label} (${dateRange.from} to ${dateRange.to})`,
       `BMC: ${selectedBmc?.name || 'N/A'} (${selectedBmc?.bmcId || 'N/A'})`,
       `Society: ${selectedSociety?.name || 'N/A'} (${selectedSociety?.society_id || 'N/A'})`,
-      '',
-      'COMPARISON DATA',
+      ''
+    ];
+
+    if (dailyBmcData.length > 0 && dailySocietyData.length > 0) {
+      csvContent.push('DAY-BY-DAY BREAKDOWN', '');
+      csvContent.push('Date,Type,Records,Quantity (L),FAT (%),SNF (%),CLR,Amount (Rs),Rate (Rs/L)');
+      dailyBmcData.forEach((day, idx) => {
+        const societyDay = dailySocietyData[idx];
+        csvContent.push(`${day.date},BMC,${day.data.totalRecords},${day.data.totalQuantity.toFixed(2)},${day.data.weightedFat.toFixed(2)},${day.data.weightedSnf.toFixed(2)},${day.data.weightedClr.toFixed(2)},${day.data.totalAmount.toFixed(2)},${day.data.averageRate.toFixed(2)}`);
+        csvContent.push(`${day.date},Society,${societyDay.data.totalRecords},${societyDay.data.totalQuantity.toFixed(2)},${societyDay.data.weightedFat.toFixed(2)},${societyDay.data.weightedSnf.toFixed(2)},${societyDay.data.weightedClr.toFixed(2)},${societyDay.data.totalAmount.toFixed(2)},${societyDay.data.averageRate.toFixed(2)}`);
+        csvContent.push(`${day.date},Difference,${(day.data.totalRecords - societyDay.data.totalRecords).toFixed(0)},${(day.data.totalQuantity - societyDay.data.totalQuantity).toFixed(2)},${(day.data.weightedFat - societyDay.data.weightedFat).toFixed(2)},${(day.data.weightedSnf - societyDay.data.weightedSnf).toFixed(2)},${(day.data.weightedClr - societyDay.data.weightedClr).toFixed(2)},${(day.data.totalAmount - societyDay.data.totalAmount).toFixed(2)},${(day.data.averageRate - societyDay.data.averageRate).toFixed(2)}`);
+      });
+      csvContent.push('');
+    }
+
+    csvContent = csvContent.concat([
+      'SUMMARY',
       '',
       'Metric,Total Records,Total Quantity (L),Weighted FAT (%),Weighted SNF (%),Weighted CLR,Total Amount (Rs),Avg Rate (Rs/L)',
       `BMC Collection,${bmcData.totalRecords},${bmcData.totalQuantity.toFixed(2)},${bmcData.weightedFat.toFixed(2)},${bmcData.weightedSnf.toFixed(2)},${bmcData.weightedClr.toFixed(2)},${bmcData.totalAmount.toFixed(2)},${bmcData.averageRate.toFixed(2)}`,
       `Society Dispatch,${societyData.totalRecords},${societyData.totalQuantity.toFixed(2)},${societyData.weightedFat.toFixed(2)},${societyData.weightedSnf.toFixed(2)},${societyData.weightedClr.toFixed(2)},${societyData.totalAmount.toFixed(2)},${societyData.averageRate.toFixed(2)}`,
-      `Difference,${(bmcData.totalRecords - societyData.totalRecords).toFixed(0)},${(bmcData.totalQuantity - societyData.totalQuantity).toFixed(2)},${(bmcData.weightedFat - societyData.weightedFat).toFixed(2)},${(bmcData.weightedSnf - societyData.weightedSnf).toFixed(2)},${(bmcData.weightedClr - societyData.weightedClr).toFixed(2)},${(bmcData.totalAmount - societyData.totalAmount).toFixed(2)},${(bmcData.averageRate - societyData.averageRate).toFixed(2)}`,
       '',
       'Thank you',
       'Poornasree Equipments',
       'Contact: marketing@poornasree.com',
       `Generated on: ${currentDateTime}`
-    ].join('\n');
+    ]);
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -305,57 +683,64 @@ export default function BmcVsSocietyComparison({
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-    // Add Logo
     const logoPath = '/fulllogo.png';
     doc.addImage(logoPath, 'PNG', 14, 8, 0, 12);
 
-    // Header
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('BMC vs Society Comparison Report - LactoConnect System', 148.5, 15, { align: 'center' });
+    doc.text('BMC vs Society Comparison - LactoConnect System', 148.5, 15, { align: 'center' });
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Period: ${dateRange.label} | BMC: ${selectedBmc?.name || 'N/A'} (${selectedBmc?.bmcId || 'N/A'}) | Society: ${selectedSociety?.name || 'N/A'} (${selectedSociety?.society_id || 'N/A'})`, 148.5, 21, { align: 'center' });
+    doc.text(`Period: ${dateRange.label} (${dateRange.from} to ${dateRange.to})`, 148.5, 21, { align: 'center' });
+
+    let startY = 28;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Filters Applied:', 14, startY);
+    doc.setFont('helvetica', 'normal');
+    startY += 5;
+    doc.text(`BMC: ${selectedBmc?.name || 'N/A'} (${selectedBmc?.bmcId || 'N/A'})`, 14, startY);
+    startY += 4;
+    doc.text(`Society: ${selectedSociety?.name || 'N/A'} (${selectedSociety?.society_id || 'N/A'})`, 14, startY);
+    startY += 6;
+
+    if (dailyBmcData.length > 0 && dailySocietyData.length > 0) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DAY-BY-DAY BREAKDOWN', 148.5, startY, { align: 'center' });
+
+      const dailyRows: any[] = [];
+      dailyBmcData.forEach((day, idx) => {
+        const societyDay = dailySocietyData[idx];
+        dailyRows.push([day.date, 'BMC', day.data.totalRecords, day.data.totalQuantity.toFixed(2), day.data.weightedFat.toFixed(2), day.data.weightedSnf.toFixed(2), day.data.weightedClr.toFixed(2), day.data.totalAmount.toFixed(2), day.data.averageRate.toFixed(2)]);
+        dailyRows.push(['', 'Society', societyDay.data.totalRecords, societyDay.data.totalQuantity.toFixed(2), societyDay.data.weightedFat.toFixed(2), societyDay.data.weightedSnf.toFixed(2), societyDay.data.weightedClr.toFixed(2), societyDay.data.totalAmount.toFixed(2), societyDay.data.averageRate.toFixed(2)]);
+        dailyRows.push(['', 'Difference', (day.data.totalRecords - societyDay.data.totalRecords).toFixed(0), (day.data.totalQuantity - societyDay.data.totalQuantity).toFixed(2), (day.data.weightedFat - societyDay.data.weightedFat).toFixed(2), (day.data.weightedSnf - societyDay.data.weightedSnf).toFixed(2), (day.data.weightedClr - societyDay.data.weightedClr).toFixed(2), (day.data.totalAmount - societyDay.data.totalAmount).toFixed(2), (day.data.averageRate - societyDay.data.averageRate).toFixed(2)]);
+      });
+
+      autoTable(doc, {
+        startY: startY + 4,
+        head: [['Date', 'Type', 'Records', 'Qty (L)', 'FAT (%)', 'SNF (%)', 'CLR', 'Amt (Rs)', 'Rate (Rs/L)']],
+        body: dailyRows,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+        bodyStyles: { lineWidth: 0.2, lineColor: [200, 200, 200] }
+      });
+
+      startY = (doc as any).lastAutoTable.finalY + 8;
+    }
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('COMPARISON DATA', 148.5, 28, { align: 'center' });
+    doc.text('SUMMARY', 148.5, startY, { align: 'center' });
 
-    // Comparison Table
     autoTable(doc, {
-      startY: 32,
+      startY: startY + 4,
       head: [['Metric', 'Total Records', 'Total Quantity (L)', 'Weighted FAT (%)', 'Weighted SNF (%)', 'Weighted CLR', 'Total Amount (Rs)', 'Avg Rate (Rs/L)']],
       body: [
-        [
-          'BMC Collection',
-          bmcData.totalRecords,
-          bmcData.totalQuantity.toFixed(2),
-          bmcData.weightedFat.toFixed(2),
-          bmcData.weightedSnf.toFixed(2),
-          bmcData.weightedClr.toFixed(2),
-          bmcData.totalAmount.toFixed(2),
-          bmcData.averageRate.toFixed(2)
-        ],
-        [
-          'Society Dispatch',
-          societyData.totalRecords,
-          societyData.totalQuantity.toFixed(2),
-          societyData.weightedFat.toFixed(2),
-          societyData.weightedSnf.toFixed(2),
-          societyData.weightedClr.toFixed(2),
-          societyData.totalAmount.toFixed(2),
-          societyData.averageRate.toFixed(2)
-        ],
-        [
-          'Difference',
-          (bmcData.totalRecords - societyData.totalRecords).toFixed(0),
-          (bmcData.totalQuantity - societyData.totalQuantity).toFixed(2),
-          (bmcData.weightedFat - societyData.weightedFat).toFixed(2),
-          (bmcData.weightedSnf - societyData.weightedSnf).toFixed(2),
-          (bmcData.weightedClr - societyData.weightedClr).toFixed(2),
-          (bmcData.totalAmount - societyData.totalAmount).toFixed(2),
-          (bmcData.averageRate - societyData.averageRate).toFixed(2)
-        ]
+        ['BMC Collection', bmcData.totalRecords, bmcData.totalQuantity.toFixed(2), bmcData.weightedFat.toFixed(2), bmcData.weightedSnf.toFixed(2), bmcData.weightedClr.toFixed(2), bmcData.totalAmount.toFixed(2), bmcData.averageRate.toFixed(2)],
+        ['Society Dispatch', societyData.totalRecords, societyData.totalQuantity.toFixed(2), societyData.weightedFat.toFixed(2), societyData.weightedSnf.toFixed(2), societyData.weightedClr.toFixed(2), societyData.totalAmount.toFixed(2), societyData.averageRate.toFixed(2)]
       ],
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2, halign: 'center' },
@@ -363,24 +748,11 @@ export default function BmcVsSocietyComparison({
       bodyStyles: { lineWidth: 0.3, lineColor: [200, 200, 200] }
     });
 
-    // Summary Section
     const finalY = (doc as any).lastAutoTable.finalY + 8;
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('REPORT NOTES', 283, finalY, { align: 'right' });
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    let rightY = finalY + 6;
-    doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
-    rightY += 5;
-    doc.text('Contact: marketing@poornasree.com', 283, rightY, { align: 'right' });
-    rightY += 8;
-    doc.setFont('helvetica', 'bold');
-    doc.text('POORNASREE EQUIPMENTS', 283, rightY, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    rightY += 5;
-    doc.text('Thank you for using LactoConnect', 283, rightY, { align: 'right' });
+    doc.text('Prepared by: POORNASREE EQUIPMENTS', 283, finalY, { align: 'right' });
+    doc.text('Contact: marketing@poornasree.com', 283, finalY + 5, { align: 'right' });
 
     doc.save(`bmc-society-comparison-${dateRange.from}.pdf`);
   };
@@ -484,58 +856,935 @@ export default function BmcVsSocietyComparison({
         </div>
       ) : (
         <div className="overflow-x-auto">
+          {dailyBmcData.length > 0 && dailySocietyData.length > 0 && (timePeriod === 'daily' || timePeriod === 'weekly') ? (
+            // Daily/Weekly table showing current and previous period values
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-gray-50 dark:bg-gray-700">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Metric</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Total Records</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Total Quantity (L)</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Weighted FAT (%)</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Weighted SNF (%)</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Weighted CLR</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Total Amount (₹)</th>
-                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Avg Rate (₹/L)</th>
+              <tr className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-900/40 dark:to-cyan-900/40">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                  {timePeriod === 'daily' ? 'Day' : 'Week'}
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Type</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Records</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Quantity (L)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">FAT (%)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">SNF (%)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">CLR</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Amount (₹)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Rate (₹/L)</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="bg-blue-50 dark:bg-blue-900/20">
-                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">BMC Collection</td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{bmcData.totalRecords}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{bmcData.totalQuantity.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{bmcData.weightedFat.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{bmcData.weightedSnf.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{bmcData.weightedClr.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{bmcData.totalAmount.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{bmcData.averageRate.toFixed(2)}</span></td>
-              </tr>
-              <tr className="bg-green-50 dark:bg-green-900/20">
-                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">Society Dispatch</td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyData.totalRecords}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyData.totalQuantity.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyData.weightedFat.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyData.weightedSnf.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyData.weightedClr.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{societyData.totalAmount.toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600"><span className="font-semibold">₹{societyData.averageRate.toFixed(2)}</span></td>
-              </tr>
-              <tr className="bg-yellow-50 dark:bg-yellow-900/20">
-                <td className="px-4 py-3 text-sm font-bold text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">Difference (Collection - Dispatch)</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.totalRecords, societyData.totalRecords, 0)}</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.totalQuantity, societyData.totalQuantity)}</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.weightedFat, societyData.weightedFat)}</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.weightedSnf, societyData.weightedSnf)}</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.weightedClr, societyData.weightedClr)}</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.totalAmount, societyData.totalAmount)}</td>
-                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(bmcData.averageRate, societyData.averageRate)}</td>
+              {dailyBmcData.map((day, index) => {
+                const societyDay = dailySocietyData[index];
+                if (!societyDay) return null;
+                return (
+                  <React.Fragment key={day.date}>
+                    <tr className="bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                      <td rowSpan={3} className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"></div>
+                          <span className="font-semibold">{day.date}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm font-medium text-blue-700 dark:text-blue-300 border border-gray-300 dark:border-gray-600">BMC</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold">{day.data.totalRecords}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-emerald-600 dark:text-emerald-300">{day.data.totalQuantity.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-amber-600 dark:text-amber-300">{day.data.weightedFat.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-purple-600 dark:text-purple-300">{day.data.weightedSnf.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-pink-600 dark:text-pink-300">{day.data.weightedClr.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-blue-600 dark:text-blue-300">₹{day.data.totalAmount.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-cyan-600 dark:text-cyan-300">₹{day.data.averageRate.toFixed(2)}</span></td>
+                    </tr>
+                    <tr className="bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                      <td className="px-4 py-3 text-center text-sm font-medium text-green-700 dark:text-green-300 border border-gray-300 dark:border-gray-600">Society</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyDay.data.totalRecords}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-emerald-600 dark:text-emerald-300">{societyDay.data.totalQuantity.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-amber-600 dark:text-amber-300">{societyDay.data.weightedFat.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-purple-600 dark:text-purple-300">{societyDay.data.weightedSnf.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-pink-600 dark:text-pink-300">{societyDay.data.weightedClr.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-blue-600 dark:text-blue-300">₹{societyDay.data.totalAmount.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-cyan-600 dark:text-cyan-300">₹{societyDay.data.averageRate.toFixed(2)}</span></td>
+                    </tr>
+                    <tr className="bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
+                      <td className="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Difference</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.totalRecords, societyDay.data.totalRecords, 0)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.totalQuantity, societyDay.data.totalQuantity)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.weightedFat, societyDay.data.weightedFat)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.weightedSnf, societyDay.data.weightedSnf)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.weightedClr, societyDay.data.weightedClr)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.totalAmount, societyDay.data.totalAmount)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.averageRate, societyDay.data.averageRate)}</td>
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
+              <tr className="bg-gradient-to-r from-emerald-100 to-cyan-100 dark:from-emerald-900/50 dark:to-cyan-900/50 font-bold">
+                <td colSpan={2} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Total / Average</td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">B: {bmcData.totalRecords} / S: {societyData.totalRecords}</td>
+                <td className="px-4 py-3 text-center text-sm text-emerald-700 dark:text-emerald-200 border border-gray-300 dark:border-gray-600">B: {bmcData.totalQuantity.toFixed(2)} / S: {societyData.totalQuantity.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-amber-700 dark:text-amber-200 border border-gray-300 dark:border-gray-600">B: {bmcData.weightedFat.toFixed(2)} / S: {societyData.weightedFat.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-purple-700 dark:text-purple-200 border border-gray-300 dark:border-gray-600">B: {bmcData.weightedSnf.toFixed(2)} / S: {societyData.weightedSnf.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-pink-700 dark:text-pink-200 border border-gray-300 dark:border-gray-600">B: {bmcData.weightedClr.toFixed(2)} / S: {societyData.weightedClr.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-blue-700 dark:text-blue-200 border border-gray-300 dark:border-gray-600">B: ₹{bmcData.totalAmount.toFixed(2)} / S: ₹{societyData.totalAmount.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-cyan-700 dark:text-cyan-200 border border-gray-300 dark:border-gray-600">B: ₹{bmcData.averageRate.toFixed(2)} / S: ₹{societyData.averageRate.toFixed(2)}</td>
               </tr>
             </tbody>
           </table>
+          ) : dailyBmcData.length > 0 && dailySocietyData.length > 0 ? (
+            // Detailed breakdown table (Daily/Weekly/Monthly/Yearly)
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-900/40 dark:to-cyan-900/40">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                  {timePeriod === 'daily' ? 'Day' : timePeriod === 'weekly' ? 'Week' : timePeriod === 'monthly' ? 'Month' : 'Year'}
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Type</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Records</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Quantity (L)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">FAT (%)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">SNF (%)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">CLR</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Amount (₹)</th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Rate (₹/L)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyBmcData.map((day, index) => {
+                const societyDay = dailySocietyData[index];
+                return (
+                  <React.Fragment key={day.date}>
+                    <tr className="bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                      <td rowSpan={3} className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"></div>
+                          <span className="font-semibold">{day.date}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm font-medium text-blue-700 dark:text-blue-300 border border-gray-300 dark:border-gray-600">BMC</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold">{day.data.totalRecords}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-emerald-600 dark:text-emerald-300">{day.data.totalQuantity.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-amber-600 dark:text-amber-300">{day.data.weightedFat.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-purple-600 dark:text-purple-300">{day.data.weightedSnf.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-pink-600 dark:text-pink-300">{day.data.weightedClr.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-blue-600 dark:text-blue-300">₹{day.data.totalAmount.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-cyan-600 dark:text-cyan-300">₹{day.data.averageRate.toFixed(2)}</span></td>
+                    </tr>
+                    <tr className="bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
+                      <td className="px-4 py-3 text-center text-sm font-medium text-green-700 dark:text-green-300 border border-gray-300 dark:border-gray-600">Society</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold">{societyDay.data.totalRecords}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-emerald-600 dark:text-emerald-300">{societyDay.data.totalQuantity.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-amber-600 dark:text-amber-300">{societyDay.data.weightedFat.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-purple-600 dark:text-purple-300">{societyDay.data.weightedSnf.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-pink-600 dark:text-pink-300">{societyDay.data.weightedClr.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-blue-600 dark:text-blue-300">₹{societyDay.data.totalAmount.toFixed(2)}</span></td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600"><span className="font-semibold text-cyan-600 dark:text-cyan-300">₹{societyDay.data.averageRate.toFixed(2)}</span></td>
+                    </tr>
+                    <tr className="bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
+                      <td className="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">Difference</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.totalRecords, societyDay.data.totalRecords, 0)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.totalQuantity, societyDay.data.totalQuantity)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.weightedFat, societyDay.data.weightedFat)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.weightedSnf, societyDay.data.weightedSnf)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.weightedClr, societyDay.data.weightedClr)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.totalAmount, societyDay.data.totalAmount)}</td>
+                      <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">{renderDifferenceCell(day.data.averageRate, societyDay.data.averageRate)}</td>
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
+              <tr className="bg-gradient-to-r from-emerald-100 to-cyan-100 dark:from-emerald-900/50 dark:to-cyan-900/50 font-bold">
+                <td colSpan={2} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">Total / Average</td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600">B: {bmcData.totalRecords} / S: {societyData.totalRecords}</td>
+                <td className="px-4 py-3 text-center text-sm text-emerald-700 dark:text-emerald-200 border border-gray-300 dark:border-gray-600">B: {bmcData.totalQuantity.toFixed(2)} / S: {societyData.totalQuantity.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-amber-700 dark:text-amber-200 border border-gray-300 dark:border-gray-600">B: {bmcData.weightedFat.toFixed(2)} / S: {societyData.weightedFat.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-purple-700 dark:text-purple-200 border border-gray-300 dark:border-gray-600">B: {bmcData.weightedSnf.toFixed(2)} / S: {societyData.weightedSnf.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-pink-700 dark:text-pink-200 border border-gray-300 dark:border-gray-600">B: {bmcData.weightedClr.toFixed(2)} / S: {societyData.weightedClr.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-blue-700 dark:text-blue-200 border border-gray-300 dark:border-gray-600">B: ₹{bmcData.totalAmount.toFixed(2)} / S: ₹{societyData.totalAmount.toFixed(2)}</td>
+                <td className="px-4 py-3 text-center text-sm text-cyan-700 dark:text-cyan-200 border border-gray-300 dark:border-gray-600">B: ₹{bmcData.averageRate.toFixed(2)} / S: ₹{societyData.averageRate.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+          ) : (
+            // Summary comparison table (when no daily data)
+            <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Metric
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Total Records
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Total Quantity (L)
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Weighted FAT (%)
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Weighted SNF (%)
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Weighted CLR
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Total Amount (₹)
+                </th>
+                <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                  Avg Rate (₹/L)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* BMC Collection Row */}
+              <tr className="bg-blue-50 dark:bg-blue-900/20">
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  BMC Collection
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{bmcData.totalRecords}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{bmcData.totalQuantity.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{bmcData.weightedFat.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{bmcData.weightedSnf.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{bmcData.weightedClr.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">₹{bmcData.totalAmount.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">₹{bmcData.averageRate.toFixed(2)}</span>
+                </td>
+              </tr>
 
-          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              <strong>Note:</strong> BMC Collection shows aggregated collection data for all societies under the selected BMC. Society Dispatch shows dispatch data for the selected society only. Positive differences indicate collection is higher than dispatch.
-            </p>
+              {/* Society Dispatch Row */}
+              <tr className="bg-green-50 dark:bg-green-900/20">
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  Society Dispatch
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{societyData.totalRecords}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{societyData.totalQuantity.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{societyData.weightedFat.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{societyData.weightedSnf.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">{societyData.weightedClr.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">₹{societyData.totalAmount.toFixed(2)}</span>
+                </td>
+                <td className="px-4 py-3 text-center text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  <span className="font-semibold">₹{societyData.averageRate.toFixed(2)}</span>
+                </td>
+              </tr>
+
+              {/* Difference Row */}
+              <tr className="bg-yellow-50 dark:bg-yellow-900/20">
+                <td className="px-4 py-3 text-sm font-bold text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600">
+                  Difference (BMC - Society)
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.totalRecords, societyData.totalRecords, 0)}
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.totalQuantity, societyData.totalQuantity)}
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.weightedFat, societyData.weightedFat)}
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.weightedSnf, societyData.weightedSnf)}
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.weightedClr, societyData.weightedClr)}
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.totalAmount, societyData.totalAmount)}
+                </td>
+                <td className="px-4 py-3 text-center text-sm border border-gray-300 dark:border-gray-600">
+                  {renderDifferenceCell(bmcData.averageRate, societyData.averageRate)}
+                </td>
+              </tr>
+
+
+            </tbody>
+            </table>
+          )}
+        {/* Note */}
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <strong>Note:</strong> {dailyBmcData.length > 0 ? `BMC Collection shows aggregated collection data for all societies under the selected BMC. Society Dispatch shows dispatch data for the selected society only. Data is grouped by ${timePeriod === 'daily' ? 'day' : timePeriod === 'weekly' ? 'week' : timePeriod === 'monthly' ? 'month' : 'year'}. Positive differences indicate collection is higher than dispatch.` : 'This comparison shows weighted average values for BMC Collection vs Society Dispatch in the selected time period. Positive differences mean BMC values are higher, negative differences mean Society values are higher.'}
+          </p>
+        </div>
+
+          {/* Distribution Chart - Radar Style - Hide when daily data is available */}
+          {dailyBmcData.length === 0 && dailySocietyData.length === 0 && (
+          <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Distribution Chart — Comparison Analysis</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Radar visualization showing all parameters normalized to 0-100 scale</p>
+            
+            {(() => {
+              const normalize = (value: number, min: number, max: number) => {
+                if (max === min) return 50;
+                return ((value - min) / (max - min)) * 100;
+              };
+
+              const qtyMin = Math.min(bmcData.totalQuantity, societyData.totalQuantity) * 0.9;
+              const qtyMax = Math.max(bmcData.totalQuantity, societyData.totalQuantity) * 1.1;
+              const amtMin = Math.min(bmcData.totalAmount, societyData.totalAmount) * 0.9;
+              const amtMax = Math.max(bmcData.totalAmount, societyData.totalAmount) * 1.1;
+              const fatMin = Math.min(bmcData.weightedFat, societyData.weightedFat) * 0.9;
+              const fatMax = Math.max(bmcData.weightedFat, societyData.weightedFat) * 1.1;
+              const snfMin = Math.min(bmcData.weightedSnf, societyData.weightedSnf) * 0.9;
+              const snfMax = Math.max(bmcData.weightedSnf, societyData.weightedSnf) * 1.1;
+              const clrMin = Math.min(bmcData.weightedClr, societyData.weightedClr) * 0.9;
+              const clrMax = Math.max(bmcData.weightedClr, societyData.weightedClr) * 1.1;
+              const rateMin = Math.min(bmcData.averageRate, societyData.averageRate) * 0.9;
+              const rateMax = Math.max(bmcData.averageRate, societyData.averageRate) * 1.1;
+
+              const bmcNormalized = [
+                { parameter: 'Quantity', value: normalize(bmcData.totalQuantity, qtyMin, qtyMax), actual: bmcData.totalQuantity, unit: 'L' },
+                { parameter: 'Amount', value: normalize(bmcData.totalAmount, amtMin, amtMax), actual: bmcData.totalAmount, unit: '₹' },
+                { parameter: 'FAT %', value: normalize(bmcData.weightedFat, fatMin, fatMax), actual: bmcData.weightedFat, unit: '%' },
+                { parameter: 'SNF %', value: normalize(bmcData.weightedSnf, snfMin, snfMax), actual: bmcData.weightedSnf, unit: '%' },
+                { parameter: 'CLR', value: normalize(bmcData.weightedClr, clrMin, clrMax), actual: bmcData.weightedClr, unit: '' },
+                { parameter: 'Rate', value: normalize(bmcData.averageRate, rateMin, rateMax), actual: bmcData.averageRate, unit: '₹/L' }
+              ];
+
+              const societyNormalized = [
+                { parameter: 'Quantity', value: normalize(societyData.totalQuantity, qtyMin, qtyMax), actual: societyData.totalQuantity, unit: 'L' },
+                { parameter: 'Amount', value: normalize(societyData.totalAmount, amtMin, amtMax), actual: societyData.totalAmount, unit: '₹' },
+                { parameter: 'FAT %', value: normalize(societyData.weightedFat, fatMin, fatMax), actual: societyData.weightedFat, unit: '%' },
+                { parameter: 'SNF %', value: normalize(societyData.weightedSnf, snfMin, snfMax), actual: societyData.weightedSnf, unit: '%' },
+                { parameter: 'CLR', value: normalize(societyData.weightedClr, clrMin, clrMax), actual: societyData.weightedClr, unit: '' },
+                { parameter: 'Rate', value: normalize(societyData.averageRate, rateMin, rateMax), actual: societyData.averageRate, unit: '₹/L' }
+              ];
+
+              const combinedData = [
+                { parameter: 'Quantity', bmc: normalize(bmcData.totalQuantity, qtyMin, qtyMax), society: normalize(societyData.totalQuantity, qtyMin, qtyMax), bmcActual: bmcData.totalQuantity, societyActual: societyData.totalQuantity, unit: 'L' },
+                { parameter: 'Amount', bmc: normalize(bmcData.totalAmount, amtMin, amtMax), society: normalize(societyData.totalAmount, amtMin, amtMax), bmcActual: bmcData.totalAmount, societyActual: societyData.totalAmount, unit: '₹' },
+                { parameter: 'FAT %', bmc: normalize(bmcData.weightedFat, fatMin, fatMax), society: normalize(societyData.weightedFat, fatMin, fatMax), bmcActual: bmcData.weightedFat, societyActual: societyData.weightedFat, unit: '%' },
+                { parameter: 'SNF %', bmc: normalize(bmcData.weightedSnf, snfMin, snfMax), society: normalize(societyData.weightedSnf, snfMin, snfMax), bmcActual: bmcData.weightedSnf, societyActual: societyData.weightedSnf, unit: '%' },
+                { parameter: 'CLR', bmc: normalize(bmcData.weightedClr, clrMin, clrMax), society: normalize(societyData.weightedClr, clrMin, clrMax), bmcActual: bmcData.weightedClr, societyActual: societyData.weightedClr, unit: '' },
+                { parameter: 'Rate', bmc: normalize(bmcData.averageRate, rateMin, rateMax), society: normalize(societyData.averageRate, rateMin, rateMax), bmcActual: bmcData.averageRate, societyActual: societyData.averageRate, unit: '₹/L' }
+              ];
+
+              return (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div>
+                      <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">BMC Collection</h4>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <RadarChart data={bmcNormalized}>
+                          <PolarGrid stroke="#e5e7eb" />
+                          <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
+                          <Radar name="BMC Collection" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.5} strokeWidth={2} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                              border: '1px solid rgba(75, 85, 99, 0.5)',
+                              borderRadius: '12px',
+                              padding: '12px 16px',
+                              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                              color: '#fff'
+                            }}
+                            labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                            itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                            formatter={(value: any, name: string, props: any) => {
+                              const actual = props.payload.actual;
+                              const unit = props.payload.unit;
+                              return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                            }}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                      <div className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{bmcData.totalQuantity.toFixed(2)} L</span></div>
+                        <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{bmcData.totalAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{bmcData.weightedFat.toFixed(2)}%</span></div>
+                        <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{bmcData.weightedSnf.toFixed(2)}%</span></div>
+                        <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{bmcData.weightedClr.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{bmcData.averageRate.toFixed(2)}/L</span></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Society Dispatch</h4>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <RadarChart data={societyNormalized}>
+                          <PolarGrid stroke="#e5e7eb" />
+                          <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
+                          <Radar name="Society Dispatch" dataKey="value" stroke="#10b981" fill="#10b981" fillOpacity={0.5} strokeWidth={2} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                              border: '1px solid rgba(75, 85, 99, 0.5)',
+                              borderRadius: '12px',
+                              padding: '12px 16px',
+                              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                              color: '#fff'
+                            }}
+                            labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                            itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                            formatter={(value: any, name: string, props: any) => {
+                              const actual = props.payload.actual;
+                              const unit = props.payload.unit;
+                              return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                            }}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                      <div className="mt-4 space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                        <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{societyData.totalQuantity.toFixed(2)} L</span></div>
+                        <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{societyData.totalAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{societyData.weightedFat.toFixed(2)}%</span></div>
+                        <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{societyData.weightedSnf.toFixed(2)}%</span></div>
+                        <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{societyData.weightedClr.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{societyData.averageRate.toFixed(2)}/L</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8">
+                    <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Overlay Comparison</h4>
+                    <ResponsiveContainer width="100%" height={450}>
+                      <RadarChart data={combinedData}>
+                        <PolarGrid stroke="#e5e7eb" />
+                        <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 13, fill: '#374151', fontWeight: 500 }} />
+                        <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 11 }} />
+                        <Radar name="BMC Collection" dataKey="bmc" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2.5} />
+                        <Radar name="Society Dispatch" dataKey="society" stroke="#10b981" fill="#10b981" fillOpacity={0.3} strokeWidth={2.5} />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                            border: '1px solid rgba(75, 85, 99, 0.5)',
+                            borderRadius: '12px',
+                            padding: '12px 16px',
+                            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                            color: '#fff'
+                          }}
+                          labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                          itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                          formatter={(value: any, name: string, props: any) => {
+                            const actual = name === 'BMC Collection' ? props.payload.bmcActual : props.payload.societyActual;
+                            const unit = props.payload.unit;
+                            return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                          }}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              );
+            })()}
           </div>
+          )}
+
+          {/* Weekly/Monthly/Yearly Radar Chart */}
+          {(timePeriod === 'weekly' || timePeriod === 'monthly' || timePeriod === 'yearly') && dailyBmcData.length > 0 && dailySocietyData.length > 0 && lastWeekBmcData && lastWeekSocietyData && (
+            <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{timePeriod === 'weekly' ? 'Weekly' : timePeriod === 'monthly' ? 'Monthly' : 'Yearly'} Comparison — Radar Analysis</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">{timePeriod === 'weekly' ? 'This Week vs Last Week' : timePeriod === 'monthly' ? 'This Month vs Last Month' : 'This Year vs Last Year'} normalized to 0-100 scale</p>
+              
+              {(() => {
+                const normalize = (value: number, min: number, max: number) => {
+                  if (max === min) return 50;
+                  return ((value - min) / (max - min)) * 100;
+                };
+
+                // Get This Week and Last Week data from breakdown arrays
+                const thisWeekBmcStats = dailyBmcData.length >= 2 ? dailyBmcData[1].data : bmcData;
+                const thisWeekSocietyStats = dailySocietyData.length >= 2 ? dailySocietyData[1].data : societyData;
+                const lastWeekBmcStats = dailyBmcData.length >= 2 ? dailyBmcData[0].data : lastWeekBmcData;
+                const lastWeekSocietyStats = dailySocietyData.length >= 2 ? dailySocietyData[0].data : lastWeekSocietyData;
+
+                const qtyMin = Math.min(
+                  thisWeekBmcStats.totalQuantity, 
+                  thisWeekSocietyStats.totalQuantity,
+                  lastWeekBmcStats.totalQuantity, 
+                  lastWeekSocietyStats.totalQuantity
+                ) * 0.9;
+                const qtyMax = Math.max(
+                  thisWeekBmcStats.totalQuantity, 
+                  thisWeekSocietyStats.totalQuantity,
+                  lastWeekBmcStats.totalQuantity, 
+                  lastWeekSocietyStats.totalQuantity
+                ) * 1.1;
+                const amtMin = Math.min(
+                  thisWeekBmcStats.totalAmount, 
+                  thisWeekSocietyStats.totalAmount,
+                  lastWeekBmcStats.totalAmount, 
+                  lastWeekSocietyStats.totalAmount
+                ) * 0.9;
+                const amtMax = Math.max(
+                  thisWeekBmcStats.totalAmount, 
+                  thisWeekSocietyStats.totalAmount,
+                  lastWeekBmcStats.totalAmount, 
+                  lastWeekSocietyStats.totalAmount
+                ) * 1.1;
+                const fatMin = Math.min(
+                  thisWeekBmcStats.weightedFat, 
+                  thisWeekSocietyStats.weightedFat,
+                  lastWeekBmcStats.weightedFat, 
+                  lastWeekSocietyStats.weightedFat
+                ) * 0.9;
+                const fatMax = Math.max(
+                  thisWeekBmcStats.weightedFat, 
+                  thisWeekSocietyStats.weightedFat,
+                  lastWeekBmcStats.weightedFat, 
+                  lastWeekSocietyStats.weightedFat
+                ) * 1.1;
+                const snfMin = Math.min(
+                  thisWeekBmcStats.weightedSnf, 
+                  thisWeekSocietyStats.weightedSnf,
+                  lastWeekBmcStats.weightedSnf, 
+                  lastWeekSocietyStats.weightedSnf
+                ) * 0.9;
+                const snfMax = Math.max(
+                  thisWeekBmcStats.weightedSnf, 
+                  thisWeekSocietyStats.weightedSnf,
+                  lastWeekBmcStats.weightedSnf, 
+                  lastWeekSocietyStats.weightedSnf
+                ) * 1.1;
+                const clrMin = Math.min(
+                  thisWeekBmcStats.weightedClr, 
+                  thisWeekSocietyStats.weightedClr,
+                  lastWeekBmcStats.weightedClr, 
+                  lastWeekSocietyStats.weightedClr
+                ) * 0.9;
+                const clrMax = Math.max(
+                  thisWeekBmcStats.weightedClr, 
+                  thisWeekSocietyStats.weightedClr,
+                  lastWeekBmcStats.weightedClr, 
+                  lastWeekSocietyStats.weightedClr
+                ) * 1.1;
+                const rateMin = Math.min(
+                  thisWeekBmcStats.averageRate, 
+                  thisWeekSocietyStats.averageRate,
+                  lastWeekBmcStats.averageRate, 
+                  lastWeekSocietyStats.averageRate
+                ) * 0.9;
+                const rateMax = Math.max(
+                  thisWeekBmcStats.averageRate, 
+                  thisWeekSocietyStats.averageRate,
+                  lastWeekBmcStats.averageRate, 
+                  lastWeekSocietyStats.averageRate
+                ) * 1.1;
+
+                const thisWeekBmcData = [
+                  { parameter: 'Quantity', valueBmc: normalize(thisWeekBmcStats.totalQuantity, qtyMin, qtyMax), valueSociety: normalize(thisWeekSocietyStats.totalQuantity, qtyMin, qtyMax), actualBmc: thisWeekBmcStats.totalQuantity, actualSociety: thisWeekSocietyStats.totalQuantity, unit: 'L' },
+                  { parameter: 'Amount', valueBmc: normalize(thisWeekBmcStats.totalAmount, amtMin, amtMax), valueSociety: normalize(thisWeekSocietyStats.totalAmount, amtMin, amtMax), actualBmc: thisWeekBmcStats.totalAmount, actualSociety: thisWeekSocietyStats.totalAmount, unit: '₹' },
+                  { parameter: 'FAT %', valueBmc: normalize(thisWeekBmcStats.weightedFat, fatMin, fatMax), valueSociety: normalize(thisWeekSocietyStats.weightedFat, fatMin, fatMax), actualBmc: thisWeekBmcStats.weightedFat, actualSociety: thisWeekSocietyStats.weightedFat, unit: '%' },
+                  { parameter: 'SNF %', valueBmc: normalize(thisWeekBmcStats.weightedSnf, snfMin, snfMax), valueSociety: normalize(thisWeekSocietyStats.weightedSnf, snfMin, snfMax), actualBmc: thisWeekBmcStats.weightedSnf, actualSociety: thisWeekSocietyStats.weightedSnf, unit: '%' },
+                  { parameter: 'CLR', valueBmc: normalize(thisWeekBmcStats.weightedClr, clrMin, clrMax), valueSociety: normalize(thisWeekSocietyStats.weightedClr, clrMin, clrMax), actualBmc: thisWeekBmcStats.weightedClr, actualSociety: thisWeekSocietyStats.weightedClr, unit: '' },
+                  { parameter: 'Rate', valueBmc: normalize(thisWeekBmcStats.averageRate, rateMin, rateMax), valueSociety: normalize(thisWeekSocietyStats.averageRate, rateMin, rateMax), actualBmc: thisWeekBmcStats.averageRate, actualSociety: thisWeekSocietyStats.averageRate, unit: '₹/L' }
+                ];
+
+                const lastWeekCombinedData = [
+                  { parameter: 'Quantity', valueBmc: normalize(lastWeekBmcStats.totalQuantity, qtyMin, qtyMax), valueSociety: normalize(lastWeekSocietyStats.totalQuantity, qtyMin, qtyMax), actualBmc: lastWeekBmcStats.totalQuantity, actualSociety: lastWeekSocietyStats.totalQuantity, unit: 'L' },
+                  { parameter: 'Amount', valueBmc: normalize(lastWeekBmcStats.totalAmount, amtMin, amtMax), valueSociety: normalize(lastWeekSocietyStats.totalAmount, amtMin, amtMax), actualBmc: lastWeekBmcStats.totalAmount, actualSociety: lastWeekSocietyStats.totalAmount, unit: '₹' },
+                  { parameter: 'FAT %', valueBmc: normalize(lastWeekBmcStats.weightedFat, fatMin, fatMax), valueSociety: normalize(lastWeekSocietyStats.weightedFat, fatMin, fatMax), actualBmc: lastWeekBmcStats.weightedFat, actualSociety: lastWeekSocietyStats.weightedFat, unit: '%' },
+                  { parameter: 'SNF %', valueBmc: normalize(lastWeekBmcStats.weightedSnf, snfMin, snfMax), valueSociety: normalize(lastWeekSocietyStats.weightedSnf, snfMin, snfMax), actualBmc: lastWeekBmcStats.weightedSnf, actualSociety: lastWeekSocietyStats.weightedSnf, unit: '%' },
+                  { parameter: 'CLR', valueBmc: normalize(lastWeekBmcStats.weightedClr, clrMin, clrMax), valueSociety: normalize(lastWeekSocietyStats.weightedClr, clrMin, clrMax), actualBmc: lastWeekBmcStats.weightedClr, actualSociety: lastWeekSocietyStats.weightedClr, unit: '' },
+                  { parameter: 'Rate', valueBmc: normalize(lastWeekBmcStats.averageRate, rateMin, rateMax), valueSociety: normalize(lastWeekSocietyStats.averageRate, rateMin, rateMax), actualBmc: lastWeekBmcStats.averageRate, actualSociety: lastWeekSocietyStats.averageRate, unit: '₹/L' }
+                ];
+
+                const combinedData = [
+                  { parameter: 'Quantity', thisWeekBmc: normalize(bmcData.totalQuantity, qtyMin, qtyMax), thisWeekSociety: normalize(societyData.totalQuantity, qtyMin, qtyMax), lastWeekBmc: normalize(lastWeekBmcData.totalQuantity, qtyMin, qtyMax), lastWeekSociety: normalize(lastWeekSocietyData.totalQuantity, qtyMin, qtyMax), twBmcActual: bmcData.totalQuantity, twSocietyActual: societyData.totalQuantity, lwBmcActual: lastWeekBmcData.totalQuantity, lwSocietyActual: lastWeekSocietyData.totalQuantity, unit: 'L' },
+                  { parameter: 'Amount', thisWeekBmc: normalize(bmcData.totalAmount, amtMin, amtMax), thisWeekSociety: normalize(societyData.totalAmount, amtMin, amtMax), lastWeekBmc: normalize(lastWeekBmcData.totalAmount, amtMin, amtMax), lastWeekSociety: normalize(lastWeekSocietyData.totalAmount, amtMin, amtMax), twBmcActual: bmcData.totalAmount, twSocietyActual: societyData.totalAmount, lwBmcActual: lastWeekBmcData.totalAmount, lwSocietyActual: lastWeekSocietyData.totalAmount, unit: '₹' },
+                  { parameter: 'FAT %', thisWeekBmc: normalize(bmcData.weightedFat, fatMin, fatMax), thisWeekSociety: normalize(societyData.weightedFat, fatMin, fatMax), lastWeekBmc: normalize(lastWeekBmcData.weightedFat, fatMin, fatMax), lastWeekSociety: normalize(lastWeekSocietyData.weightedFat, fatMin, fatMax), twBmcActual: bmcData.weightedFat, twSocietyActual: societyData.weightedFat, lwBmcActual: lastWeekBmcData.weightedFat, lwSocietyActual: lastWeekSocietyData.weightedFat, unit: '%' },
+                  { parameter: 'SNF %', thisWeekBmc: normalize(bmcData.weightedSnf, snfMin, snfMax), thisWeekSociety: normalize(societyData.weightedSnf, snfMin, snfMax), lastWeekBmc: normalize(lastWeekBmcData.weightedSnf, snfMin, snfMax), lastWeekSociety: normalize(lastWeekSocietyData.weightedSnf, snfMin, snfMax), twBmcActual: bmcData.weightedSnf, twSocietyActual: societyData.weightedSnf, lwBmcActual: lastWeekBmcData.weightedSnf, lwSocietyActual: lastWeekSocietyData.weightedSnf, unit: '%' },
+                  { parameter: 'CLR', thisWeekBmc: normalize(bmcData.weightedClr, clrMin, clrMax), thisWeekSociety: normalize(societyData.weightedClr, clrMin, clrMax), lastWeekBmc: normalize(lastWeekBmcData.weightedClr, clrMin, clrMax), lastWeekSociety: normalize(lastWeekSocietyData.weightedClr, clrMin, clrMax), twBmcActual: bmcData.weightedClr, twSocietyActual: societyData.weightedClr, lwBmcActual: lastWeekBmcData.weightedClr, lwSocietyActual: lastWeekSocietyData.weightedClr, unit: '' },
+                  { parameter: 'Rate', thisWeekBmc: normalize(bmcData.averageRate, rateMin, rateMax), thisWeekSociety: normalize(societyData.averageRate, rateMin, rateMax), lastWeekBmc: normalize(lastWeekBmcData.averageRate, rateMin, rateMax), lastWeekSociety: normalize(lastWeekSocietyData.averageRate, rateMin, rateMax), twBmcActual: bmcData.averageRate, twSocietyActual: societyData.averageRate, lwBmcActual: lastWeekBmcData.averageRate, lwSocietyActual: lastWeekSocietyData.averageRate, unit: '₹/L' }
+                ];
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{timePeriod === 'weekly' ? 'This Week' : timePeriod === 'monthly' ? 'This Month' : 'This Year'} — BMC vs Society</h4>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <RadarChart data={thisWeekBmcData}>
+                            <PolarGrid stroke="#e5e7eb" />
+                            <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                            <Radar name="BMC" dataKey="valueBmc" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Radar name="Society" dataKey="valueSociety" stroke="#10b981" fill="#10b981" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(75, 85, 99, 0.5)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', color: '#fff' }}
+                              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                              itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                              formatter={(value: any, name: string, props: any) => {
+                                const actual = name === 'BMC' ? props.payload.actualBmc : props.payload.actualSociety;
+                                const unit = props.payload.unit;
+                                return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                              }}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                        <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-blue-600 dark:text-blue-400 mb-2">BMC</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{thisWeekBmcStats.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{thisWeekBmcStats.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{thisWeekBmcStats.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{thisWeekBmcStats.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{thisWeekBmcStats.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{thisWeekBmcStats.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-green-600 dark:text-green-400 mb-2">Society</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{thisWeekSocietyStats.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{thisWeekSocietyStats.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{thisWeekSocietyStats.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{thisWeekSocietyStats.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{thisWeekSocietyStats.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{thisWeekSocietyStats.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{timePeriod === 'weekly' ? 'Last Week' : timePeriod === 'monthly' ? 'Last Month' : 'Last Year'} — BMC vs Society</h4>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <RadarChart data={lastWeekCombinedData}>
+                            <PolarGrid stroke="#e5e7eb" />
+                            <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                            <Radar name="BMC" dataKey="valueBmc" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Radar name="Society" dataKey="valueSociety" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(75, 85, 99, 0.5)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', color: '#fff' }}
+                              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                              itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                              formatter={(value: any, name: string, props: any) => {
+                                const actual = name === 'BMC' ? props.payload.actualBmc : props.payload.actualSociety;
+                                const unit = props.payload.unit;
+                                return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                              }}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                        <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-purple-600 dark:text-purple-400 mb-2">BMC</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{lastWeekBmcStats.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{lastWeekBmcStats.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{lastWeekBmcStats.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{lastWeekBmcStats.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{lastWeekBmcStats.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{lastWeekBmcStats.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-amber-600 dark:text-amber-400 mb-2">Society</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{lastWeekSocietyStats.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{lastWeekSocietyStats.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{lastWeekSocietyStats.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{lastWeekSocietyStats.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{lastWeekSocietyStats.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{lastWeekSocietyStats.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8">
+                      <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Combined Overlay — All 4 Datasets</h4>
+                      <ResponsiveContainer width="100%" height={450}>
+                        <RadarChart data={combinedData}>
+                          <PolarGrid stroke="#e5e7eb" />
+                          <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 13, fill: '#374151', fontWeight: 500 }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 11 }} />
+                          <Radar name={`${timePeriod === 'weekly' ? 'This Week' : timePeriod === 'monthly' ? 'This Month' : 'This Year'} BMC`} dataKey="thisWeekBmc" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Radar name={`${timePeriod === 'weekly' ? 'This Week' : timePeriod === 'monthly' ? 'This Month' : 'This Year'} Society`} dataKey="thisWeekSociety" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Radar name={`${timePeriod === 'weekly' ? 'Last Week' : timePeriod === 'monthly' ? 'Last Month' : 'Last Year'} BMC`} dataKey="lastWeekBmc" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Radar name={`${timePeriod === 'weekly' ? 'Last Week' : timePeriod === 'monthly' ? 'Last Month' : 'Last Year'} Society`} dataKey="lastWeekSociety" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(75, 85, 99, 0.5)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', color: '#fff' }}
+                            labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                            itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                            formatter={(value: any, name: string, props: any) => {
+                              const payload = props.payload;
+                              let actual;
+                              if (name.includes('BMC') && (name.includes('This Week') || name.includes('This Month') || name.includes('This Year'))) actual = payload.twBmcActual;
+                              else if (name.includes('Society') && (name.includes('This Week') || name.includes('This Month') || name.includes('This Year'))) actual = payload.twSocietyActual;
+                              else if (name.includes('BMC') && (name.includes('Last Week') || name.includes('Last Month') || name.includes('Last Year'))) actual = payload.lwBmcActual;
+                              else if (name.includes('Society') && (name.includes('Last Week') || name.includes('Last Month') || name.includes('Last Year'))) actual = payload.lwSocietyActual;
+                              const unit = payload.unit;
+                              return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                            }}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+
+
+          {/* Daily Radar Chart - Today vs Yesterday */}
+          {timePeriod === 'daily' && dailyBmcData.length > 0 && dailySocietyData.length > 0 && lastWeekBmcData && lastWeekSocietyData && (
+            <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Daily Comparison — Radar Analysis</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Today vs Yesterday normalized to 0-100 scale</p>
+              
+              {(() => {
+                const normalize = (value: number, min: number, max: number) => {
+                  if (max === min) return 50;
+                  return ((value - min) / (max - min)) * 100;
+                };
+
+                const qtyMin = Math.min(
+                  bmcData.totalQuantity, 
+                  societyData.totalQuantity,
+                  lastWeekBmcData.totalQuantity, 
+                  lastWeekSocietyData.totalQuantity
+                ) * 0.9;
+                const qtyMax = Math.max(
+                  bmcData.totalQuantity, 
+                  societyData.totalQuantity,
+                  lastWeekBmcData.totalQuantity, 
+                  lastWeekSocietyData.totalQuantity
+                ) * 1.1;
+                const amtMin = Math.min(
+                  bmcData.totalAmount, 
+                  societyData.totalAmount,
+                  lastWeekBmcData.totalAmount, 
+                  lastWeekSocietyData.totalAmount
+                ) * 0.9;
+                const amtMax = Math.max(
+                  bmcData.totalAmount, 
+                  societyData.totalAmount,
+                  lastWeekBmcData.totalAmount, 
+                  lastWeekSocietyData.totalAmount
+                ) * 1.1;
+                const fatMin = Math.min(
+                  bmcData.weightedFat, 
+                  societyData.weightedFat,
+                  lastWeekBmcData.weightedFat, 
+                  lastWeekSocietyData.weightedFat
+                ) * 0.9;
+                const fatMax = Math.max(
+                  bmcData.weightedFat, 
+                  societyData.weightedFat,
+                  lastWeekBmcData.weightedFat, 
+                  lastWeekSocietyData.weightedFat
+                ) * 1.1;
+                const snfMin = Math.min(
+                  bmcData.weightedSnf, 
+                  societyData.weightedSnf,
+                  lastWeekBmcData.weightedSnf, 
+                  lastWeekSocietyData.weightedSnf
+                ) * 0.9;
+                const snfMax = Math.max(
+                  bmcData.weightedSnf, 
+                  societyData.weightedSnf,
+                  lastWeekBmcData.weightedSnf, 
+                  lastWeekSocietyData.weightedSnf
+                ) * 1.1;
+                const clrMin = Math.min(
+                  bmcData.weightedClr, 
+                  societyData.weightedClr,
+                  lastWeekBmcData.weightedClr, 
+                  lastWeekSocietyData.weightedClr
+                ) * 0.9;
+                const clrMax = Math.max(
+                  bmcData.weightedClr, 
+                  societyData.weightedClr,
+                  lastWeekBmcData.weightedClr, 
+                  lastWeekSocietyData.weightedClr
+                ) * 1.1;
+                const rateMin = Math.min(
+                  bmcData.averageRate, 
+                  societyData.averageRate,
+                  lastWeekBmcData.averageRate, 
+                  lastWeekSocietyData.averageRate
+                ) * 0.9;
+                const rateMax = Math.max(
+                  bmcData.averageRate, 
+                  societyData.averageRate,
+                  lastWeekBmcData.averageRate, 
+                  lastWeekSocietyData.averageRate
+                ) * 1.1;
+
+                const currentPeriodData = [
+                  { parameter: 'Quantity', valueBmc: normalize(bmcData.totalQuantity, qtyMin, qtyMax), valueSociety: normalize(societyData.totalQuantity, qtyMin, qtyMax), actualBmc: bmcData.totalQuantity, actualSociety: societyData.totalQuantity, unit: 'L' },
+                  { parameter: 'Amount', valueBmc: normalize(bmcData.totalAmount, amtMin, amtMax), valueSociety: normalize(societyData.totalAmount, amtMin, amtMax), actualBmc: bmcData.totalAmount, actualSociety: societyData.totalAmount, unit: '₹' },
+                  { parameter: 'FAT %', valueBmc: normalize(bmcData.weightedFat, fatMin, fatMax), valueSociety: normalize(societyData.weightedFat, fatMin, fatMax), actualBmc: bmcData.weightedFat, actualSociety: societyData.weightedFat, unit: '%' },
+                  { parameter: 'SNF %', valueBmc: normalize(bmcData.weightedSnf, snfMin, snfMax), valueSociety: normalize(societyData.weightedSnf, snfMin, snfMax), actualBmc: bmcData.weightedSnf, actualSociety: societyData.weightedSnf, unit: '%' },
+                  { parameter: 'CLR', valueBmc: normalize(bmcData.weightedClr, clrMin, clrMax), valueSociety: normalize(societyData.weightedClr, clrMin, clrMax), actualBmc: bmcData.weightedClr, actualSociety: societyData.weightedClr, unit: '' },
+                  { parameter: 'Rate', valueBmc: normalize(bmcData.averageRate, rateMin, rateMax), valueSociety: normalize(societyData.averageRate, rateMin, rateMax), actualBmc: bmcData.averageRate, actualSociety: societyData.averageRate, unit: '₹/L' }
+                ];
+
+                const previousPeriodData = [
+                  { parameter: 'Quantity', valueBmc: normalize(lastWeekBmcData.totalQuantity, qtyMin, qtyMax), valueSociety: normalize(lastWeekSocietyData.totalQuantity, qtyMin, qtyMax), actualBmc: lastWeekBmcData.totalQuantity, actualSociety: lastWeekSocietyData.totalQuantity, unit: 'L' },
+                  { parameter: 'Amount', valueBmc: normalize(lastWeekBmcData.totalAmount, amtMin, amtMax), valueSociety: normalize(lastWeekSocietyData.totalAmount, amtMin, amtMax), actualBmc: lastWeekBmcData.totalAmount, actualSociety: lastWeekSocietyData.totalAmount, unit: '₹' },
+                  { parameter: 'FAT %', valueBmc: normalize(lastWeekBmcData.weightedFat, fatMin, fatMax), valueSociety: normalize(lastWeekSocietyData.weightedFat, fatMin, fatMax), actualBmc: lastWeekBmcData.weightedFat, actualSociety: lastWeekSocietyData.weightedFat, unit: '%' },
+                  { parameter: 'SNF %', valueBmc: normalize(lastWeekBmcData.weightedSnf, snfMin, snfMax), valueSociety: normalize(lastWeekSocietyData.weightedSnf, snfMin, snfMax), actualBmc: lastWeekBmcData.weightedSnf, actualSociety: lastWeekSocietyData.weightedSnf, unit: '%' },
+                  { parameter: 'CLR', valueBmc: normalize(lastWeekBmcData.weightedClr, clrMin, clrMax), valueSociety: normalize(lastWeekSocietyData.weightedClr, clrMin, clrMax), actualBmc: lastWeekBmcData.weightedClr, actualSociety: lastWeekSocietyData.weightedClr, unit: '' },
+                  { parameter: 'Rate', valueBmc: normalize(lastWeekBmcData.averageRate, rateMin, rateMax), valueSociety: normalize(lastWeekSocietyData.averageRate, rateMin, rateMax), actualBmc: lastWeekBmcData.averageRate, actualSociety: lastWeekSocietyData.averageRate, unit: '₹/L' }
+                ];
+
+                const combinedData = [
+                  { parameter: 'Quantity', currentBmc: normalize(bmcData.totalQuantity, qtyMin, qtyMax), currentSociety: normalize(societyData.totalQuantity, qtyMin, qtyMax), previousBmc: normalize(lastWeekBmcData.totalQuantity, qtyMin, qtyMax), previousSociety: normalize(lastWeekSocietyData.totalQuantity, qtyMin, qtyMax), cpBmcActual: bmcData.totalQuantity, cpSocietyActual: societyData.totalQuantity, ppBmcActual: lastWeekBmcData.totalQuantity, ppSocietyActual: lastWeekSocietyData.totalQuantity, unit: 'L' },
+                  { parameter: 'Amount', currentBmc: normalize(bmcData.totalAmount, amtMin, amtMax), currentSociety: normalize(societyData.totalAmount, amtMin, amtMax), previousBmc: normalize(lastWeekBmcData.totalAmount, amtMin, amtMax), previousSociety: normalize(lastWeekSocietyData.totalAmount, amtMin, amtMax), cpBmcActual: bmcData.totalAmount, cpSocietyActual: societyData.totalAmount, ppBmcActual: lastWeekBmcData.totalAmount, ppSocietyActual: lastWeekSocietyData.totalAmount, unit: '₹' },
+                  { parameter: 'FAT %', currentBmc: normalize(bmcData.weightedFat, fatMin, fatMax), currentSociety: normalize(societyData.weightedFat, fatMin, fatMax), previousBmc: normalize(lastWeekBmcData.weightedFat, fatMin, fatMax), previousSociety: normalize(lastWeekSocietyData.weightedFat, fatMin, fatMax), cpBmcActual: bmcData.weightedFat, cpSocietyActual: societyData.weightedFat, ppBmcActual: lastWeekBmcData.weightedFat, ppSocietyActual: lastWeekSocietyData.weightedFat, unit: '%' },
+                  { parameter: 'SNF %', currentBmc: normalize(bmcData.weightedSnf, snfMin, snfMax), currentSociety: normalize(societyData.weightedSnf, snfMin, snfMax), previousBmc: normalize(lastWeekBmcData.weightedSnf, snfMin, snfMax), previousSociety: normalize(lastWeekSocietyData.weightedSnf, snfMin, snfMax), cpBmcActual: bmcData.weightedSnf, cpSocietyActual: societyData.weightedSnf, ppBmcActual: lastWeekBmcData.weightedSnf, ppSocietyActual: lastWeekSocietyData.weightedSnf, unit: '%' },
+                  { parameter: 'CLR', currentBmc: normalize(bmcData.weightedClr, clrMin, clrMax), currentSociety: normalize(societyData.weightedClr, clrMin, clrMax), previousBmc: normalize(lastWeekBmcData.weightedClr, clrMin, clrMax), previousSociety: normalize(lastWeekSocietyData.weightedClr, clrMin, clrMax), cpBmcActual: bmcData.weightedClr, cpSocietyActual: societyData.weightedClr, ppBmcActual: lastWeekBmcData.weightedClr, ppSocietyActual: lastWeekSocietyData.weightedClr, unit: '' },
+                  { parameter: 'Rate', currentBmc: normalize(bmcData.averageRate, rateMin, rateMax), currentSociety: normalize(societyData.averageRate, rateMin, rateMax), previousBmc: normalize(lastWeekBmcData.averageRate, rateMin, rateMax), previousSociety: normalize(lastWeekSocietyData.averageRate, rateMin, rateMax), cpBmcActual: bmcData.averageRate, cpSocietyActual: societyData.averageRate, ppBmcActual: lastWeekBmcData.averageRate, ppSocietyActual: lastWeekSocietyData.averageRate, unit: '₹/L' }
+                ];
+
+                return (
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Today — BMC vs Society</h4>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <RadarChart data={currentPeriodData}>
+                            <PolarGrid stroke="#e5e7eb" />
+                            <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                            <Radar name="BMC" dataKey="valueBmc" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Radar name="Society" dataKey="valueSociety" stroke="#10b981" fill="#10b981" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(75, 85, 99, 0.5)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', color: '#fff' }}
+                              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                              itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                              formatter={(value: any, name: string, props: any) => {
+                                const actual = name === 'BMC' ? props.payload.actualBmc : props.payload.actualSociety;
+                                const unit = props.payload.unit;
+                                return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                              }}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                        <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-blue-600 dark:text-blue-400 mb-2">BMC</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{bmcData.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{bmcData.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{bmcData.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{bmcData.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{bmcData.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{bmcData.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-green-600 dark:text-green-400 mb-2">Society</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{societyData.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{societyData.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{societyData.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{societyData.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{societyData.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{societyData.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Yesterday — BMC vs Society</h4>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <RadarChart data={previousPeriodData}>
+                            <PolarGrid stroke="#e5e7eb" />
+                            <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                            <Radar name="BMC" dataKey="valueBmc" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Radar name="Society" dataKey="valueSociety" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.4} strokeWidth={2.5} />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(75, 85, 99, 0.5)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', color: '#fff' }}
+                              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                              itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                              formatter={(value: any, name: string, props: any) => {
+                                const actual = name === 'BMC' ? props.payload.actualBmc : props.payload.actualSociety;
+                                const unit = props.payload.unit;
+                                return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                              }}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                        <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-purple-600 dark:text-purple-400 mb-2">BMC</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{lastWeekBmcData.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{lastWeekBmcData.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{lastWeekBmcData.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{lastWeekBmcData.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{lastWeekBmcData.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{lastWeekBmcData.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                          <div className="space-y-2 text-gray-600 dark:text-gray-400">
+                            <div className="font-semibold text-amber-600 dark:text-amber-400 mb-2">Society</div>
+                            <div className="flex justify-between"><span>Quantity:</span><span className="font-semibold">{lastWeekSocietyData.totalQuantity.toFixed(2)} L</span></div>
+                            <div className="flex justify-between"><span>Amount:</span><span className="font-semibold">₹{lastWeekSocietyData.totalAmount.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>FAT:</span><span className="font-semibold">{lastWeekSocietyData.weightedFat.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>SNF:</span><span className="font-semibold">{lastWeekSocietyData.weightedSnf.toFixed(2)}%</span></div>
+                            <div className="flex justify-between"><span>CLR:</span><span className="font-semibold">{lastWeekSocietyData.weightedClr.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Rate:</span><span className="font-semibold">₹{lastWeekSocietyData.averageRate.toFixed(2)}/L</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-8">
+                      <h4 className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Combined Overlay — All 4 Datasets</h4>
+                      <ResponsiveContainer width="100%" height={450}>
+                        <RadarChart data={combinedData}>
+                          <PolarGrid stroke="#e5e7eb" />
+                          <PolarAngleAxis dataKey="parameter" tick={{ fontSize: 13, fill: '#374151', fontWeight: 500 }} />
+                          <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 11 }} />
+                          <Radar name="Today BMC" dataKey="currentBmc" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Radar name="Today Society" dataKey="currentSociety" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Radar name="Yesterday BMC" dataKey="previousBmc" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Radar name="Yesterday Society" dataKey="previousSociety" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2.5} />
+                          <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(75, 85, 99, 0.5)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)', color: '#fff' }}
+                            labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                            itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                            formatter={(value: any, name: string, props: any) => {
+                              const payload = props.payload;
+                              let actual;
+                              if (name === 'Today BMC') actual = payload.cpBmcActual;
+                              else if (name === 'Today Society') actual = payload.cpSocietyActual;
+                              else if (name === 'Yesterday BMC') actual = payload.ppBmcActual;
+                              else if (name === 'Yesterday Society') actual = payload.ppSocietyActual;
+                              const unit = payload.unit;
+                              return [unit === '₹' ? `${unit}${actual.toFixed(2)}` : unit === '₹/L' ? `${unit.replace('/L', '')}${actual.toFixed(2)}/L` : `${actual.toFixed(2)}${unit}`, name];
+                            }}
+                          />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
     </div>

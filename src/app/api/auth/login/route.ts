@@ -143,7 +143,8 @@ export async function POST(request: NextRequest) {
         fullName: user.fullName,
         role: user.role
       },
-      token: tokens.token
+      token: tokens.token,
+      refreshToken: tokens.refreshToken
     }, 'Login successful');
 
     // Set cookies
