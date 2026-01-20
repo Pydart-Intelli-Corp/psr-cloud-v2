@@ -51,6 +51,19 @@ export default function BmcVsSocietyComparison({
   const [societies, setSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string }>>([]);
   const [filteredSocieties, setFilteredSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
+  const [activeMetrics, setActiveMetrics] = useState<Set<string>>(new Set(['BMC Qty', 'Society Qty']));
+
+  const toggleMetric = (metric: string) => {
+    setActiveMetrics(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(metric)) {
+        newSet.delete(metric);
+      } else {
+        newSet.add(metric);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     fetchFilterOptions();
@@ -1559,6 +1572,34 @@ export default function BmcVsSocietyComparison({
                 </div>
               </div>
               
+              {/* Metric Toggle Buttons */}
+              <div className="mb-4 flex flex-wrap gap-2">
+                {[
+                  { key: 'BMC Qty', label: 'BMC Qty', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-500' },
+                  { key: 'Society Qty', label: 'Society Qty', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-500' },
+                  { key: 'BMC Amt', label: 'BMC Amt', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-500' },
+                  { key: 'Society Amt', label: 'Society Amt', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-500' },
+                  { key: 'BMC FAT', label: 'BMC FAT', color: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 border-pink-500' },
+                  { key: 'Society FAT', label: 'Society FAT', color: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border-cyan-500' },
+                  { key: 'BMC SNF', label: 'BMC SNF', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-500' },
+                  { key: 'Society SNF', label: 'Society SNF', color: 'bg-lime-100 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300 border-lime-500' },
+                  { key: 'BMC CLR', label: 'BMC CLR', color: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-500' },
+                  { key: 'Society CLR', label: 'Society CLR', color: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-500' }
+                ].map(metric => (
+                  <button
+                    key={metric.key}
+                    onClick={() => toggleMetric(metric.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-2 ${
+                      activeMetrics.has(metric.key)
+                        ? `${metric.color} shadow-md`
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-transparent opacity-50'
+                    }`}
+                  >
+                    {metric.label}
+                  </button>
+                ))}
+              </div>
+              
               <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 shadow-inner border border-gray-200/50 dark:border-gray-700/50">
                 <ResponsiveContainer width="100%" height={450}>
                   <AreaChart data={dailyBmcData.map((d, idx) => {
@@ -1690,84 +1731,104 @@ export default function BmcVsSocietyComparison({
                       wrapperStyle={{ paddingTop: '20px' }}
                       iconType="rect"
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="BMC Qty" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2.5}
-                      fill="url(#colorBmcQty)"
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="Society Qty" 
-                      stroke="#10b981" 
-                      strokeWidth={2.5}
-                      fill="url(#colorSocietyQty)"
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="BMC Amt" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={2}
-                      fill="url(#colorBmcAmt)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="Society Amt" 
-                      stroke="#f59e0b" 
-                      strokeWidth={2}
-                      fill="url(#colorSocietyAmt)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="BMC FAT" 
-                      stroke="#ec4899" 
-                      strokeWidth={2}
-                      fill="url(#colorBmcFAT)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="Society FAT" 
-                      stroke="#06b6d4" 
-                      strokeWidth={2}
-                      fill="url(#colorSocietyFAT)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="BMC SNF" 
-                      stroke="#a855f7" 
-                      strokeWidth={2}
-                      fill="url(#colorBmcSNF)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="Society SNF" 
-                      stroke="#84cc16" 
-                      strokeWidth={2}
-                      fill="url(#colorSocietySNF)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="BMC CLR" 
-                      stroke="#f43f5e" 
-                      strokeWidth={2}
-                      fill="url(#colorBmcCLR)"
-                      fillOpacity={0.6}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="Society CLR" 
-                      stroke="#14b8a6" 
-                      strokeWidth={2}
-                      fill="url(#colorSocietyCLR)"
-                      fillOpacity={0.6}
-                    />
+                    {activeMetrics.has('BMC Qty') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="BMC Qty" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2.5}
+                        fill="url(#colorBmcQty)"
+                      />
+                    )}
+                    {activeMetrics.has('Society Qty') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="Society Qty" 
+                        stroke="#10b981" 
+                        strokeWidth={2.5}
+                        fill="url(#colorSocietyQty)"
+                      />
+                    )}
+                    {activeMetrics.has('BMC Amt') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="BMC Amt" 
+                        stroke="#8b5cf6" 
+                        strokeWidth={2}
+                        fill="url(#colorBmcAmt)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('Society Amt') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="Society Amt" 
+                        stroke="#f59e0b" 
+                        strokeWidth={2}
+                        fill="url(#colorSocietyAmt)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('BMC FAT') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="BMC FAT" 
+                        stroke="#ec4899" 
+                        strokeWidth={2}
+                        fill="url(#colorBmcFAT)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('Society FAT') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="Society FAT" 
+                        stroke="#06b6d4" 
+                        strokeWidth={2}
+                        fill="url(#colorSocietyFAT)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('BMC SNF') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="BMC SNF" 
+                        stroke="#a855f7" 
+                        strokeWidth={2}
+                        fill="url(#colorBmcSNF)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('Society SNF') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="Society SNF" 
+                        stroke="#84cc16" 
+                        strokeWidth={2}
+                        fill="url(#colorSocietySNF)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('BMC CLR') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="BMC CLR" 
+                        stroke="#f43f5e" 
+                        strokeWidth={2}
+                        fill="url(#colorBmcCLR)"
+                        fillOpacity={0.6}
+                      />
+                    )}
+                    {activeMetrics.has('Society CLR') && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="Society CLR" 
+                        stroke="#14b8a6" 
+                        strokeWidth={2}
+                        fill="url(#colorSocietyCLR)"
+                        fillOpacity={0.6}
+                      />
+                    )}
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
