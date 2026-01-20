@@ -1546,6 +1546,300 @@ export default function BmcVsSocietyComparison({
 
 
 
+          {/* Daily Variations Chart */}
+          {dailyBmcData.length > 0 && dailySocietyData.length > 0 && (timePeriod === 'daily' || timePeriod === 'weekly') && dateRange.from !== dateRange.to && (
+            <div className="mt-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-cyan-600 bg-clip-text text-transparent">Daily Variations - BMC vs Society</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Normalized trends from {dateRange.from} to {dateRange.to}</p>
+                </div>
+                <div className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full text-white text-xs font-semibold shadow-lg">
+                  0-100 Scale
+                </div>
+              </div>
+              
+              <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 shadow-inner border border-gray-200/50 dark:border-gray-700/50">
+                <ResponsiveContainer width="100%" height={450}>
+                  <AreaChart data={dailyBmcData.map((d, idx) => {
+                    const allBmcQty = dailyBmcData.map(day => day.data.totalQuantity);
+                    const allSocietyQty = dailySocietyData.map(day => day.data.totalQuantity);
+                    const allBmcAmt = dailyBmcData.map(day => day.data.totalAmount);
+                    const allSocietyAmt = dailySocietyData.map(day => day.data.totalAmount);
+                    const allBmcFat = dailyBmcData.map(day => day.data.weightedFat);
+                    const allSocietyFat = dailySocietyData.map(day => day.data.weightedFat);
+                    const allBmcSnf = dailyBmcData.map(day => day.data.weightedSnf);
+                    const allSocietySnf = dailySocietyData.map(day => day.data.weightedSnf);
+                    const allBmcClr = dailyBmcData.map(day => day.data.weightedClr);
+                    const allSocietyClr = dailySocietyData.map(day => day.data.weightedClr);
+
+                    const normalize = (value: number, values: number[]) => {
+                      const min = Math.min(...values);
+                      const max = Math.max(...values);
+                      if (max === min) return 50;
+                      return ((value - min) / (max - min)) * 100;
+                    };
+
+                    return {
+                      date: d.date.split('-').slice(1).join('/'),
+                      'BMC Qty': normalize(d.data.totalQuantity, allBmcQty),
+                      'Society Qty': normalize(dailySocietyData[idx].data.totalQuantity, allSocietyQty),
+                      'BMC Amt': normalize(d.data.totalAmount, allBmcAmt),
+                      'Society Amt': normalize(dailySocietyData[idx].data.totalAmount, allSocietyAmt),
+                      'BMC FAT': normalize(d.data.weightedFat, allBmcFat),
+                      'Society FAT': normalize(dailySocietyData[idx].data.weightedFat, allSocietyFat),
+                      'BMC SNF': normalize(d.data.weightedSnf, allBmcSnf),
+                      'Society SNF': normalize(dailySocietyData[idx].data.weightedSnf, allSocietySnf),
+                      'BMC CLR': normalize(d.data.weightedClr, allBmcClr),
+                      'Society CLR': normalize(dailySocietyData[idx].data.weightedClr, allSocietyClr),
+                      bmcQtyActual: d.data.totalQuantity,
+                      societyQtyActual: dailySocietyData[idx].data.totalQuantity,
+                      bmcAmtActual: d.data.totalAmount,
+                      societyAmtActual: dailySocietyData[idx].data.totalAmount,
+                      bmcFatActual: d.data.weightedFat,
+                      societyFatActual: dailySocietyData[idx].data.weightedFat,
+                      bmcSnfActual: d.data.weightedSnf,
+                      societySnfActual: dailySocietyData[idx].data.weightedSnf,
+                      bmcClrActual: d.data.weightedClr,
+                      societyClrActual: dailySocietyData[idx].data.weightedClr
+                    };
+                  })} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <defs>
+                      <linearGradient id="colorBmcQty" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorSocietyQty" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorBmcAmt" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorSocietyAmt" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorBmcFAT" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ec4899" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#ec4899" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorSocietyFAT" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorBmcSNF" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorSocietySNF" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#84cc16" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#84cc16" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorBmcCLR" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.1}/>
+                      </linearGradient>
+                      <linearGradient id="colorSocietyCLR" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12, fontWeight: 500 }}
+                      stroke="#6b7280"
+                      label={{ value: 'Date (MM/DD)', position: 'insideBottom', offset: -10, style: { fontSize: 12, fill: '#6b7280', fontWeight: 600 } }}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12, fontWeight: 500 }}
+                      stroke="#6b7280"
+                      domain={[0, 100]}
+                      label={{ value: 'Normalized Value (0-100)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#6b7280', fontWeight: 600 } }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(17, 24, 39, 0.95)', 
+                        border: '1px solid rgba(75, 85, 99, 0.5)',
+                        borderRadius: '16px',
+                        padding: '16px',
+                        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+                        backdropFilter: 'blur(10px)',
+                        color: '#fff'
+                      }}
+                      labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: '8px', fontSize: '13px' }}
+                      itemStyle={{ color: '#e5e7eb', fontSize: '12px', padding: '4px 0' }}
+                      formatter={(value: any, name: string, props: any) => {
+                        const payload = props.payload;
+                        if (name === 'BMC Qty') return [`${payload.bmcQtyActual.toFixed(2)} L`, name];
+                        if (name === 'Society Qty') return [`${payload.societyQtyActual.toFixed(2)} L`, name];
+                        if (name === 'BMC Amt') return [`₹${payload.bmcAmtActual.toFixed(2)}`, name];
+                        if (name === 'Society Amt') return [`₹${payload.societyAmtActual.toFixed(2)}`, name];
+                        if (name === 'BMC FAT') return [`${payload.bmcFatActual.toFixed(2)}%`, name];
+                        if (name === 'Society FAT') return [`${payload.societyFatActual.toFixed(2)}%`, name];
+                        if (name === 'BMC SNF') return [`${payload.bmcSnfActual.toFixed(2)}%`, name];
+                        if (name === 'Society SNF') return [`${payload.societySnfActual.toFixed(2)}%`, name];
+                        if (name === 'BMC CLR') return [`${payload.bmcClrActual.toFixed(2)}`, name];
+                        if (name === 'Society CLR') return [`${payload.societyClrActual.toFixed(2)}`, name];
+                        return [value, name];
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '20px' }}
+                      iconType="rect"
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="BMC Qty" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2.5}
+                      fill="url(#colorBmcQty)"
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="Society Qty" 
+                      stroke="#10b981" 
+                      strokeWidth={2.5}
+                      fill="url(#colorSocietyQty)"
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="BMC Amt" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={2}
+                      fill="url(#colorBmcAmt)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="Society Amt" 
+                      stroke="#f59e0b" 
+                      strokeWidth={2}
+                      fill="url(#colorSocietyAmt)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="BMC FAT" 
+                      stroke="#ec4899" 
+                      strokeWidth={2}
+                      fill="url(#colorBmcFAT)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="Society FAT" 
+                      stroke="#06b6d4" 
+                      strokeWidth={2}
+                      fill="url(#colorSocietyFAT)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="BMC SNF" 
+                      stroke="#a855f7" 
+                      strokeWidth={2}
+                      fill="url(#colorBmcSNF)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="Society SNF" 
+                      stroke="#84cc16" 
+                      strokeWidth={2}
+                      fill="url(#colorSocietySNF)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="BMC CLR" 
+                      stroke="#f43f5e" 
+                      strokeWidth={2}
+                      fill="url(#colorBmcCLR)"
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="Society CLR" 
+                      stroke="#14b8a6" 
+                      strokeWidth={2}
+                      fill="url(#colorSocietyCLR)"
+                      fillOpacity={0.6}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2 text-xs">
+                {(() => {
+                  const getRange = (values: number[]) => {
+                    const min = Math.min(...values);
+                    const max = Math.max(...values);
+                    return { min, max };
+                  };
+
+                  const bmcQtyRange = getRange(dailyBmcData.map(d => d.data.totalQuantity));
+                  const societyQtyRange = getRange(dailySocietyData.map(d => d.data.totalQuantity));
+                  const bmcAmtRange = getRange(dailyBmcData.map(d => d.data.totalAmount));
+                  const societyAmtRange = getRange(dailySocietyData.map(d => d.data.totalAmount));
+                  const bmcFatRange = getRange(dailyBmcData.map(d => d.data.weightedFat));
+                  const societyFatRange = getRange(dailySocietyData.map(d => d.data.weightedFat));
+                  const bmcSnfRange = getRange(dailyBmcData.map(d => d.data.weightedSnf));
+                  const societySnfRange = getRange(dailySocietyData.map(d => d.data.weightedSnf));
+                  const bmcClrRange = getRange(dailyBmcData.map(d => d.data.weightedClr));
+                  const societyClrRange = getRange(dailySocietyData.map(d => d.data.weightedClr));
+
+                  return (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        BMC Qty: {bmcQtyRange.min.toFixed(0)}-{bmcQtyRange.max.toFixed(0)}L
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        Society Qty: {societyQtyRange.min.toFixed(0)}-{societyQtyRange.max.toFixed(0)}L
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                        BMC Amt: ₹{bmcAmtRange.min.toFixed(0)}-₹{bmcAmtRange.max.toFixed(0)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        Society Amt: ₹{societyAmtRange.min.toFixed(0)}-₹{societyAmtRange.max.toFixed(0)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-pink-500"></span>
+                        BMC FAT: {bmcFatRange.min.toFixed(1)}-{bmcFatRange.max.toFixed(1)}%
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+                        Society FAT: {societyFatRange.min.toFixed(1)}-{societyFatRange.max.toFixed(1)}%
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                        BMC SNF: {bmcSnfRange.min.toFixed(1)}-{bmcSnfRange.max.toFixed(1)}%
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-lime-100 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-lime-500"></span>
+                        Society SNF: {societySnfRange.min.toFixed(1)}-{societySnfRange.max.toFixed(1)}%
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        BMC CLR: {bmcClrRange.min.toFixed(1)}-{bmcClrRange.max.toFixed(1)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded">
+                        <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                        Society CLR: {societyClrRange.min.toFixed(1)}-{societyClrRange.max.toFixed(1)}
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
           {/* Daily Radar Chart - Today vs Yesterday */}
           {timePeriod === 'daily' && dailyBmcData.length > 0 && dailySocietyData.length > 0 && lastWeekBmcData && lastWeekSocietyData && (
             <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
