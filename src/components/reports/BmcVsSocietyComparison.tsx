@@ -1603,6 +1603,9 @@ export default function BmcVsSocietyComparison({
               <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 shadow-inner border border-gray-200/50 dark:border-gray-700/50">
                 <ResponsiveContainer width="100%" height={450}>
                   <AreaChart data={dailyBmcData.map((d, idx) => {
+                    const societyDay = dailySocietyData[idx];
+                    if (!societyDay) return null;
+                    
                     const allBmcQty = dailyBmcData.map(day => day.data.totalQuantity);
                     const allSocietyQty = dailySocietyData.map(day => day.data.totalQuantity);
                     const allBmcAmt = dailyBmcData.map(day => day.data.totalAmount);
@@ -1624,27 +1627,27 @@ export default function BmcVsSocietyComparison({
                     return {
                       date: d.date.split('-').slice(1).join('/'),
                       'BMC Qty': normalize(d.data.totalQuantity, allBmcQty),
-                      'Society Qty': normalize(dailySocietyData[idx].data.totalQuantity, allSocietyQty),
+                      'Society Qty': normalize(societyDay.data.totalQuantity, allSocietyQty),
                       'BMC Amt': normalize(d.data.totalAmount, allBmcAmt),
-                      'Society Amt': normalize(dailySocietyData[idx].data.totalAmount, allSocietyAmt),
+                      'Society Amt': normalize(societyDay.data.totalAmount, allSocietyAmt),
                       'BMC FAT': normalize(d.data.weightedFat, allBmcFat),
-                      'Society FAT': normalize(dailySocietyData[idx].data.weightedFat, allSocietyFat),
+                      'Society FAT': normalize(societyDay.data.weightedFat, allSocietyFat),
                       'BMC SNF': normalize(d.data.weightedSnf, allBmcSnf),
-                      'Society SNF': normalize(dailySocietyData[idx].data.weightedSnf, allSocietySnf),
+                      'Society SNF': normalize(societyDay.data.weightedSnf, allSocietySnf),
                       'BMC CLR': normalize(d.data.weightedClr, allBmcClr),
-                      'Society CLR': normalize(dailySocietyData[idx].data.weightedClr, allSocietyClr),
+                      'Society CLR': normalize(societyDay.data.weightedClr, allSocietyClr),
                       bmcQtyActual: d.data.totalQuantity,
-                      societyQtyActual: dailySocietyData[idx].data.totalQuantity,
+                      societyQtyActual: societyDay.data.totalQuantity,
                       bmcAmtActual: d.data.totalAmount,
-                      societyAmtActual: dailySocietyData[idx].data.totalAmount,
+                      societyAmtActual: societyDay.data.totalAmount,
                       bmcFatActual: d.data.weightedFat,
-                      societyFatActual: dailySocietyData[idx].data.weightedFat,
+                      societyFatActual: societyDay.data.weightedFat,
                       bmcSnfActual: d.data.weightedSnf,
-                      societySnfActual: dailySocietyData[idx].data.weightedSnf,
+                      societySnfActual: societyDay.data.weightedSnf,
                       bmcClrActual: d.data.weightedClr,
-                      societyClrActual: dailySocietyData[idx].data.weightedClr
+                      societyClrActual: societyDay.data.weightedClr
                     };
-                  })} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  }).filter(Boolean)} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                     <defs>
                       <linearGradient id="colorBmcQty" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
