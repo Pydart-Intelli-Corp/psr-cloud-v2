@@ -282,10 +282,55 @@ async function handleRequest(
       // Remove 'D' prefix and replace underscore with space
       // D2025-11-18_15:32:42 -> 2025-11-18 15:32:42
       const timestampValue = timestampStr.substring(1).replace('_', ' ');
-      correctionTimestamp = `'${timestampValue}'`;
-      // Extract just the date part for date comparison
-      correctionDate = `'${timestampValue.split(' ')[0]}'`;
-      console.log(`🕐 Using timestamp from device: ${timestampValue}`);
+      
+      // Validate date format and values
+      const dateTimeParts = timestampValue.split(' ');
+      const datePart = dateTimeParts[0];
+      const timePart = dateTimeParts[1] || '00:00:00';
+      
+      // Parse date components
+      const dateComponents = datePart.split('-');
+      if (dateComponents.length === 3) {
+        const year = parseInt(dateComponents[0]);
+        const month = parseInt(dateComponents[1]);
+        const day = parseInt(dateComponents[2]);
+        
+        // Validate date values
+        const isValidDate = year >= 2000 && year <= 2100 && 
+                           month >= 1 && month <= 12 && 
+                           day >= 1 && day <= 31;
+        
+        // Parse time components
+        const timeComponents = timePart.split(':');
+        const hour = timeComponents.length > 0 ? parseInt(timeComponents[0]) : 0;
+        const minute = timeComponents.length > 1 ? parseInt(timeComponents[1]) : 0;
+        const second = timeComponents.length > 2 ? parseInt(timeComponents[2]) : 0;
+        
+        // Validate time values
+        const isValidTime = hour >= 0 && hour <= 23 && 
+                           minute >= 0 && minute <= 59 && 
+                           second >= 0 && second <= 59;
+        
+        if (isValidDate && isValidTime) {
+          // Create a Date object to validate the actual date (e.g., Feb 30 is invalid)
+          const dateObj = new Date(year, month - 1, day, hour, minute, second);
+          const isRealDate = dateObj.getFullYear() === year && 
+                            dateObj.getMonth() === month - 1 && 
+                            dateObj.getDate() === day;
+          
+          if (isRealDate) {
+            correctionTimestamp = `'${timestampValue}'`;
+            correctionDate = `'${datePart}'`;
+            console.log(`🕐 Using timestamp from device: ${timestampValue}`);
+          } else {
+            console.log(`⚠️ Invalid date from device (doesn't exist): ${timestampValue}, using server time`);
+          }
+        } else {
+          console.log(`⚠️ Invalid date/time values from device: ${timestampValue}, using server time`);
+        }
+      } else {
+        console.log(`⚠️ Invalid date format from device: ${timestampValue}, using server time`);
+      }
     } else {
       console.log(`🕐 Using current server time (no timestamp in InputString)`);
     }
