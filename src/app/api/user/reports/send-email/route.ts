@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, csvContent, pdfContent, reportType, dateRange, stats } = body;
 
-    if (!email || !csvContent || !pdfContent) {
+    if (!email || !pdfContent) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -146,8 +146,8 @@ export async function POST(request: NextRequest) {
             
             <div style="background: #edf2f7; border-left: 4px solid #4299e1; padding: 15px; margin: 20px 0; border-radius: 4px;">
               <p style="color: #2d3748; margin: 0; font-size: 14px;">
-                <strong>📎 Attachments:</strong><br>
-                • ${csvFilename} (CSV Format)<br>
+                <strong>📎 Attachment${csvContent ? 's' : ''}:</strong><br>
+                ${csvContent ? `• ${csvFilename} (CSV Format)<br>` : ''}
                 • ${pdfFilename} (PDF Format)
               </p>
             </div>
@@ -169,11 +169,11 @@ export async function POST(request: NextRequest) {
         </div>
       `,
       attachments: [
-        {
+        ...(csvContent ? [{
           filename: csvFilename,
           content: csvContent,
           contentType: 'text/csv'
-        },
+        }] : []),
         {
           filename: pdfFilename,
           content: Buffer.from(pdfContent, 'base64'),

@@ -24,7 +24,8 @@ export async function OPTIONS() {
 async function calculateStatistics(
   schemaName: string,
   entityType: 'society' | 'dairy' | 'bmc' | 'farmer' | 'admin',
-  entityId: number
+  entityId: number,
+  userEmail?: string
 ): Promise<{
   totalRevenue30Days: number;
   totalCollection30Days: number;
@@ -61,6 +62,37 @@ async function calculateStatistics(
       `;
       replacements = [dateStr];
     } else if (entityType === 'farmer') {
+      // Use email from token to find farmer
+      if (!userEmail) {
+        console.log(`⚠️ [Stats API] No email provided for farmer`);
+        return {
+          totalRevenue30Days: 0,
+          totalCollection30Days: 0,
+          avgFat: 0,
+          avgSnf: 0,
+          avgClr: 0,
+        };
+      }
+      
+      console.log(`📊 [Stats API] Looking up farmer by email: ${userEmail}`);
+      
+      const farmerQuery = `SELECT farmer_id FROM \`${schemaName}\`.farmers WHERE email = ?`;
+      const [farmerResults] = await sequelize.query(farmerQuery, { replacements: [userEmail] });
+      
+      if (!Array.isArray(farmerResults) || farmerResults.length === 0) {
+        console.log(`⚠️ [Stats API] No farmer found for email ${userEmail}`);
+        return {
+          totalRevenue30Days: 0,
+          totalCollection30Days: 0,
+          avgFat: 0,
+          avgSnf: 0,
+          avgClr: 0,
+        };
+      }
+      
+      const farmerIdStr = (farmerResults[0] as any).farmer_id;
+      console.log(`📊 [Stats API] Found farmer_id ${farmerIdStr} for email ${userEmail}`);
+      
       query = `
         SELECT 
           COALESCE(SUM(total_amount), 0) as totalRevenue,
@@ -71,7 +103,7 @@ async function calculateStatistics(
         FROM \`${schemaName}\`.milk_collections
         WHERE farmer_id = ? AND collection_date >= ?
       `;
-      replacements = [entityId, dateStr];
+      replacements = [farmerIdStr, dateStr];
     } else if (entityType === 'society') {
       query = `
         SELECT 
@@ -171,8 +203,8 @@ export async function GET(request: NextRequest) {
     console.log('📊 [Stats API] Database connected');
 
     // Extract entity info from token
-    const { id, role, schemaName } = decoded;
-    console.log('📊 [Stats API] Extracted from token - id:', id, 'role:', role, 'schemaName:', schemaName);
+    const { id, role, schemaName, email } = decoded;
+    console.log('📊 [Stats API] Extracted from token - id:', id, 'role:', role, 'schemaName:', schemaName, 'email:', email);
 
     if (!id || !role || !schemaName) {
       console.log('❌ [Stats API] Missing required fields in token');
@@ -182,7 +214,7 @@ export async function GET(request: NextRequest) {
     console.log(`📊 [Stats API] Request from ${role} ID ${id} in schema ${schemaName}`);
 
     // Calculate statistics
-    const statistics = await calculateStatistics(schemaName, role, id);
+    const statistics = await calculateStatistics(schemaName, role, id, email);
     console.log('📊 [Stats API] Statistics result:', statistics);
 
     return createSuccessResponse(
