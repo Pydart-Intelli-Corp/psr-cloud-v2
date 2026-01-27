@@ -1000,28 +1000,7 @@ export default function RatechartManagement() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
-        <StatsCard
-          title={t.ratechartManagement.uniqueCharts}
-          value={uniqueCharts}
-          icon={<Receipt className="w-4 h-4" />}
-          color="blue"
-          onClick={() => setChannelFilter('unique')}
-          clickable={true}
-          isActive={channelFilter === 'unique'}
-        />
-        <StatsCard
-          title={t.ratechartManagement.totalAssignments}
-          value={totalAssignments}
-          icon={<Receipt className="w-4 h-4" />}
-          color="gray"
-          onClick={() => {
-            setChannelFilter('all');
-            setShowAssignmentsModal(true);
-          }}
-          clickable={true}
-          isActive={channelFilter === 'all'}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
         <StatsCard
           title={t.ratechartManagement.cowCharts}
           value={cowCharts}

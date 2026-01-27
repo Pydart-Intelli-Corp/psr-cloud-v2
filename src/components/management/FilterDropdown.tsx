@@ -399,27 +399,19 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-md">
                   <div className="space-y-1 p-2">
                     {(() => {
-                      // Get BMC IDs that have societies with data
-                      const bmcIdsWithSocieties = new Set(
-                        societies
-                          .filter(s => s.bmc_id)
-                          .map(s => s.bmc_id)
-                      );
-
-                      // Filter BMCs: only those with dairy filter match AND have societies
+                      // Filter BMCs: only those with dairy filter match
                       const filteredBmcs = bmcs.filter(bmc => {
                         const dairyFilterArray = Array.isArray(dairyFilter) ? dairyFilter : [];
                         const matchesDairy = dairyFilterArray.length === 0 || 
                           dairyFilterArray.includes(bmc.dairyFarmId?.toString() || '');
-                        const hasSocieties = bmcIdsWithSocieties.has(bmc.id);
-                        return matchesDairy && hasSocieties;
+                        return matchesDairy;
                       });
 
                       if (filteredBmcs.length === 0) {
                         const dairyFilterArray = Array.isArray(dairyFilter) ? dairyFilter : [];
                         const message = dairyFilterArray.length > 0
                           ? 'No BMCs available for selected dairies'
-                          : 'No BMCs with societies available';
+                          : 'No BMCs available';
                         return (
                           <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
                             {message}
@@ -604,19 +596,32 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                         const dairyFilterArray = Array.isArray(dairyFilter) ? dairyFilter : [];
                         const bmcFilterArray = Array.isArray(bmcFilter) ? bmcFilter : [];
                         
-                        // If dairy filter is active, get BMCs under those dairies
-                        if (dairyFilterArray.length > 0) {
+                        // If both dairy and BMC filters are active, combine them
+                        if (dairyFilterArray.length > 0 && bmcFilterArray.length > 0) {
+                          const selectedBmcIds = bmcFilterArray.map(id => parseInt(id));
+                          const dairyBmcIds = bmcs
+                            .filter(b => dairyFilterArray.includes(b.dairyFarmId?.toString() || ''))
+                            .map(b => b.id);
+                          // Show societies that match BOTH dairy (through BMC) AND selected BMC
+                          const validBmcIds = selectedBmcIds.filter(id => dairyBmcIds.includes(id));
+                          filteredSocieties = societies.filter(s => 
+                            s.bmc_id && validBmcIds.includes(s.bmc_id)
+                          );
+                        }
+                        // If only BMC filter is active, show societies under those BMCs
+                        else if (bmcFilterArray.length > 0) {
+                          const selectedBmcIds = bmcFilterArray.map(id => parseInt(id));
+                          filteredSocieties = societies.filter(s => 
+                            s.bmc_id && selectedBmcIds.includes(s.bmc_id)
+                          );
+                        }
+                        // If only dairy filter is active, get BMCs under those dairies
+                        else if (dairyFilterArray.length > 0) {
                           const dairyBmcIds = bmcs
                             .filter(b => dairyFilterArray.includes(b.dairyFarmId?.toString() || ''))
                             .map(b => b.id);
                           filteredSocieties = societies.filter(s => 
                             s.bmc_id && dairyBmcIds.includes(s.bmc_id)
-                          );
-                        }
-                        // If BMC filter is active, show only societies under those BMCs
-                        else if (bmcFilterArray.length > 0) {
-                          filteredSocieties = societies.filter(s => 
-                            s.bmc_id && bmcFilterArray.includes(s.bmc_id.toString())
                           );
                         }
 

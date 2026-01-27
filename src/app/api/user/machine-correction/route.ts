@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
     const {
       machineId,
       societyId,
+      bmcId,
       channel1_fat,
       channel1_snf,
       channel1_clr,
@@ -74,14 +75,15 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!machineId || !societyId) {
+    if (!machineId) {
       return NextResponse.json(
-        { success: false, error: 'Machine ID and Society ID are required' },
+        { success: false, error: 'Machine ID is required' },
         { status: 400 }
       );
     }
 
-    // Get admin's dbKey and generate schema name (same pattern as other APIs)
+    // For BMC machines, we need to get the BMC ID from the machine record
+    // Get machine details to determine if it's a society or BMC machine
     const admin = await User.findByPk(user.id);
     if (!admin || !admin.dbKey) {
       return NextResponse.json(
@@ -90,9 +92,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate schema name
     const cleanAdminName = admin.fullName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const schemaName = `${cleanAdminName}_${admin.dbKey.toLowerCase()}`;
+
+    // Get machine's society_id or bmc_id
+    const [machineInfo] = await sequelize.query<{ 
+      society_id: number | null;
+      bmc_id: number | null;
+    }>(
+      `SELECT society_id, bmc_id FROM \`${schemaName}\`.\`machines\` WHERE id = :machineId LIMIT 1`,
+      {
+        replacements: { machineId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!machineInfo) {
+      return NextResponse.json(
+        { success: false, error: 'Machine not found' },
+        { status: 404 }
+      );
+    }
+
+    // Use the machine's society_id or bmc_id
+    const finalSocietyId = societyId || machineInfo.society_id || machineInfo.bmc_id;
+
+    if (!finalSocietyId) {
+      return NextResponse.json(
+        { success: false, error: 'Machine must be assigned to a society or BMC' },
+        { status: 400 }
+      );
+    }
 
     // Get machine_type and details from machines table for email notification
     const [machineResult] = await sequelize.query<{ 
@@ -108,17 +138,20 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Get society details for email notification
-    const [societyResult] = await sequelize.query<{
-      name: string;
-      email: string;
-    }>(
-      `SELECT name, email FROM \`${schemaName}\`.\`societies\` WHERE id = :societyId LIMIT 1`,
-      {
-        replacements: { societyId },
-        type: QueryTypes.SELECT
-      }
-    );
+    // Get society details for email notification (if society machine)
+    let societyResult = null;
+    if (machineInfo.society_id) {
+      [societyResult] = await sequelize.query<{
+        name: string;
+        email: string;
+      }>(
+        `SELECT name, email FROM \`${schemaName}\`.\`societies\` WHERE id = :societyId LIMIT 1`,
+        {
+          replacements: { societyId: machineInfo.society_id },
+          type: QueryTypes.SELECT
+        }
+      );
+    }
 
     const machineType = machineResult?.machine_type || null;
 
@@ -201,7 +234,7 @@ export async function POST(request: NextRequest) {
         {
           replacements: {
             machineId,
-            societyId,
+            societyId: finalSocietyId,
             machineType,
             channel1_fat: convertValue(channel1_fat),
             channel1_snf: convertValue(channel1_snf),

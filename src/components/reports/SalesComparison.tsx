@@ -612,8 +612,8 @@ export default function SalesComparison({
             </div>
           )}
           
-          {/* Society Filter Dropdown */}
-          {onSocietyChange && societies.length > 0 && (
+          {/* Society Filter Dropdown - Hidden in BMC mode */}
+          {onSocietyChange && societies.length > 0 && reportSource !== 'bmc' && (
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Society:

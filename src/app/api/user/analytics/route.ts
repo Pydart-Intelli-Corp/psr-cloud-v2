@@ -46,15 +46,16 @@ export async function GET(request: NextRequest) {
     const toDateParam = searchParams.get('to');
     const days = parseInt(searchParams.get('days') || '30');
     
-    // Get filter params
+    // Get filter params - matching report management pattern
     const dairyFilter = searchParams.get('dairy')?.split(',').filter(Boolean) || [];
     const bmcFilter = searchParams.get('bmc')?.split(',').filter(Boolean) || [];
     const societyFilter = searchParams.get('society')?.split(',').filter(Boolean) || [];
     const machineFilter = searchParams.get('machine')?.split(',').filter(Boolean) || [];
+    const farmerFilter = searchParams.get('farmer')?.split(',').filter(Boolean) || [];
     const channelFilter = searchParams.get('channel');
     const shiftFilter = searchParams.get('shift');
     
-    console.log('🔍 Filters:', { dairyFilter, bmcFilter, societyFilter, machineFilter, channelFilter, shiftFilter });
+    console.log('🔍 Filters:', { dairyFilter, bmcFilter, societyFilter, machineFilter, farmerFilter, channelFilter, shiftFilter });
     
     let dateCondition = '';
     if (fromDateParam && toDateParam) {
@@ -74,25 +75,38 @@ export async function GET(request: NextRequest) {
       console.log(`📅 Fetching ALL data (no date filter)`);
     }
 
-    // Build filter conditions
+    // Build filter conditions - matching report management pattern
     const filterConditions: string[] = [];
     
+    // Dairy filter
     if (dairyFilter.length > 0) {
       filterConditions.push(`df.id IN (${dairyFilter.join(',')})`);
     }
+    
+    // BMC filter
     if (bmcFilter.length > 0) {
       filterConditions.push(`b.id IN (${bmcFilter.join(',')})`);
     }
+    
+    // Society filter
     if (societyFilter.length > 0) {
       filterConditions.push(`s.id IN (${societyFilter.join(',')})`);
     }
+    
+    // Machine filter - convert IDs to machine_id strings
     if (machineFilter.length > 0) {
       const machineIds = machineFilter.map(id => `'${id}'`).join(',');
       filterConditions.push(`m.machine_id IN (${machineIds})`);
     }
+    
+    // Farmer filter
+    if (farmerFilter.length > 0) {
+      const farmerIds = farmerFilter.map(id => `'${id}'`).join(',');
+      filterConditions.push(`mc.farmer_id IN (${farmerIds})`);
+    }
+    
+    // Channel filter
     if (channelFilter && channelFilter !== 'all') {
-      // Map channel filter to handle multiple database formats
-      // Database may store: 'COW', 'BUFFALO', 'MIXED', 'ch1', 'ch2', 'ch3', 'cow', 'buffalo', 'mixed', 'BUF', 'MIX'
       const channelMapping: { [key: string]: string[] } = {
         'COW': ['COW', 'cow', 'ch1', 'CH1'],
         'BUFFALO': ['BUFFALO', 'buffalo', 'BUF', 'ch2', 'CH2'],
@@ -102,8 +116,16 @@ export async function GET(request: NextRequest) {
       const channelConditions = channelValues.map(v => `'${v}'`).join(',');
       filterConditions.push(`mc.channel IN (${channelConditions})`);
     }
+    
+    // Shift filter
     if (shiftFilter && shiftFilter !== 'all') {
-      filterConditions.push(`mc.shift_type = '${shiftFilter}'`);
+      if (shiftFilter === 'morning') {
+        filterConditions.push(`mc.shift_type IN ('MR', 'MX', 'morning')`);
+      } else if (shiftFilter === 'evening') {
+        filterConditions.push(`mc.shift_type IN ('EV', 'EX', 'evening')`);
+      } else {
+        filterConditions.push(`mc.shift_type = '${shiftFilter}'`);
+      }
     }
 
     // Combine date and filter conditions
@@ -140,8 +162,13 @@ export async function GET(request: NextRequest) {
       ORDER BY DATE(mc.collection_date) ASC
     `;
 
-    // 2. Daily trends for dispatches
-    const dispatchWhereClause = whereClause.replace(/mc\./g, 'md.').replace(/m\.machine_id/g, 'dm.machine_id').replace(/collection_date/g, 'dispatch_date');
+    // 2. Daily trends for dispatches - matching filter pattern
+    const dispatchWhereClause = whereClause
+      .replace(/mc\./g, 'md.')
+      .replace(/m\.machine_id/g, 'dm.machine_id')
+      .replace(/collection_date/g, 'dispatch_date')
+      .replace(/mc\.farmer_id/g, 'md.society_id'); // For dispatches, farmer filter becomes society filter
+    
     const dailyDispatchQuery = `
       SELECT 
         DATE(md.dispatch_date) as date,
@@ -162,8 +189,13 @@ export async function GET(request: NextRequest) {
       ORDER BY DATE(md.dispatch_date) ASC
     `;
 
-    // 3. Daily trends for sales
-    const salesWhereClause = whereClause.replace(/mc\./g, 'ms.').replace(/m\.machine_id/g, 'sm.machine_id').replace(/collection_date/g, 'sales_date');
+    // 3. Daily trends for sales - matching filter pattern
+    const salesWhereClause = whereClause
+      .replace(/mc\./g, 'ms.')
+      .replace(/m\.machine_id/g, 'sm.machine_id')
+      .replace(/collection_date/g, 'sales_date')
+      .replace(/mc\.farmer_id/g, 'ms.customer_id'); // For sales, farmer filter becomes customer filter
+    
     const dailySalesQuery = `
       SELECT 
         DATE(ms.sales_date) as date,

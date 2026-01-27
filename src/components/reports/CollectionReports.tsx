@@ -172,6 +172,7 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
     weightedClr: 0
   });
   const [loading, setLoading] = useState(true);
+  const [initialFiltersApplied, setInitialFiltersApplied] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // Sync global search with local search
@@ -685,6 +686,9 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
 
   // Fetch collection data
   const fetchData = useCallback(async (showLoading = true) => {
+    // Don't fetch until initial filters are applied
+    if (!initialFiltersApplied) return;
+    
     const token = localStorage.getItem('authToken');
     if (!token) return;
 
@@ -713,174 +717,234 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [calculateStats, reportSource]);
+  }, [calculateStats, reportSource, initialFiltersApplied]);
+
+  // Mark initial filters as applied after all filter effects run
+  useEffect(() => {
+    // Check if we have URL params that need to be applied
+    const hasMachineParam = initialMachineFilter !== null;
+    const hasSocietyParam = initialSocietyId !== null;
+    const hasDateParams = initialFromDate !== null || initialToDate !== null;
+    
+    // If no URL params, mark as ready immediately
+    if (!hasMachineParam && !hasSocietyParam && !hasDateParams) {
+      setInitialFiltersApplied(true);
+      return;
+    }
+    
+    // Wait for filter data to load before marking as ready
+    const hasRequiredData = 
+      (!hasMachineParam || machinesData.length > 0) &&
+      (!hasSocietyParam || societiesData.length > 0);
+    
+    if (hasRequiredData) {
+      // Small delay to ensure filter state updates complete
+      const timer = setTimeout(() => {
+        setInitialFiltersApplied(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [initialMachineFilter, initialSocietyId, initialFromDate, initialToDate, machinesData.length, societiesData.length]);
 
   useEffect(() => {
-    fetchData(true);
-    
-    // Auto-refresh every 1 second without showing loading
-    const intervalId = setInterval(() => {
-      fetchData(false);
-    }, 1000);
-    
-    return () => clearInterval(intervalId);
-  }, [fetchData]);
+    if (initialFiltersApplied) {
+      fetchData(true);
+      
+      // Auto-refresh every 1 second without showing loading
+      const intervalId = setInterval(() => {
+        fetchData(false);
+      }, 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [fetchData, initialFiltersApplied]);
 
   // Filter records with multi-field search (matching machine management pattern)
   useEffect(() => {
+    console.log('🔍 Filter Effect Running:', { 
+      machineFilterLength: machineFilter.length, 
+      recordsLength: records.length,
+      machinesLength: machines.length 
+    });
+    
     let filtered = records;
+    let skipRemainingFilters = false;
 
-    // Dairy filter (now array-based)
-    if (dairyFilter.length > 0) {
-      const selectedDairyIds = dairyFilter.map(id => {
-        const dairy = dairies.find(d => d.id.toString() === id);
-        return dairy?.id;
-      }).filter(Boolean) as number[];
-      if (selectedDairyIds.length > 0) {
-        filtered = filtered.filter(record => record.dairy_id !== undefined && selectedDairyIds.includes(record.dairy_id));
-      }
-    }
-
-    // BMC filter (now array-based)
-    if (bmcFilter.length > 0) {
-      const selectedBmcIds = bmcFilter.map(id => {
-        const bmc = bmcs.find(b => b.id.toString() === id);
-        return bmc?.id;
-      }).filter(Boolean) as number[];
-      if (selectedBmcIds.length > 0) {
-        filtered = filtered.filter(record => record.bmc_id !== undefined && selectedBmcIds.includes(record.bmc_id));
-      }
-    }
-
-    // Status/Shift filter
-    if (shiftFilter !== 'all') {
-      if (shiftFilter === 'morning') {
-        filtered = filtered.filter(record => ['MR', 'MX', 'morning'].includes(record.shift_type));
-      } else if (shiftFilter === 'evening') {
-        filtered = filtered.filter(record => ['EV', 'EX', 'evening'].includes(record.shift_type));
-      } else {
-        filtered = filtered.filter(record => record.shift_type === shiftFilter);
-      }
-    }
-
-    // Society filter
-    if (Array.isArray(societyFilter) && societyFilter.length > 0) {
-      const selectedSocietyIds = societyFilter.map(id => {
-        const society = societies.find(s => s.id.toString() === id);
-        return society?.society_id;
-      }).filter(Boolean);
-      if (selectedSocietyIds.length > 0) {
-        filtered = filtered.filter(record => selectedSocietyIds.includes(record.society_id));
-      }
-    }
-
-    // Machine filter
+    // Machine filter - Check if machine exists in records first
     if (machineFilter.length > 0) {
       const selectedMachineIds = machineFilter
-        .map(id => machines.find(m => m.id.toString() === id)?.machineId)
+        .map(id => machinesData.find(m => m.id.toString() === id)?.machineId)
         .filter(Boolean) as string[];
+      
+      console.log('🎯 Machine Filter Applied:', { selectedMachineIds });
+      
       if (selectedMachineIds.length > 0) {
-        filtered = filtered.filter(record => selectedMachineIds.includes(record.machine_id));
-      }
-    }
-
-    // Farmer filter - for BMC reports, farmer_id is society_id
-    if (farmerFilter.length > 0) {
-      if (reportSource === 'bmc') {
-        // For BMC reports, filter by society_id stored in farmer_id field
-        const selectedSocietyIds = farmerFilter
-          .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
-          .filter(Boolean) as string[];
-        if (selectedSocietyIds.length > 0) {
-          filtered = filtered.filter(record => selectedSocietyIds.includes(record.farmer_id));
-        }
-      } else {
-        // For society reports, filter by actual farmer IDs
-        const selectedFarmerIds = farmerFilter
-          .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
-          .filter(Boolean) as string[];
-        const selectedFarmerUIDs = farmerFilter
-          .map(id => farmers.find(f => f.id.toString() === id)?.farmeruid)
-          .filter(Boolean) as string[];
-        if (selectedFarmerIds.length > 0 || selectedFarmerUIDs.length > 0) {
-          filtered = filtered.filter(record => 
-            selectedFarmerIds.includes(record.farmer_id) ||
-            (record.farmer_uid && selectedFarmerUIDs.includes(record.farmer_uid))
-          );
-        }
-      }
-    }
-
-    // Channel filter
-    if (channelFilter !== 'all') {
-      filtered = filtered.filter(record => {
-        const displayChannel = getChannelDisplay(record.channel);
-        return displayChannel === channelFilter;
-      });
-    }
-
-    // Date filter
-    if (dateFilter) {
-      filtered = filtered.filter(record => record.collection_date === dateFilter);
-    }
-
-    // Date range filter
-    if (dateFromFilter) {
-      filtered = filtered.filter(record => record.collection_date >= dateFromFilter);
-    }
-    if (dateToFilter) {
-      filtered = filtered.filter(record => record.collection_date <= dateToFilter);
-    }
-
-    // Multi-field search across collection details (matching machine management pattern)
-    if (combinedSearch) {
-      const searchLower = combinedSearch.toLowerCase();
-      filtered = filtered.filter(record => {
-        // Get display value for shift
-        const shiftDisplay = ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
-          ? 'Morning' 
-          : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
-          ? 'Evening' 
-          : record.shift_type;
-        
-        return [
-          record.farmer_id,
-          record.farmer_name,
-          record.farmer_uid,
-          record.society_id,
-          record.society_name,
-          record.bmc_name,
-          record.dairy_name,
-          record.machine_id,
-          record.machine_type,
-          record.machine_version,
-          record.channel,
-          getChannelDisplay(record.channel),
-          record.collection_date,
-          record.collection_time,
-          record.shift_type,
-          shiftDisplay,
-          record.quantity,
-          record.fat_percentage,
-          record.snf_percentage,
-          record.clr_value,
-          record.protein_percentage,
-          record.lactose_percentage,
-          record.salt_percentage,
-          record.water_percentage,
-          record.temperature,
-          record.rate_per_liter,
-          record.total_amount,
-          record.bonus
-        ].some(field =>
-          field?.toString().toLowerCase().includes(searchLower)
+        // Check if any of the selected machines exist in the records
+        const machineExistsInRecords = records.some(record => 
+          selectedMachineIds.includes(record.machine_id)
         );
-      });
+        
+        console.log('✅ Machine Exists Check:', { machineExistsInRecords });
+        
+        if (!machineExistsInRecords) {
+          // If machine doesn't exist in records, show empty result and skip all other filters
+          console.log('❌ Machine NOT found in records - showing NO DATA');
+          filtered = [];
+          skipRemainingFilters = true;
+        } else {
+          // Filter normally if machine exists
+          console.log('✅ Machine found - filtering records');
+          filtered = filtered.filter(record => selectedMachineIds.includes(record.machine_id));
+          console.log('📊 Filtered count:', filtered.length);
+        }
+      }
     }
 
+    // Only apply other filters if machine filter didn't result in no data
+    if (!skipRemainingFilters) {
+      // Dairy filter (now array-based)
+      if (dairyFilter.length > 0) {
+        const selectedDairyIds = dairyFilter.map(id => {
+          const dairy = dairies.find(d => d.id.toString() === id);
+          return dairy?.id;
+        }).filter(Boolean) as number[];
+        if (selectedDairyIds.length > 0) {
+          filtered = filtered.filter(record => record.dairy_id !== undefined && selectedDairyIds.includes(record.dairy_id));
+        }
+      }
+
+      // BMC filter (now array-based)
+      if (bmcFilter.length > 0) {
+        const selectedBmcIds = bmcFilter.map(id => {
+          const bmc = bmcs.find(b => b.id.toString() === id);
+          return bmc?.id;
+        }).filter(Boolean) as number[];
+        if (selectedBmcIds.length > 0) {
+          filtered = filtered.filter(record => record.bmc_id !== undefined && selectedBmcIds.includes(record.bmc_id));
+        }
+      }
+
+      // Status/Shift filter
+      if (shiftFilter !== 'all') {
+        if (shiftFilter === 'morning') {
+          filtered = filtered.filter(record => ['MR', 'MX', 'morning'].includes(record.shift_type));
+        } else if (shiftFilter === 'evening') {
+          filtered = filtered.filter(record => ['EV', 'EX', 'evening'].includes(record.shift_type));
+        } else {
+          filtered = filtered.filter(record => record.shift_type === shiftFilter);
+        }
+      }
+
+      // Society filter
+      if (Array.isArray(societyFilter) && societyFilter.length > 0) {
+        const selectedSocietyIds = societyFilter.map(id => {
+          const society = societies.find(s => s.id.toString() === id);
+          return society?.society_id;
+        }).filter(Boolean);
+        if (selectedSocietyIds.length > 0) {
+          filtered = filtered.filter(record => selectedSocietyIds.includes(record.society_id));
+        }
+      }
+
+      // Farmer filter - for BMC reports, farmer_id is society_id
+      if (farmerFilter.length > 0) {
+        if (reportSource === 'bmc') {
+          // For BMC reports, filter by society_id stored in farmer_id field
+          const selectedSocietyIds = farmerFilter
+            .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
+            .filter(Boolean) as string[];
+          if (selectedSocietyIds.length > 0) {
+            filtered = filtered.filter(record => selectedSocietyIds.includes(record.farmer_id));
+          }
+        } else {
+          // For society reports, filter by actual farmer IDs
+          const selectedFarmerIds = farmerFilter
+            .map(id => farmers.find(f => f.id.toString() === id)?.farmerId)
+            .filter(Boolean) as string[];
+          const selectedFarmerUIDs = farmerFilter
+            .map(id => farmers.find(f => f.id.toString() === id)?.farmeruid)
+            .filter(Boolean) as string[];
+          if (selectedFarmerIds.length > 0 || selectedFarmerUIDs.length > 0) {
+            filtered = filtered.filter(record => 
+              selectedFarmerIds.includes(record.farmer_id) ||
+              (record.farmer_uid && selectedFarmerUIDs.includes(record.farmer_uid))
+            );
+          }
+        }
+      }
+
+      // Channel filter
+      if (channelFilter !== 'all') {
+        filtered = filtered.filter(record => {
+          const displayChannel = getChannelDisplay(record.channel);
+          return displayChannel === channelFilter;
+        });
+      }
+
+      // Date filter
+      if (dateFilter) {
+        filtered = filtered.filter(record => record.collection_date === dateFilter);
+      }
+
+      // Date range filter
+      if (dateFromFilter) {
+        filtered = filtered.filter(record => record.collection_date >= dateFromFilter);
+      }
+      if (dateToFilter) {
+        filtered = filtered.filter(record => record.collection_date <= dateToFilter);
+      }
+
+      // Multi-field search across collection details (matching machine management pattern)
+      if (combinedSearch) {
+        const searchLower = combinedSearch.toLowerCase();
+        filtered = filtered.filter(record => {
+          // Get display value for shift
+          const shiftDisplay = ['MR', 'MX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'morning'
+            ? 'Morning' 
+            : ['EV', 'EX'].includes(record.shift_type) || record.shift_type?.toLowerCase() === 'evening'
+            ? 'Evening' 
+            : record.shift_type;
+          
+          return [
+            record.farmer_id,
+            record.farmer_name,
+            record.farmer_uid,
+            record.society_id,
+            record.society_name,
+            record.bmc_name,
+            record.dairy_name,
+            record.machine_id,
+            record.machine_type,
+            record.machine_version,
+            record.channel,
+            getChannelDisplay(record.channel),
+            record.collection_date,
+            record.collection_time,
+            record.shift_type,
+            shiftDisplay,
+            record.quantity,
+            record.fat_percentage,
+            record.snf_percentage,
+            record.clr_value,
+            record.protein_percentage,
+            record.lactose_percentage,
+            record.salt_percentage,
+            record.water_percentage,
+            record.temperature,
+            record.rate_per_liter,
+            record.total_amount,
+            record.bonus
+          ].some(field =>
+            field?.toString().toLowerCase().includes(searchLower)
+          );
+        });
+      }
+    }
+
+    console.log('🏁 Final filtered count:', filtered.length, 'skipRemainingFilters:', skipRemainingFilters);
     setFilteredRecords(filtered);
     calculateStats(filtered);
-  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, farmerFilter, dairyFilter, bmcFilter, records, societies, machines, farmers, dairies, bmcs, calculateStats]);
+  }, [globalSearch, searchQuery, dateFilter, dateFromFilter, dateToFilter, shiftFilter, channelFilter, societyFilter, machineFilter, farmerFilter, dairyFilter, bmcFilter, records, societies, machines, farmers, dairies, bmcs, calculateStats, reportSource]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -1875,8 +1939,38 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={21} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    No collection records found
+                  <td colSpan={21} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <Droplet className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+                      <div>
+                        <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                          {machineFilter.length > 0 || farmerFilter.length > 0 || societyFilter.length > 0 || bmcFilter.length > 0 || dairyFilter.length > 0
+                            ? 'No Data Available'
+                            : 'No collection records found'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {machineFilter.length > 0
+                            ? `No collection records found for the selected machine${machineFilter.length > 1 ? 's' : ''}`
+                            : farmerFilter.length > 0
+                            ? `No collection records found for the selected ${reportSource === 'bmc' ? 'society' : 'farmer'}${farmerFilter.length > 1 ? 's' : ''}`
+                            : societyFilter.length > 0
+                            ? `No collection records found for the selected society${societyFilter.length > 1 ? 'ies' : ''}`
+                            : bmcFilter.length > 0
+                            ? `No collection records found for the selected BMC${bmcFilter.length > 1 ? 's' : ''}`
+                            : dairyFilter.length > 0
+                            ? `No collection records found for the selected dairy${dairyFilter.length > 1 ? 'ies' : ''}`
+                            : 'Try adjusting your filters or date range'}
+                        </p>
+                      </div>
+                      {(machineFilter.length > 0 || farmerFilter.length > 0 || societyFilter.length > 0 || bmcFilter.length > 0 || dairyFilter.length > 0) && (
+                        <button
+                          onClick={clearFilters}
+                          className="mt-2 px-4 py-2 bg-psr-green-600 text-white rounded-lg hover:bg-psr-green-700 transition-colors text-sm"
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (

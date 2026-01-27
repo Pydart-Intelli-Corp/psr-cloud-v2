@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   BarChart,
@@ -105,6 +105,7 @@ export default function AnalyticsComponent() {
   const [toDate, setToDate] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [successMessage, setSuccessMessage] = useState('');
+  const [error, setError] = useState('');
 
   // Filter states
   const [dairyFilter, setDairyFilter] = useState<string[]>([]);
@@ -120,8 +121,48 @@ export default function AnalyticsComponent() {
   // Filter data
   const [dairies, setDairies] = useState<Array<{ id: number; name: string; dairyId: string }>>([]);
   const [bmcs, setBmcs] = useState<Array<{ id: number; name: string; bmcId: string; dairyFarmId?: number }>>([]);
-  const [societies, setSocieties] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
-  const [machines, setMachines] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string }>>([]);
+  const [societiesData, setSocietiesData] = useState<Array<{ id: number; name: string; society_id: string; bmc_id?: number }>>([]);
+  const [machinesData, setMachinesData] = useState<Array<{ id: number; machineId: string; machineType: string; societyId?: number; societyName?: string; societyIdentifier?: string }>>([]);
+  
+  // Filter BMCs to only show those with data
+  const bmcsWithData = useMemo(() => {
+    if (!bmcs.length) return bmcs;
+    return bmcs;
+  }, [bmcs]);
+  
+  // Filter societies based on BMC selection - matching report management
+  const societies = useMemo(() => {
+    console.log('🔍 Society Filter Logic:', { 
+      societiesDataLength: societiesData.length, 
+      bmcFilterLength: bmcFilter.length,
+      bmcFilter,
+      sampleSociety: societiesData[0]
+    });
+    
+    if (!societiesData.length) return [];
+    
+    // If BMC filter is active, only show societies from selected BMCs
+    if (bmcFilter.length > 0) {
+      const selectedBmcIds = bmcFilter.map(id => parseInt(id)).filter(id => !isNaN(id));
+      console.log('✅ Selected BMC IDs:', selectedBmcIds);
+      
+      const filtered = societiesData.filter(society => 
+        society.bmc_id !== undefined && selectedBmcIds.includes(society.bmc_id)
+      );
+      
+      console.log('📊 Filtered Societies:', filtered.length, filtered.slice(0, 3));
+      return filtered;
+    }
+    
+    console.log('📊 All Societies:', societiesData.length);
+    return societiesData;
+  }, [societiesData, bmcFilter]);
+  
+  // Filter machines - matching report management
+  const machines = useMemo(() => {
+    if (!machinesData.length) return machinesData;
+    return machinesData;
+  }, [machinesData]);
   
   // Use ref to access current machines in fetchAnalytics without causing re-renders
   const machinesRef = useRef(machines);
@@ -192,7 +233,7 @@ export default function AnalyticsComponent() {
         }
 
         // Fetch BMCs
-        const bmcRes = await fetch('/api/user/bmc/list', {
+        const bmcRes = await fetch('/api/user/bmc', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (bmcRes.ok) {
@@ -201,12 +242,12 @@ export default function AnalyticsComponent() {
         }
 
         // Fetch Societies
-        const societyRes = await fetch('/api/user/society/list', {
+        const societyRes = await fetch('/api/user/society', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (societyRes.ok) {
           const societyData = await societyRes.json();
-          setSocieties(societyData.data || []);
+          setSocietiesData(societyData.data || []);
         }
 
         // Fetch Machines
@@ -218,7 +259,7 @@ export default function AnalyticsComponent() {
           const machineList = machineData.data || [];
           console.log('🔧 Fetched machines:', machineList.length, machineList.slice(0, 2));
           
-          setMachines(machineList.map((m: { 
+          setMachinesData(machineList.map((m: { 
             machineId: string; 
             machineType?: string; 
             id?: number;
@@ -232,7 +273,7 @@ export default function AnalyticsComponent() {
             societyId: m.societyId,
             societyName: m.societyName,
             societyIdentifier: m.societyIdentifier,
-            collectionCount: 0 // Will be updated after analytics fetch
+            collectionCount: 0
           })));
         }
         
@@ -294,7 +335,9 @@ export default function AnalyticsComponent() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch analytics');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ Analytics API Error:', errorData);
+        throw new Error(errorData.error || errorData.message || 'Failed to fetch analytics');
       }
 
       const result = await response.json();
@@ -327,7 +370,6 @@ export default function AnalyticsComponent() {
           const collectionCount = machineStats?.total_collections || 0;
           console.log(`  ${machine.machineId}: ${collectionCount} collections`);
           
-          // Return completely new object to ensure React detects change
           return {
             id: machine.id,
             machineId: machine.machineId,
@@ -340,8 +382,8 @@ export default function AnalyticsComponent() {
         });
         
         console.log('✅ Updating machines with collection counts', updatedMachines.slice(0, 2));
-        setMachines(updatedMachines);
-        setMachinesVersion(prev => prev + 1); // Force FilterDropdown re-render
+        setMachinesData(updatedMachines);
+        setMachinesVersion(prev => prev + 1);
       } else {
         console.log('⚠️ No machine breakdown data in analytics response');
       }
@@ -350,7 +392,8 @@ export default function AnalyticsComponent() {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching analytics:', error);
-      alert('Failed to load analytics data. Please check console for details.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(`Failed to load analytics: ${errorMessage}`);
       setLoading(false);
     }
   }, [dateRange, fromDate, toDate, useCustomDate, refreshTrigger, dairyFilter, bmcFilter, societyFilter, machineFilter, channelFilter]);
@@ -631,6 +674,20 @@ export default function AnalyticsComponent() {
         </div>
       )}
 
+      {/* Error Message */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-right">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+          <span className="font-medium">{error}</span>
+          <button
+            onClick={() => setError('')}
+            className="ml-2 hover:bg-white/20 rounded p-1 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 mb-6">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
@@ -789,7 +846,7 @@ export default function AnalyticsComponent() {
           machineFilter={machineFilter}
           onMachineChange={(value) => setMachineFilter(Array.isArray(value) ? value : [value])}
           dairies={dairies}
-          bmcs={bmcs}
+          bmcs={bmcsWithData}
           societies={societies}
           machines={machines}
           filteredCount={0}

@@ -103,16 +103,34 @@ export default function AssignBmcModal({
             <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
             Currently Assigned ({currentBmcs.length})
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {currentBmcs.map(bmc => (
-              <span
-                key={bmc.bmcId}
-                className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600"
-              >
-                {bmc.bmcName}
-              </span>
-            ))}
-          </div>
+          {currentBmcs.length === 0 ? (
+            <div className="text-center py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl">
+              <Building2 className="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
+              <p className="text-xs text-gray-500 dark:text-gray-400">No BMCs assigned yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {currentBmcs.map(bmc => (
+                <div
+                  key={bmc.bmcId}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/50 dark:to-cyan-900/50 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{bmc.bmcName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">BMC ID: {bmc.bmcIdentifier}</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                      Chart Uploaded
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Divider */}
