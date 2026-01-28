@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Eye, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FlowerSpinner } from '@/components';
 
 interface PasswordConfirmDialogProps {
   isOpen: boolean;
@@ -157,7 +158,7 @@ export default function PasswordConfirmDialog({
                   >
                     {loading ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <FlowerSpinner size={16} className="mr-1" />
                         Verifying...
                       </>
                     ) : (

@@ -259,21 +259,56 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
       
       reader.onload = (e) => {
         const text = e.target?.result as string;
-        const lines = text.split('\n').map(line => line.trim());
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line); // Filter empty lines
         
         const isEcod = selectedMachineType.toLowerCase().includes('ecod');
         
-        if (isEcod) {
-          // ECOD format: headers are after first 5 rows for collection/dispatch, 4 rows for sales
-          const headerLineIndex = reportType === 'sales' ? 4 : 5;
+        // Find the header line dynamically
+        let headerLineIndex = -1;
+        for (let i = 0; i < Math.min(lines.length, 10); i++) {
+          const line = lines[i].toLowerCase();
           
-          if (lines.length <= headerLineIndex) {
-            resolve({ valid: false, error: 'File is too short. Missing header row.' });
-            return;
+          // Header line must contain commas (it's CSV format)
+          if (!line.includes(',')) continue;
+          
+          // For sales reports, look for "Date" (with or without "Time")
+          // For collection/dispatch, look for both "Date" and "Time"
+          if (reportType === 'sales') {
+            // Sales header should have: Date, Shift, Channel, Litre, Rate, Amount (Standard)
+            // Or: Date&Time, ID, Milk, Rate, Qty, Total (ECOD)
+            if (isEcod) {
+              if (line.includes('date') && line.includes('id')) {
+                headerLineIndex = i;
+                break;
+              }
+            } else {
+              if (line.includes('date') && (line.includes('shift') || line.includes('channel'))) {
+                headerLineIndex = i;
+                break;
+              }
+            }
+          } else {
+            if (line.includes('date') && line.includes('time')) {
+              headerLineIndex = i;
+              break;
+            }
           }
-          
-          const headerLine = lines[headerLineIndex];
-          
+        }
+        
+        if (headerLineIndex === -1) {
+          const expectedColumns = reportType === 'sales' 
+            ? 'Date column' 
+            : 'Date and Time columns';
+          resolve({ 
+            valid: false, 
+            error: `Header line not found. Please ensure your CSV has a header row with ${expectedColumns}.` 
+          });
+          return;
+        }
+        
+        const headerLine = lines[headerLineIndex];
+        
+        if (isEcod) {
           let expectedHeaders: string[];
           if (reportType === 'collection' || reportType === 'dispatch') {
             expectedHeaders = ['Date', 'Time', 'shift', 'ID', 'Name', 'Milk', 'Fat', 'SNF', 'CLR', 'Water', 'Rate', 'Bonus', 'Qty', 'Total'];
@@ -281,43 +316,36 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
             expectedHeaders = ['Date&Time', 'ID', 'Milk', 'Rate', 'Qty', 'Total'];
           }
           
-          // Split and only take the number of columns we expect
-          // Clean headers: trim and remove extra spaces/special chars but keep alphanumeric and &
-          const actualHeaders = headerLine.split(',').slice(0, expectedHeaders.length).map(h => 
-            h.trim().replace(/[^a-zA-Z0-9&]/g, '')
-          );
+          // Split by comma
+          const actualHeaders = headerLine.split(',').map(h => h.trim());
           
           // Check if we have enough columns
           if (actualHeaders.length < expectedHeaders.length) {
             resolve({ 
               valid: false, 
-              error: `Invalid ECOD ${reportType} format. Found ${actualHeaders.length} columns, expected ${expectedHeaders.length}` 
+              error: `Invalid ECOD ${reportType} format. Found ${actualHeaders.length} columns, expected ${expectedHeaders.length}. Headers: ${actualHeaders.join(', ')}` 
             });
             return;
           }
           
+          // Clean headers for comparison
+          const cleanActual = actualHeaders.slice(0, expectedHeaders.length).map(h => 
+            h.trim().replace(/[^a-zA-Z0-9&]/g, '')
+          );
+          
           const matches = expectedHeaders.every((expected, index) => 
-            actualHeaders[index]?.toLowerCase() === expected.toLowerCase()
+            cleanActual[index]?.toLowerCase() === expected.toLowerCase()
           );
           
           if (!matches) {
             resolve({ 
               valid: false, 
-              error: `Invalid ECOD ${reportType} format. Expected headers: ${expectedHeaders.join(', ')}. Found: ${actualHeaders.join(', ')}` 
+              error: `Invalid ECOD ${reportType} format. Expected headers: ${expectedHeaders.join(', ')}. Found: ${cleanActual.join(', ')}` 
             });
             return;
           }
         } else {
-          // Standard format: headers are after first 5 rows (Machine info, report titles, date range, channel)
-          const headerLineIndex = reportType === 'sales' ? 4 : 5;
-          
-          if (lines.length <= headerLineIndex) {
-            resolve({ valid: false, error: 'File is too short. Missing header row.' });
-            return;
-          }
-          
-          const headerLine = lines[headerLineIndex];
-          
+          // Standard format validation
           let expectedHeaders: string[];
           if (reportType === 'collection') {
             expectedHeaders = ['Date', 'Time', 'Shift', 'ID', 'Channel', 'Fat', 'SNF', 'CLR', 'Water', 'Qty', 'Rate', 'Incentive', 'Amount'];
@@ -327,29 +355,31 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
             expectedHeaders = ['Date', 'Shift', 'Channel', 'Litre', 'Rate', 'Amount'];
           }
           
-          // Split and only take the number of columns we expect
-          // Clean headers: trim and remove extra spaces/special chars but keep alphanumeric and &
-          const actualHeaders = headerLine.split(',').slice(0, expectedHeaders.length).map(h => 
-            h.trim().replace(/[^a-zA-Z0-9&]/g, '')
-          );
+          // Split by comma
+          const actualHeaders = headerLine.split(',').map(h => h.trim());
           
           // Check if we have enough columns
           if (actualHeaders.length < expectedHeaders.length) {
             resolve({ 
               valid: false, 
-              error: `Invalid ${reportType} format. Found ${actualHeaders.length} columns, expected ${expectedHeaders.length}` 
+              error: `Invalid ${reportType} format. Found ${actualHeaders.length} columns, expected ${expectedHeaders.length}. Headers: ${actualHeaders.join(', ')}` 
             });
             return;
           }
           
+          // Clean headers for comparison
+          const cleanActual = actualHeaders.slice(0, expectedHeaders.length).map(h => 
+            h.trim().replace(/[^a-zA-Z0-9&]/g, '')
+          );
+          
           const matches = expectedHeaders.every((expected, index) => 
-            actualHeaders[index]?.toLowerCase() === expected.toLowerCase()
+            cleanActual[index]?.toLowerCase() === expected.toLowerCase()
           );
           
           if (!matches) {
             resolve({ 
               valid: false, 
-              error: `Invalid ${reportType} format. Expected headers: ${expectedHeaders.join(', ')}. Found: ${actualHeaders.join(', ')}` 
+              error: `Invalid ${reportType} format. Expected headers: ${expectedHeaders.join(', ')}. Found: ${cleanActual.join(', ')}` 
             });
             return;
           }
@@ -396,7 +426,9 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
       onClose();
     } catch (err) {
       console.error('Error uploading file:', err);
-      setError('Error uploading file. Please try again.');
+      // Display the full error message from the API (including format mismatch details)
+      const errorMessage = err instanceof Error ? err.message : 'Error uploading file. Please try again.';
+      setError(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -422,23 +454,23 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto"
+          className="bg-white dark:bg-black rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Mobile drag handle */}
           <div className="sm:hidden flex justify-center pt-3 pb-1">
-            <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full" />
           </div>
 
             {/* Header */}
-            <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                   Upload Report Data
                 </h2>
                 <button
                   onClick={handleClose}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                 </button>
@@ -448,26 +480,33 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
           <div className="p-4 sm:p-6">
             {/* Error Message */}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 rounded-lg flex items-start">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-900">
+                <div className="flex items-start">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">Upload Error</h4>
+                    <div className="text-sm text-red-700 dark:text-red-400 whitespace-pre-wrap font-mono">
+                      {error}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Success Message */}
             {successMessage && (
-              <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg flex items-start">
+              <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/50 rounded-lg border border-green-200 dark:border-green-900 flex items-start">
                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mr-2 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-green-700 dark:text-green-200">{successMessage}</p>
+                <p className="text-sm text-green-700 dark:text-green-300">{successMessage}</p>
               </div>
             )}
 
             {/* Format Requirements - At Top */}
-            <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-              <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+            <div className="mb-6 p-3 bg-psr-green-50 dark:bg-psr-green-950/50 rounded-lg border border-psr-green-200 dark:border-psr-green-900">
+              <h3 className="text-sm font-medium text-psr-green-900 dark:text-psr-green-300 mb-2">
                 CSV Format Requirements:
               </h3>
-              <ul className="text-xs text-blue-700 dark:text-blue-200 space-y-0.5">
+              <ul className="text-xs text-psr-green-700 dark:text-psr-green-400 space-y-0.5">
                 {reportType === 'collection' && (
                   <>
                     {selectedMachineType.toLowerCase().includes('ecod') ? (
@@ -538,15 +577,15 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Dairy Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Dairy <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
+                      Dairy <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <select
                       value={selectedDairy}
                       onChange={(e) => setSelectedDairy(e.target.value)}
                       required
                       disabled={loadingDairies}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-950 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <option value="">Select Dairy</option>
                       {dairies.map(dairy => (
@@ -559,15 +598,15 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
 
                   {/* BMC Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      BMC <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
+                      BMC <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <select
                       value={selectedBMC}
                       onChange={(e) => setSelectedBMC(e.target.value)}
                       required
                       disabled={!selectedDairy || loadingBMCs}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-950 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <option value="">Select BMC</option>
                       {bmcs.map(bmc => (
@@ -585,15 +624,15 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Society Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Society <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
+                      Society <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <select
                       value={selectedSociety}
                       onChange={(e) => setSelectedSociety(e.target.value)}
                       required
                       disabled={!selectedBMC || loadingSocieties}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-950 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <option value="">Select Society</option>
                       {societies.map(society => (
@@ -606,14 +645,14 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
 
                   {/* Report Type */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Report Type <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
+                      Report Type <span className="text-red-500 dark:text-red-400">*</span>
                     </label>
                     <select
                       value={reportType}
                       onChange={(e) => setReportType(e.target.value as ReportType)}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-950 text-gray-900 dark:text-white transition-colors"
                     >
                       <option value="collection">Collection Report</option>
                       <option value="dispatch">Dispatch Report</option>
@@ -625,8 +664,8 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
 
               {/* Row 3: Machine Selection */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Machine <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">
+                  Machine <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <select
                   value={selectedMachine}
@@ -638,7 +677,7 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
                   }}
                   required
                   disabled={!selectedSociety || loadingMachines}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-blue-500 dark:focus:border-blue-600 bg-white dark:bg-gray-950 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <option value="">Select Machine</option>
                   {machines.map(machine => (
@@ -647,43 +686,96 @@ export default function ReportUploadDialog({ isOpen, onClose, onUpload }: Report
                     </option>
                   ))}
                 </select>
+                
+                {/* Show detected format */}
+                {selectedMachineType && (
+                  <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-950/50 rounded-md border border-purple-200 dark:border-purple-900">
+                    <p className="text-xs text-purple-700 dark:text-purple-300">
+                      <strong>Detected Format:</strong> {selectedMachineType.toLowerCase().includes('ecod') ? 'ECOD' : 'LSE/SD'}
+                      <br />
+                      <span className="text-purple-600 dark:text-purple-400">
+                        Upload CSV files matching the {selectedMachineType.toLowerCase().includes('ecod') ? 'ECOD' : 'Standard'} format shown above
+                      </span>
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* File Upload */}
+              {/* File Upload - Modern Design */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  CSV File <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-3">
+                  CSV File <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileSelect}
-                    className="w-full px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-green-900/20 dark:file:text-green-400"
-                  />
-                  {selectedFile && (
-                    <div className="mt-2 flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <FileText className="w-4 h-4 mr-2" />
-                      {selectedFile.name}
+                
+                {!selectedFile ? (
+                  <label 
+                    htmlFor="file-upload"
+                    className="relative flex flex-col items-center justify-center w-full p-8 border-2 border-dashed border-psr-green-300 dark:border-psr-green-700 rounded-xl bg-gradient-to-br from-psr-green-50 to-emerald-50 dark:from-gray-900 dark:to-gray-800 hover:from-psr-green-100 hover:to-emerald-100 dark:hover:from-gray-800 dark:hover:to-gray-700 transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <div className="mb-3 p-3 rounded-full bg-psr-green-100 dark:bg-psr-green-900/30 group-hover:bg-psr-green-200 dark:group-hover:bg-psr-green-800/40 transition-colors">
+                        <Upload className="w-8 h-8 text-psr-green-600 dark:text-psr-green-400" />
+                      </div>
+                      <p className="mb-1 text-sm font-medium text-psr-green-600 dark:text-psr-green-400">
+                        Click to upload
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        CSV files only
+                      </p>
                     </div>
-                  )}
-                </div>
+                    <input
+                      id="file-upload"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </label>
+                ) : (
+                  <div className="relative flex items-center justify-between p-4 border-2 border-psr-green-300 dark:border-psr-green-700 rounded-xl bg-psr-green-50 dark:bg-psr-green-900/20">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="p-2 rounded-lg bg-psr-green-100 dark:bg-psr-green-800/40">
+                        <FileText className="w-6 h-6 text-psr-green-600 dark:text-psr-green-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {selectedFile.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {(selectedFile.size / 1024).toFixed(2)} KB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setSelectedFile(null);
+                        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+                        if (fileInput) fileInput.value = '';
+                      }}
+                      className="ml-3 p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group"
+                    >
+                      <X className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-red-600 dark:group-hover:text-red-400" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-800">
                 <button
                   type="button"
                   onClick={handleClose}
                   disabled={uploading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!selectedFile || uploading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center"
+                  className="px-4 py-2 text-sm font-medium text-white bg-psr-green-600 hover:bg-psr-green-700 dark:bg-psr-green-700 dark:hover:bg-psr-green-600 disabled:bg-gray-400 dark:disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center"
                 >
                   {uploading ? (
                     <>

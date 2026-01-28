@@ -19,6 +19,16 @@
 - [🚀 Deployment](#deployment)
 - [🔧 Troubleshooting](#troubleshooting)
 
+### 📚 Additional Documentation
+
+- [CSV Upload Formats Guide](./CSV_UPLOAD_FORMATS.md) - Complete CSV format reference for all machine types
+- [CSV Format Error Detection](./CSV_FORMAT_ERROR_DETECTION.md) - Automatic format validation system
+- [CLN Upload Quick Guide](./CLN_UPLOAD_QUICK_GUIDE.md) - Quick reference for CLN and non-ECOD machines
+- [Farmer UID Quick Reference](./FARMERUID_QUICK_REFERENCE.md) - Unique Farmer ID system
+- [Machine Management Deep Dive](./MACHINE_MANAGEMENT_DEEP_DIVE.md) - Machine setup and management
+- [BMC vs Society Integration](./BMC_VS_SOCIETY_INTEGRATION.md) - Understanding the hierarchy
+- [Comparison Features Guide](./COMPARISON_FEATURES_GUIDE.md) - BMC comparison functionality
+
 ---
 
 ## 🎯 Overview

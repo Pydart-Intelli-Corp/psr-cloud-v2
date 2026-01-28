@@ -630,7 +630,13 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
         formData.append('machineId', machineId.toString());
       }
 
-      const endpoint = `/api/user/reports/${reportType}s/upload`;
+      // Map report types to correct plural forms
+      const endpointMap: Record<'collection' | 'dispatch' | 'sales', string> = {
+        collection: 'collections',
+        dispatch: 'dispatches',
+        sales: 'sales'
+      };
+      const endpoint = `/api/user/reports/${endpointMap[reportType]}/upload`;
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -643,7 +649,27 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
+        // Enhanced error handling with format mismatch details
+        let errorMsg = data.error || 'Upload failed';
+        
+        if (data.detectedFormat && data.expectedFormat) {
+          errorMsg = `❌ CSV Format Mismatch\n\n${data.error}\n\n`;
+          errorMsg += `🔍 Detected: ${data.detectedFormat} format\n`;
+          errorMsg += `✓ Expected: ${data.expectedFormat} format\n`;
+          errorMsg += `🔧 Machine Type: ${data.machineType}\n\n`;
+          
+          if (data.help) {
+            errorMsg += `📋 Format Details:\n${data.help}\n\n`;
+          }
+          
+          if (data.suggestion) {
+            errorMsg += `💡 Suggestion: ${data.suggestion}`;
+          }
+        } else if (data.details) {
+          errorMsg += `\n\nDetails: ${data.details}`;
+        }
+        
+        throw new Error(errorMsg);
       }
 
       // Show success message

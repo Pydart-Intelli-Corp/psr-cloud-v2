@@ -34,9 +34,28 @@ function parseDate(dateStr: string): string {
     // Remove any whitespace
     dateStr = dateStr.trim();
     
-    // Handle formats like "19-1-26", "19/1/26"
+    // Check if already in YYYY-MM-DD format (4-digit year at start)
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+      // Already in correct format, just ensure 2-digit month and day
+      const parts = dateStr.split('-');
+      const year = parts[0];
+      const month = parts[1].padStart(2, '0');
+      const day = parts[2].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Handle formats like "19-1-26", "19/1/26" (DD-M-YY or DD/M/YY)
     const parts = dateStr.split(/[-/]/);
     if (parts.length === 3) {
+      // Check if first part is a 4-digit year (YYYY-MM-DD or YYYY/MM/DD)
+      if (parts[0].length === 4) {
+        const year = parts[0];
+        const month = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+      
+      // Otherwise treat as DD-M-YY format
       let day = parts[0].padStart(2, '0');
       let month = parts[1].padStart(2, '0');
       let year = parts[2];
@@ -129,6 +148,111 @@ function parseTime(timeStr: string): string {
   }
 }
 
+// Helper function to detect CSV format from file structure
+function detectCSVFormat(lines: string[]): { format: 'ecod' | 'standard' | 'unknown'; confidence: number; details: string } {
+  if (lines.length < 5) {
+    return { format: 'unknown', confidence: 0, details: 'File too short' };
+  }
+
+  const firstLine = lines[0].toLowerCase();
+  const secondLine = lines.length > 1 ? lines[1].toLowerCase() : '';
+  
+  // Find header line
+  let headerLine = '';
+  let headerIndex = -1;
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const line = lines[i].toLowerCase();
+    if (line.includes('date') && line.includes('time')) {
+      headerLine = lines[i];
+      headerIndex = i;
+      break;
+    }
+  }
+
+  if (!headerLine) {
+    return { format: 'unknown', confidence: 0, details: 'No header line found with Date and Time columns' };
+  }
+
+  const headers = headerLine.split(',').map(h => h.trim().toLowerCase());
+  
+  // ECOD Format Detection
+  // - First line contains "station"
+  // - Headers include: date, time, shift, id, name, milk, fat, snf, clr, water, rate, bonus, qty, total
+  if (firstLine.includes('station')) {
+    const hasNameColumn = headers.some(h => h === 'name');
+    const hasMilkColumn = headers.some(h => h === 'milk');
+    const hasBonusColumn = headers.some(h => h === 'bonus');
+    const hasTotalColumn = headers.some(h => h === 'total');
+    
+    if (hasNameColumn && hasMilkColumn && hasBonusColumn && hasTotalColumn) {
+      return { 
+        format: 'ecod', 
+        confidence: 100, 
+        details: 'ECOD format: Station header, Name/Milk/Bonus/Total columns present' 
+      };
+    }
+    return { 
+      format: 'ecod', 
+      confidence: 70, 
+      details: 'ECOD format: Station header found but some expected columns missing' 
+    };
+  }
+
+  // Standard Format Detection
+  // - First line contains "machine serial:"
+  // - Headers include: date, time, shift, id, channel, fat, snf, clr, water, qty, rate, incentive, amount
+  if (firstLine.includes('machine serial')) {
+    const hasChannelColumn = headers.some(h => h === 'channel');
+    const hasQtyColumn = headers.some(h => h === 'qty');
+    const hasIncentiveColumn = headers.some(h => h === 'incentive');
+    const hasAmountColumn = headers.some(h => h === 'amount');
+    
+    if (hasChannelColumn && hasQtyColumn && hasIncentiveColumn && hasAmountColumn) {
+      return { 
+        format: 'standard', 
+        confidence: 100, 
+        details: 'Standard format: Machine Serial header, Channel/Qty/Incentive/Amount columns present' 
+      };
+    }
+    return { 
+      format: 'standard', 
+      confidence: 70, 
+      details: 'Standard format: Machine Serial header found but some expected columns missing' 
+    };
+  }
+
+  // Try to determine from columns alone
+  const hasNameColumn = headers.some(h => h === 'name');
+  const hasChannelColumn = headers.some(h => h === 'channel');
+  const hasMilkColumn = headers.some(h => h === 'milk');
+  const hasBonusColumn = headers.some(h => h === 'bonus');
+  const hasIncentiveColumn = headers.some(h => h === 'incentive');
+  const hasTotalColumn = headers.some(h => h === 'total');
+  const hasAmountColumn = headers.some(h => h === 'amount');
+
+  if (hasNameColumn && hasMilkColumn && hasBonusColumn && hasTotalColumn) {
+    return { 
+      format: 'ecod', 
+      confidence: 60, 
+      details: 'Likely ECOD format based on Name/Milk/Bonus/Total columns (missing Station header)' 
+    };
+  }
+
+  if (hasChannelColumn && hasIncentiveColumn && hasAmountColumn && !hasNameColumn) {
+    return { 
+      format: 'standard', 
+      confidence: 60, 
+      details: 'Likely Standard format based on Channel/Incentive/Amount columns (missing Machine Serial header)' 
+    };
+  }
+
+  return { 
+    format: 'unknown', 
+    confidence: 0, 
+    details: `Could not determine format. Headers found: ${headers.join(', ')}` 
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Get auth token
@@ -204,20 +328,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Machine serial not found in CSV or form data' }, { status: 400 });
     }
 
-    // Find the header line (contains "Date,Time,Shift")
-    let headerIndex = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes('date') && lines[i].toLowerCase().includes('time')) {
-        headerIndex = i;
-        break;
-      }
-    }
-
-    if (headerIndex === -1) {
-      return NextResponse.json({ error: 'CSV header not found' }, { status: 400 });
-    }
-
-    // Verify machine exists and get its details
+    // Verify machine exists and get its details FIRST (before header check for better error messages)
     const machineQuery = machineDbId
       ? `SELECT m.id, m.machine_id, m.machine_type, m.society_id, s.name as society_name, s.society_id as society_code
          FROM \`${schemaName}\`.machines m
@@ -241,16 +352,87 @@ export async function POST(request: NextRequest) {
     }
 
     const machine: any = machines[0];
+    const expectedFormat = machine.machine_type?.toLowerCase().includes('ecod') ? 'ECOD' : 'LSE/SD';
 
-    // Detect if ECOD format
-    const isEcodFormat = machine.machine_type?.toLowerCase().includes('ecod') || 
-                         firstLine.toLowerCase().includes('station');
+    // Find the header line (contains "Date,Time,Shift")
+    let headerIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes('date') && lines[i].toLowerCase().includes('time')) {
+        headerIndex = i;
+        break;
+      }
+    }
+
+    if (headerIndex === -1) {
+      const ecodExample = expectedFormat === 'ECOD' 
+        ? 'Date, Time, shift, ID, Name, Milk, Fat, SNF, CLR, Water, Rate, Bonus, Qty, Total'
+        : 'Date, Time, Shift, ID, Channel, Fat, SNF, CLR, Water, Qty, Rate, Incentive, Amount';
+      
+      return NextResponse.json({ 
+        error: `❌ Header Row Not Found in Collection CSV`,
+        reportType: 'Collection Report',
+        machineType: machine.machine_type,
+        expectedFormat: expectedFormat,
+        help: `Your CSV file is missing a proper header row.\n\nFor ${expectedFormat} format Collection reports, the header should include:\n• ${ecodExample}\n\nPlease check:\n1. First few lines contain machine info/metadata\n2. Header row comes after metadata\n3. Header contains column names separated by commas`,
+        suggestion: '💡 Tip: Open your CSV file and ensure it has a row with column names like Date, Time, Shift, ID, etc.'
+      }, { status: 400 });
+    }
+
+    // Detect actual CSV format from file structure
+    const detectedFormat = detectCSVFormat(lines);
     
-    console.log('\n=== CSV Upload Debug ===');
+    // Determine expected format based on machine type (already set above)
+    const csvFormatExpected = expectedFormat.toLowerCase() === 'ecod' ? 'ecod' : 'standard';
+    const isEcodMachine = csvFormatExpected === 'ecod';
+    
+    console.log('\n=== CSV Upload Format Validation ===');
     console.log('Machine:', machine.machine_id, '|', machine.machine_type);
-    console.log('Format:', isEcodFormat ? 'ECOD' : 'Standard');
-    console.log('Header Index:', headerIndex);
+    console.log('Society:', machine.society_name, '|', machine.society_code);
+    console.log('Expected Format:', csvFormatExpected.toUpperCase());
+    console.log('Detected Format:', detectedFormat.format.toUpperCase(), `(${detectedFormat.confidence}% confidence)`);
+    console.log('Detection Details:', detectedFormat.details);
+    console.log('First Line:', firstLine);
     console.log('Header Line:', lines[headerIndex]);
+    
+    // Validate format match
+    if (detectedFormat.format === 'unknown') {
+      return NextResponse.json({ 
+        error: 'Unable to detect CSV format',
+        details: detectedFormat.details,
+        help: 'Please ensure your CSV file matches either ECOD or LSE/SD format. See documentation for examples.',
+        expectedFormat: csvFormatExpected.toUpperCase(),
+        machineType: machine.machine_type
+      }, { status: 400 });
+    }
+    
+    // Check if detected format matches expected format for this machine
+    if (detectedFormat.format !== csvFormatExpected && detectedFormat.confidence >= 60) {
+      const errorMessage = expectedFormat === 'ECOD' 
+        ? `❌ Format Mismatch: Selected machine is ECOD type, but CSV file is in LSE/SD format`
+        : `❌ Format Mismatch: Selected machine is LSE/SD type, but CSV file is in ECOD format`;
+      
+      const helpMessage = expectedFormat === 'ECOD'
+        ? `Expected ECOD format:\n• First line: "Station :"\n• Columns: Date, Time, shift, ID, Name, Milk, Fat, SNF, CLR, Water, Rate, Bonus, Qty, Total\n\nFound LSE/SD format:\n• First line: "Machine Serial:XXX"\n• Columns: Date, Time, Shift, ID, Channel, Fat, SNF, CLR, Water, Qty, Rate, Incentive, Amount`
+        : `Expected LSE/SD format:\n• First line: "Machine Serial:XXX"\n• Columns: Date, Time, Shift, ID, Channel, Fat, SNF, CLR, Water, Qty, Rate, Incentive, Amount\n\nFound ECOD format:\n• First line: "Station :"\n• Columns: Date, Time, shift, ID, Name, Milk, Fat, SNF, CLR, Water, Rate, Bonus, Qty, Total`;
+      
+      return NextResponse.json({ 
+        error: errorMessage,
+        details: detectedFormat.details,
+        help: helpMessage,
+        detectedFormat: detectedFormat.format.toUpperCase(),
+        expectedFormat: expectedFormat.toUpperCase(),
+        machineType: machine.machine_type,
+        suggestion: expectedFormat === 'ECOD' 
+          ? '💡 Solution: Either upload an ECOD format CSV file, or select a different machine (LSE/SD type) for this upload.'
+          : '💡 Solution: Either upload an LSE/SD format CSV file, or select an ECOD machine if you have ECOD format data.'
+      }, { status: 400 });
+    }
+    
+    // Use detected format for parsing
+    const isEcodFormat = detectedFormat.format === 'ecod';
+    
+    console.log('Format Validation: PASSED');
+    console.log('Using Parser:', isEcodFormat ? 'ECOD' : 'LSE/SD');
     console.log('Total Lines:', lines.length);
 
     // Parse data rows
@@ -274,8 +456,11 @@ export async function POST(request: NextRequest) {
 
       const values = line.split(',').map(v => v.trim());
       
-      if (values.length < 12) {
-        console.log('Skipping incomplete row:', values.length, 'columns');
+      // Validate minimum column count based on format
+      const minColumns = isEcodFormat ? 14 : 13;
+      if (values.length < minColumns) {
+        console.log(`⚠️ Skipping incomplete row (line ${i + 1}): ${values.length} columns, expected ${minColumns}`);
+        console.log('Row data:', line.substring(0, 100) + (line.length > 100 ? '...' : ''));
         continue;
       }
 
@@ -283,21 +468,24 @@ export async function POST(request: NextRequest) {
         let row: CollectionRow;
         
         if (isEcodFormat) {
-          // ECOD Format: Date, Time, shift, ID, Name, Milk, Fat, SNF, CLR, Water, Rate, Bonus, Qty, Total
+          // ===== ECOD FORMAT =====
+          // Used by: ECOD machines
+          // Columns: Date, Time, shift, ID, Name, Milk, Fat, SNF, CLR, Water, Rate, Bonus, Qty, Total
+          // Example: 28/01/26,09:07:14AM,EVE,000001,FARMER NAME,COW,00.30,03.60,12.00,56,010.00,00.00,00000.00,00000.00
           row = {
             date: parseDate(values[0]),
             time: parseTime(values[1] || '00:00:00'),
             shift: normalizeShift(values[2]),
             farmerId: stripLeadingZeros(values[3] || '0'),
-            channel: normalizeChannel(values[5] || 'COW'), // Milk type becomes channel
+            channel: normalizeChannel(values[5] || 'COW'), // "Milk" column becomes channel
             fat: parseFloat(values[6]) || 0,
             snf: parseFloat(values[7]) || 0,
             clr: parseFloat(values[8]) || 0,
             water: parseFloat(values[9]) || 0,
-            quantity: parseFloat(values[12]) || 0, // Qty column
+            quantity: parseFloat(values[12]) || 0, // "Qty" column
             rate: parseFloat(values[10]) || 0,
-            incentive: parseFloat(values[11]) || 0, // Bonus becomes incentive
-            amount: parseFloat(values[13]) || 0 // Total column
+            incentive: parseFloat(values[11]) || 0, // "Bonus" column
+            amount: parseFloat(values[13]) || 0 // "Total" column
           };
           
           if (collections.length < 3) {
@@ -306,25 +494,28 @@ export async function POST(request: NextRequest) {
             console.log('Parsed:', row);
           }
         } else {
-          // Standard Format: Date, Time, Shift, ID, Channel, Fat, SNF, CLR, Water, Qty, Rate, Incentive, Amount
+          // ===== LSE/SD FORMAT =====
+          // Used by: LSE, SD, and other standard format machines
+          // Columns: Date, Time, Shift, ID, Channel, Fat, SNF, CLR, Water, Qty, Rate, Incentive, Amount
+          // Example: 2026-01-19,14:31:03,MR,1,COW,0.00,0.00,0,99,10.00,0.00,0.00,0.00
           row = {
             date: parseDate(values[0]),
             time: parseTime(values[1] || '00:00:00'),
             shift: normalizeShift(values[2]),
             farmerId: stripLeadingZeros(values[3] || '0'),
-            channel: normalizeChannel(values[4]),
+            channel: normalizeChannel(values[4]), // Direct "Channel" column
             fat: parseFloat(values[5]) || 0,
             snf: parseFloat(values[6]) || 0,
             clr: parseFloat(values[7]) || 0,
             water: parseFloat(values[8]) || 0,
-            quantity: parseFloat(values[9]) || 0,
+            quantity: parseFloat(values[9]) || 0, // Direct "Qty" column
             rate: parseFloat(values[10]) || 0,
-            incentive: parseFloat(values[11]) || 0,
-            amount: parseFloat(values[12]) || 0
+            incentive: parseFloat(values[11]) || 0, // Direct "Incentive" column
+            amount: parseFloat(values[12]) || 0 // Direct "Amount" column
           };
           
           if (collections.length < 3) {
-            console.log(`\nRow ${i - headerIndex}: Standard Format`);
+            console.log(`\nRow ${i - headerIndex}: LSE/SD Format`);
             console.log('Raw values:', values);
             console.log('Parsed:', row);
           }
@@ -346,9 +537,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert collections into database
-    let successCount = 0;
+    let insertCount = 0;
+    let updateCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const duplicates: string[] = [];
 
     console.log('\n=== Starting Database Inserts ===');
     
@@ -383,7 +576,7 @@ export async function POST(request: NextRequest) {
           farmerDbId = (farmers[0] as any).id;
         }
 
-        // Insert collection record
+        // Insert collection record with duplicate handling
         const insertQuery = `
           INSERT INTO \`${schemaName}\`.milk_collections (
             society_id, farmer_id, machine_id, collection_date, collection_time,
@@ -391,13 +584,24 @@ export async function POST(request: NextRequest) {
             water_percentage, quantity, rate_per_liter, bonus, total_amount,
             machine_type, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+          ON DUPLICATE KEY UPDATE
+            channel = VALUES(channel),
+            fat_percentage = VALUES(fat_percentage),
+            snf_percentage = VALUES(snf_percentage),
+            clr_value = VALUES(clr_value),
+            water_percentage = VALUES(water_percentage),
+            quantity = VALUES(quantity),
+            rate_per_liter = VALUES(rate_per_liter),
+            bonus = VALUES(bonus),
+            total_amount = VALUES(total_amount),
+            machine_type = VALUES(machine_type)
         `;
 
-        await sequelize.query(insertQuery, {
+        const [result]: any = await sequelize.query(insertQuery, {
           replacements: [
             machine.society_id || null,
             collection.farmerId,
-            machine.id, // Use database ID, not machine_id string
+            machine.id,
             collection.date,
             collection.time,
             collection.shift,
@@ -414,19 +618,25 @@ export async function POST(request: NextRequest) {
           ]
         });
 
-        successCount++;
+        const affectedRows = result.affectedRows || 0;
         
-        if (successCount <= 5) {
-          console.log(`✅ Saved: Farmer ${collection.farmerId} | Date ${collection.date} | Qty ${collection.quantity} | Amt ${collection.amount}`);
-        } else if (successCount === 6) {
-          console.log('... (remaining successful inserts not shown)');
+        if (affectedRows === 1) {
+          insertCount++;
+        } else if (affectedRows === 2) {
+          updateCount++;
+          duplicates.push(`Farmer ${collection.farmerId} on ${collection.date} (${collection.shift})`);
+        }
+        
+        if (insertCount + updateCount <= 3) {
+          const status = affectedRows === 1 ? '✅ New' : '🔄 Updated';
+          console.log(`${status}: Farmer ${collection.farmerId} | ${collection.date} ${collection.shift} | ${collection.quantity}L @ ₹${collection.rate}`);
         }
       } catch (error: any) {
         errorCount++;
         const errorMsg = `Farmer ${collection.farmerId}: ${error.message}`;
         errors.push(errorMsg);
         
-        if (errorCount <= 5) {
+        if (errorCount <= 3) {
           console.error(`❌ Failed: ${errorMsg}`);
         }
       }
@@ -434,18 +644,31 @@ export async function POST(request: NextRequest) {
 
     console.log('\n=== Upload Summary ===');
     console.log('Total Rows:', collections.length);
-    console.log('Success:', successCount);
+    console.log('New Records:', insertCount);
+    console.log('Duplicates Updated:', updateCount);
     console.log('Errors:', errorCount);
     console.log('=====================\n');
 
+    let message = 'Upload completed';
+    if (insertCount > 0 && updateCount > 0) {
+      message = `Synced ${insertCount} new records and updated ${updateCount} existing records`;
+    } else if (insertCount > 0) {
+      message = `Successfully uploaded ${insertCount} new records`;
+    } else if (updateCount > 0) {
+      message = `All ${updateCount} records already exist - data synced`;
+    }
+
     return NextResponse.json({
-      message: 'Upload completed',
+      message,
       machineSerial: machine.machine_id,
       societyName: machine.society_name,
       totalRows: collections.length,
-      successCount,
+      insertCount,
+      updateCount,
+      duplicateCount: updateCount,
       errorCount,
-      errors: errors.slice(0, 10) // Return first 10 errors
+      duplicates: duplicates.slice(0, 5),
+      errors: errors.slice(0, 10)
     });
 
   } catch (error) {

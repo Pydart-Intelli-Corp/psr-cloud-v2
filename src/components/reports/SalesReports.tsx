@@ -180,6 +180,8 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   
   // Fetch dairies, BMCs, societies, and machines
@@ -377,7 +379,13 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
         formData.append('machineId', machineId.toString());
       }
 
-      const endpoint = `/api/user/reports/${reportType}s/upload`;
+      // Map report types to correct plural forms
+      const endpointMap: Record<'collection' | 'dispatch' | 'sales', string> = {
+        collection: 'collections',
+        dispatch: 'dispatches',
+        sales: 'sales'
+      };
+      const endpoint = `/api/user/reports/${endpointMap[reportType]}/upload`;
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -393,11 +401,27 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
         throw new Error(data.error || 'Upload failed');
       }
 
-      setSuccessMessage(
-        `Successfully uploaded ${data.successCount} of ${data.totalRows} records` +
-        (data.errorCount > 0 ? `. ${data.errorCount} failed.` : '')
-      );
-      setTimeout(() => setSuccessMessage(''), 5000);
+      // Build success message based on upload results
+      let message = data.message || 'Upload completed';
+      
+      if (data.insertCount > 0 && data.updateCount > 0) {
+        message = `✅ Synced: ${data.insertCount} new records added, ${data.updateCount} existing records updated`;
+      } else if (data.insertCount > 0) {
+        message = `✅ Successfully uploaded ${data.insertCount} new records`;
+      } else if (data.updateCount > 0) {
+        message = `ℹ️ All ${data.updateCount} records already exist - data synchronized`;
+      }
+      
+      if (data.errorCount > 0) {
+        message += `\n⚠️ ${data.errorCount} records failed to upload`;
+      }
+      
+      if (data.duplicates && data.duplicates.length > 0) {
+        message += `\n📋 Duplicates: ${data.duplicates.slice(0, 3).join(', ')}${data.duplicates.length > 3 ? '...' : ''}`;
+      }
+
+      setSuccessMessage(message);
+      setTimeout(() => setSuccessMessage(''), 8000);
 
       fetchData();
     } catch (error) {

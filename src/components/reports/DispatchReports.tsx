@@ -390,7 +390,13 @@ export default function DispatchReports({ globalSearch = '', reportSource = 'soc
         formData.append('machineId', machineId.toString());
       }
 
-      const endpoint = `/api/user/reports/${reportType}s/upload`;
+      // Map report types to correct plural forms
+      const endpointMap: Record<'collection' | 'dispatch' | 'sales', string> = {
+        collection: 'collections',
+        dispatch: 'dispatches',
+        sales: 'sales'
+      };
+      const endpoint = `/api/user/reports/${endpointMap[reportType]}/upload`;
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1773,8 +1779,8 @@ export default function DispatchReports({ globalSearch = '', reportSource = 'soc
 
       {/* Upload Password Dialog */}
       <PasswordConfirmDialog
-        isOpen={showUploadDialog}
-        onClose={() => setShowUploadDialog(false)}
+        isOpen={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
         onConfirm={handleUploadPasswordConfirm}
         title="Upload Dispatch Data"
         message="Enter your admin password to upload dispatch records."
@@ -1782,57 +1788,7 @@ export default function DispatchReports({ globalSearch = '', reportSource = 'soc
         confirmButtonColor="purple"
       />
 
-      {/* Upload Form Modal */}
-      {showUploadForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upload Dispatch Data</h3>
-              <button
-                onClick={() => setShowUploadForm(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select File
-                </label>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  className="block w-full text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 focus:outline-none"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      console.log('File selected:', file.name);
-                      // TODO: Implement upload logic
-                    }
-                  }}
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Supported formats: CSV, XLSX, XLS
-                </p>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setShowUploadForm(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700"
-                >
-                  Upload
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Upload Form Modal - Removed old form, using ReportUploadDialog instead */}
 
       {/* Bulk Delete Password Confirmation Modal */}
       <PasswordConfirmDialog
