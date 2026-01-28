@@ -1,0 +1,14 @@
+Machine Serial:093 
+Dispatch Report
+ID:1001  
+Date From 19-1-26 To 19-1-26
+Channel:0-ALL 
+
+Date,Time,Shift,ID,Channel,Fat,SNF,CLR,Water,Qty,Rate,Incentive,Amount
+2026-01-19,14:32:20,MR,1001,COW    ,0.00,0.00,0,99,10.00,0.00,0.00,0.00
+Avg.Fat=0.00
+Avg.SNF=0.00
+Avg.CLR=0
+Total Liters=10.00
+Avg.Rate=0.00
+Total Amount=0.00

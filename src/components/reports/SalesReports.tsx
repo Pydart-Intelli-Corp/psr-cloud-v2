@@ -21,6 +21,7 @@ import { FilterDropdown, LoadingSnackbar, StatusMessage, BulkActionsToolbar } fr
 import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
 import EnhancedEmailReportModal from '@/components/dialogs/EnhancedEmailReportModal';
 import DownloadModal from '@/components/dialogs/DownloadModal';
+import ReportUploadDialog from '@/components/dialogs/ReportUploadDialog';
 import { ColumnConfig } from '@/components/dialogs/ColumnSelector';
 
 interface SalesRecord {
@@ -177,6 +178,8 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
   // Email modal state
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   
   // Fetch dairies, BMCs, societies, and machines
@@ -338,6 +341,68 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
   const handleBulkDeleteClick = () => {
     if (selectedRecords.size === 0) return;
     setShowBulkDeleteConfirm(true);
+  };
+
+  const handleUploadPasswordConfirm = async (password: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch('/api/user/reports/sales/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ password, verifyOnly: true })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Invalid password');
+      }
+
+      setShowPasswordDialog(false);
+      setUploadDialogOpen(true);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Handle file upload
+  const handleUploadFile = async (file: File, reportType: 'collection' | 'dispatch' | 'sales', machineId?: number) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const formData = new FormData();
+      formData.append('file', file);
+      if (machineId) {
+        formData.append('machineId', machineId.toString());
+      }
+
+      const endpoint = `/api/user/reports/${reportType}s/upload`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setSuccessMessage(
+        `Successfully uploaded ${data.successCount} of ${data.totalRows} records` +
+        (data.errorCount > 0 ? `. ${data.errorCount} failed.` : '')
+      );
+      setTimeout(() => setSuccessMessage(''), 5000);
+
+      fetchData();
+    } catch (error) {
+      throw error;
+    }
   };
 
   const handleBulkDeleteConfirm = async (password: string) => {
@@ -1377,6 +1442,13 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
                 <span className="hidden sm:inline">Refresh</span>
               </button>
               <button
+                onClick={() => setShowPasswordDialog(true)}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm shadow-sm hover:shadow-md"
+              >
+                <FileDown className="w-4 h-4 rotate-180" />
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+              <button
                 onClick={() => setShowDownloadModal(true)}
                 className="flex items-center justify-center gap-2 px-3 py-2 bg-psr-green-600 text-white rounded-lg hover:bg-psr-green-700 transition-colors text-sm shadow-sm hover:shadow-md"
               >
@@ -1566,6 +1638,69 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
         message="Enter your admin password to confirm deletion. This action cannot be undone and will be logged for security purposes."
       />
 
+      {/* Upload Password Dialog */}
+      <PasswordConfirmDialog
+        isOpen={showUploadDialog}
+        onClose={() => setShowUploadDialog(false)}
+        onConfirm={handleUploadPasswordConfirm}
+        title="Upload Sales Data"
+        message="Enter your admin password to upload sales records."
+        confirmButtonText="Upload"
+        confirmButtonColor="purple"
+      />
+
+      {/* Upload Form Modal */}
+      {showUploadForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upload Sales Data</h3>
+              <button
+                onClick={() => setShowUploadForm(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select File
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="block w-full text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 focus:outline-none"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      console.log('File selected:', file.name);
+                      // TODO: Implement upload logic
+                    }
+                  }}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Supported formats: CSV, XLSX, XLS
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowUploadForm(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700"
+                >
+                  Upload
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bulk Delete Password Confirmation Modal */}
       <PasswordConfirmDialog
         isOpen={showBulkDeleteConfirm}
@@ -1617,6 +1752,24 @@ export default function SalesReports({ globalSearch = '', reportSource = 'societ
         reportType="Sales Report"
         availableColumns={getSalesColumns(reportSource)}
         defaultColumns={getDefaultSalesColumns(reportSource)}
+      />
+
+      {/* Upload Password Dialog */}
+      <PasswordConfirmDialog
+        isOpen={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
+        onConfirm={handleUploadPasswordConfirm}
+        title="Upload Report Data"
+        message="Enter your admin password to upload report records."
+        confirmButtonText="Continue"
+        confirmButtonColor="purple"
+      />
+
+      {/* Report Upload Dialog */}
+      <ReportUploadDialog
+        isOpen={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        onUpload={handleUploadFile}
       />
 
       {/* Status Messages */}

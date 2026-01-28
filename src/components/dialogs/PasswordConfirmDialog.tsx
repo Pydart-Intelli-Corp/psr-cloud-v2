@@ -11,6 +11,8 @@ interface PasswordConfirmDialogProps {
   onConfirm: (password: string) => Promise<void>;
   title?: string;
   message?: string;
+  confirmButtonText?: string;
+  confirmButtonColor?: 'red' | 'purple';
 }
 
 export default function PasswordConfirmDialog({
@@ -18,7 +20,9 @@ export default function PasswordConfirmDialog({
   onClose,
   onConfirm,
   title = 'Confirm Deletion',
-  message = 'Enter your admin password to confirm this action. This action will be logged for security purposes.'
+  message = 'Enter your admin password to confirm this action. This action will be logged for security purposes.',
+  confirmButtonText = 'Confirm Delete',
+  confirmButtonColor = 'red'
 }: PasswordConfirmDialogProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -145,7 +149,11 @@ export default function PasswordConfirmDialog({
                   <button
                     type="submit"
                     disabled={loading || !password}
-                    className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-red-600 to-red-700 rounded-lg hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    className={`flex-1 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 ${
+                      confirmButtonColor === 'purple'
+                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800'
+                        : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
+                    }`}
                   >
                     {loading ? (
                       <>
@@ -155,7 +163,7 @@ export default function PasswordConfirmDialog({
                     ) : (
                       <>
                         <Eye className="w-4 h-4" />
-                        Confirm Delete
+                        {confirmButtonText}
                       </>
                     )}
                   </button>

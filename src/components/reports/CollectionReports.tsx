@@ -23,6 +23,8 @@ import PasswordConfirmDialog from '@/components/dialogs/PasswordConfirmDialog';
 import EnhancedEmailReportModal from '@/components/dialogs/EnhancedEmailReportModal';
 import DownloadModal from '@/components/dialogs/DownloadModal';
 import { ColumnConfig } from '@/components/dialogs/ColumnSelector';
+import ReportUploadDialog from '@/components/dialogs/ReportUploadDialog';
+
 
 interface CollectionRecord {
   id: number;
@@ -220,6 +222,8 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
   // Modal states
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
 
   // Initialize society filter from URL parameters
@@ -589,6 +593,71 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
   const handleBulkDeleteClick = () => {
     if (selectedRecords.size === 0) return;
     setShowBulkDeleteConfirm(true);
+  };
+
+  const handleUploadPasswordConfirm = async (password: string) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      // Use a dummy record ID to verify password (same as delete)
+      const response = await fetch('/api/user/reports/collections/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ password, verifyOnly: true })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Invalid password');
+      }
+
+      setShowPasswordDialog(false);
+      setUploadDialogOpen(true);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Handle file upload
+  const handleUploadFile = async (file: File, reportType: 'collection' | 'dispatch' | 'sales', machineId?: number) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const formData = new FormData();
+      formData.append('file', file);
+      if (machineId) {
+        formData.append('machineId', machineId.toString());
+      }
+
+      const endpoint = `/api/user/reports/${reportType}s/upload`;
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      // Show success message
+      setSuccessMessage(
+        `Successfully uploaded ${data.successCount} of ${data.totalRows} records` +
+        (data.errorCount > 0 ? `. ${data.errorCount} failed.` : '')
+      );
+      setTimeout(() => setSuccessMessage(''), 5000);
+
+      // Refresh data
+      fetchData();
+    } catch (error) {
+      throw error;
+    }
   };
 
   const handleBulkDeleteConfirm = async (password: string) => {
@@ -1838,6 +1907,13 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
                 <span className="hidden sm:inline">Refresh</span>
               </button>
               <button
+                onClick={() => setShowPasswordDialog(true)}
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm shadow-sm hover:shadow-md"
+              >
+                <FileDown className="w-4 h-4 rotate-180" />
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+              <button
                 onClick={() => setShowDownloadModal(true)}
                 className="flex items-center justify-center gap-2 px-3 py-2 bg-psr-green-600 text-white rounded-lg hover:bg-psr-green-700 transition-colors text-sm shadow-sm hover:shadow-md"
               >
@@ -2148,6 +2224,24 @@ export default function CollectionReports({ globalSearch = '', reportSource = 's
         reportType="Collection Report"
         availableColumns={getCollectionColumns(reportSource)}
         defaultColumns={getDefaultCollectionColumns(reportSource)}
+      />
+
+      {/* Upload Password Dialog */}
+      <PasswordConfirmDialog
+        isOpen={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
+        onConfirm={handleUploadPasswordConfirm}
+        title="Upload Report Data"
+        message="Enter your admin password to upload report records."
+        confirmButtonText="Continue"
+        confirmButtonColor="purple"
+      />
+
+      {/* Report Upload Dialog */}
+      <ReportUploadDialog
+        isOpen={uploadDialogOpen}
+        onClose={() => setUploadDialogOpen(false)}
+        onUpload={handleUploadFile}
       />
 
       {/* Status Messages */}

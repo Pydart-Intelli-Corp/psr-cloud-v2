@@ -13,6 +13,56 @@ interface JWTPayload {
   dbKey?: string;
 }
 
+// POST method for password verification only
+export async function POST(request: NextRequest) {
+  try {
+    // Get auth token
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+
+    // Get request body
+    const body = await request.json();
+    const { password } = body;
+
+    if (!password) {
+      return NextResponse.json({ error: 'Password required' }, { status: 400 });
+    }
+
+    await connectDB();
+    const { getModels } = await import('@/models');
+    const { User } = getModels();
+
+    // Get admin user and verify password
+    const admin = await User.findByPk(decoded.id);
+    if (!admin) {
+      return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+    if (!isPasswordValid) {
+      return NextResponse.json({ error: 'Invalid password' }, { status: 403 });
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Password verified successfully' 
+    });
+
+  } catch (error) {
+    console.error('Error verifying password:', error);
+    return NextResponse.json(
+      { error: 'Failed to verify password' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     // Get auth token
@@ -26,10 +76,10 @@ export async function DELETE(request: NextRequest) {
 
     // Get request body
     const body = await request.json();
-    const { recordId, password } = body;
+    const { recordId, password, verifyOnly } = body;
 
-    if (!recordId || !password) {
-      return NextResponse.json({ error: 'Record ID and password required' }, { status: 400 });
+    if (!password) {
+      return NextResponse.json({ error: 'Password required' }, { status: 400 });
     }
 
     await connectDB();
@@ -46,6 +96,18 @@ export async function DELETE(request: NextRequest) {
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
       return NextResponse.json({ error: 'Invalid password' }, { status: 403 });
+    }
+
+    // If verifyOnly, return success without deleting
+    if (verifyOnly) {
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Password verified successfully' 
+      });
+    }
+
+    if (!recordId) {
+      return NextResponse.json({ error: 'Record ID required' }, { status: 400 });
     }
 
     // Generate schema name

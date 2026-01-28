@@ -1,0 +1,10 @@
+Machine Serial:093 
+Sales Report
+Date From 19-1-26 To 19-1-26
+Channel:0-ALL 
+
+Date,Shift,Channel,Litre,Rate,Amount
+19/1/26,MOR,COW,10.00,45.00,450.00
+Total Liters=10.00
+Avg.Rate=45.00
+Total Amount=450.00
