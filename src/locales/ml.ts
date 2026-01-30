@@ -47,6 +47,7 @@ export const ml: TranslationKeys = {
     farmerManagement: 'കർഷക മാനേജ്‌മെന്റ്',
     farmerPortal: 'കർഷക പോർട്ടൽ',
     reports: 'റിപ്പോർട്ടുകൾ',
+    apiManagement: 'എപിഐ മാനേജ്‌മെന്റ്',
     notifications: 'അറിയിപ്പുകൾ',
     settings: 'ക്രമീകരണങ്ങൾ',
     profile: 'പ്രൊഫൈൽ',

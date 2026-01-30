@@ -1,0 +1,17 @@
+{
+  "societyId": "s1",
+  "machineModel": "lse-svpwtbq-12ah",
+  "machines": [
+    {
+      "machineId": "m1",
+      "model": "lse-svpwtbq-12ah",
+      "psrCode": "PSR-S1-LSE--M1"
+    },
+    {
+      "machineId": "m2",
+      "model": "lse-svpwtbq-12ah",
+      "psrCode": "PSR-S1-LSE--M2"
+    }
+  ],
+  "generatedAt": "2026-01-28T11:26:00.323Z"
+}

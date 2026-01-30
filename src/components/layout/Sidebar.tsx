@@ -21,7 +21,8 @@ import {
   FileText,
   Bell,
   Cog,
-  Receipt
+  Receipt,
+  Cloud
 } from 'lucide-react';
 import { UserRole } from '@/types/user';
 
@@ -94,6 +95,24 @@ const navigationItems: NavItem[] = [
     labelKey: 'farmerManagement',
     href: '/admin/farmer',
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SOCIETY]
+  },
+  {
+    icon: Cloud,
+    labelKey: 'apiManagement',
+    href: '/superadmin/api-management',
+    roles: [UserRole.SUPER_ADMIN]
+  },
+  {
+    icon: Settings,
+    labelKey: 'paymentSettings',
+    href: '/admin/payment-settings',
+    roles: [UserRole.ADMIN]
+  },
+  {
+    icon: Receipt,
+    labelKey: 'paymentTransactions',
+    href: '/admin/payment-transactions',
+    roles: [UserRole.ADMIN]
   },
   {
     icon: Bell,

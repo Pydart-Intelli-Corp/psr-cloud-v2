@@ -19,7 +19,8 @@ import {
   Home,
   Eye,
   Plus,
-  Radio
+  Radio,
+  Cloud
 } from 'lucide-react';
 import { PageLoader, FlowerSpinner, MachineManager } from '@/components';
 
@@ -199,6 +200,7 @@ const SuperAdminDashboard = () => {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'machines', label: 'Machines', icon: Building },
     { id: 'database', label: 'Database', icon: Database },
+    { id: 'api-management', label: 'API Management', icon: Cloud },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -242,8 +244,12 @@ const SuperAdminDashboard = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    setActiveTab(item.id);
-                    setIsSidebarOpen(false);
+                    if (item.id === 'api-management') {
+                      router.push('/superadmin/api-management');
+                    } else {
+                      setActiveTab(item.id);
+                      setIsSidebarOpen(false);
+                    }
                   }}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors ${
                     activeTab === item.id

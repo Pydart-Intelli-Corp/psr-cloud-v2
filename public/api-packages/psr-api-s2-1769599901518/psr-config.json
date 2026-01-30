@@ -1,0 +1,12 @@
+{
+  "societyId": "s2",
+  "machineModel": "dpst-w",
+  "machines": [
+    {
+      "machineId": "m1",
+      "model": "dpst-w",
+      "psrCode": "PSR-6998-eyJzaWQiOiJTMiIsIm1vZGVsIjoiZHBzdC13IiwibWlkIjoiTTEiLCJ0cyI6MTc2OTU5OTkwMTUxMH0="
+    }
+  ],
+  "generatedAt": "2026-01-28T11:31:41.510Z"
+}

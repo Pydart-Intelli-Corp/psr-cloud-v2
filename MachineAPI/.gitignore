@@ -1,0 +1,31 @@
+## Build results
+bin/
+obj/
+publish/
+[Dd]ebug/
+[Rr]elease/
+
+## Visual Studio
+*.user
+*.suo
+.vs/
+*.log
+
+## Sensitive Configuration - DO NOT COMMIT
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.local.json
+secrets.json
+.env
+.env.local
+.env.production
+
+## Database files
+*.db
+*.sqlite
+*.sqlite3
+
+## OS files
+.DS_Store
+Thumbs.db
+

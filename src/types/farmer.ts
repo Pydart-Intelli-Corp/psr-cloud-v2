@@ -31,6 +31,14 @@ export interface Farmer {
   machineType?: string;
   status: 'active' | 'inactive' | 'maintenance' | 'suspended';
   notes?: string;
+  // Payment fields
+  paytmPhone?: string;
+  paytmEnabled?: 'YES' | 'NO';
+  upiId?: string;
+  pendingPaymentAmount?: number;
+  lastPaymentDate?: string;
+  lastPaymentAmount?: number;
+  totalAmountPaid?: number;
   createdAt: string;
   updatedAt?: string;
 }

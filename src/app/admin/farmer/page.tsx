@@ -131,7 +131,12 @@ const FarmerManagement = () => {
     societyId: '',
     machineId: '',
     status: 'active',
-    notes: ''
+    notes: '',
+    // Payment fields
+    paytmPhone: '',
+    paytmEnabled: 'NO',
+    upiId: '',
+    pendingPaymentAmount: 0
   });
 
 
@@ -1261,7 +1266,12 @@ const FarmerManagement = () => {
       societyId: societyId,
       machineId: farmer.machineId?.toString() || '',
       status: farmer.status,
-      notes: farmer.notes || ''
+      notes: farmer.notes || '',
+      // Payment fields
+      paytmPhone: farmer.paytmPhone || '',
+      paytmEnabled: farmer.paytmEnabled || 'NO',
+      upiId: farmer.upiId || '',
+      pendingPaymentAmount: farmer.pendingPaymentAmount || 0
     });
     
     // Load machines for the farmer's society
@@ -1294,7 +1304,12 @@ const FarmerManagement = () => {
       societyId: '',
       machineId: '',
       status: 'active',
-      notes: ''
+      notes: '',
+      // Payment fields
+      paytmPhone: '',
+      paytmEnabled: 'NO',
+      upiId: '',
+      pendingPaymentAmount: 0
     });
     setError('');
     setSuccess('');
@@ -1321,7 +1336,12 @@ const FarmerManagement = () => {
       societyId: '',
       machineId: '',
       status: 'active',
-      notes: ''
+      notes: '',
+      // Payment fields
+      paytmPhone: '',
+      paytmEnabled: 'NO',
+      upiId: '',
+      pendingPaymentAmount: 0
     });
     setError('');
     setSuccess('');
@@ -2134,6 +2154,48 @@ const FarmerManagement = () => {
             placeholder={t.farmerManagement.enterIfscCode}
           />
           
+          {/* Payment Information */}
+          <div className="col-span-2 mt-4 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Payment Information</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Configure payment methods for automated payments</p>
+          </div>
+          
+          <FormInput
+            label="Paytm Phone Number"
+            type="tel"
+            value={formData.paytmPhone}
+            onChange={(value) => setFormData({ ...formData, paytmPhone: value })}
+            placeholder="Enter Paytm registered phone"
+          />
+          
+          <FormSelect
+            label="Enable Paytm Payments"
+            value={formData.paytmEnabled}
+            onChange={(value) => setFormData({ ...formData, paytmEnabled: value })}
+            options={[
+              { value: 'YES', label: 'Enabled' },
+              { value: 'NO', label: 'Disabled' }
+            ]}
+          />
+          
+          <FormInput
+            label="UPI ID"
+            type="text"
+            value={formData.upiId}
+            onChange={(value) => setFormData({ ...formData, upiId: value })}
+            placeholder="farmer@upi"
+          />
+          
+          <FormInput
+            label="Pending Payment Amount (₹)"
+            type="number"
+            value={formData.pendingPaymentAmount}
+            onChange={(value) => setFormData({ ...formData, pendingPaymentAmount: parseFloat(value) || 0 })}
+            placeholder="0.00"
+            step="0.01"
+            min="0"
+          />
+          
           <FormInput
             label={t.farmerManagement.address}
             type="text"
@@ -2377,6 +2439,52 @@ const FarmerManagement = () => {
             value={formData.ifscCode}
             onChange={(value) => setFormData({ ...formData, ifscCode: value.toUpperCase() })}
             placeholder={t.farmerManagement.enterIfscCode}
+            colSpan={1}
+          />
+          
+          {/* Payment Information */}
+          <div className="col-span-2 mt-4 mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Payment Information</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Configure payment methods for automated payments</p>
+          </div>
+          
+          <FormInput
+            label="Paytm Phone Number"
+            type="tel"
+            value={formData.paytmPhone}
+            onChange={(value) => setFormData({ ...formData, paytmPhone: value })}
+            placeholder="Enter Paytm registered phone"
+            colSpan={1}
+          />
+          
+          <FormSelect
+            label="Enable Paytm Payments"
+            value={formData.paytmEnabled}
+            onChange={(value) => setFormData({ ...formData, paytmEnabled: value })}
+            options={[
+              { value: 'YES', label: 'Enabled' },
+              { value: 'NO', label: 'Disabled' }
+            ]}
+            colSpan={1}
+          />
+          
+          <FormInput
+            label="UPI ID"
+            type="text"
+            value={formData.upiId}
+            onChange={(value) => setFormData({ ...formData, upiId: value })}
+            placeholder="farmer@upi"
+            colSpan={1}
+          />
+          
+          <FormInput
+            label="Pending Payment Amount (₹)"
+            type="number"
+            value={formData.pendingPaymentAmount}
+            onChange={(value) => setFormData({ ...formData, pendingPaymentAmount: parseFloat(value) || 0 })}
+            placeholder="0.00"
+            step="0.01"
+            min="0"
             colSpan={1}
           />
           

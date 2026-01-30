@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/database';
 import jwt from 'jsonwebtoken';
+import { processCollectionInvoice } from '@/lib/services/invoiceService';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -561,7 +562,7 @@ export async function POST(request: NextRequest) {
       try {
         // Check if farmer exists in society
         const farmerQuery = `
-          SELECT id, farmer_id, name 
+          SELECT id, farmer_id, name, email 
           FROM \`${schemaName}\`.farmers 
           WHERE farmer_id = ? AND society_id = ?
           LIMIT 1
@@ -572,8 +573,14 @@ export async function POST(request: NextRequest) {
         });
 
         let farmerDbId = null;
+        let farmerName = '';
+        let farmerEmail = '';
+        
         if (farmers && farmers.length > 0) {
-          farmerDbId = (farmers[0] as any).id;
+          const farmer = farmers[0] as any;
+          farmerDbId = farmer.id;
+          farmerName = farmer.name || '';
+          farmerEmail = farmer.email || '';
         }
 
         // Insert collection record with duplicate handling
@@ -622,6 +629,36 @@ export async function POST(request: NextRequest) {
         
         if (affectedRows === 1) {
           insertCount++;
+          
+          // Generate and send invoice for new collection (non-blocking)
+          if (farmerEmail) {
+            processCollectionInvoice({
+              farmerId: collection.farmerId,
+              farmerName: farmerName,
+              farmerEmail: farmerEmail,
+              societyName: machine.society_name || '',
+              date: collection.date,
+              shift: collection.shift,
+              quantity: collection.quantity,
+              fat: collection.fat,
+              snf: collection.snf,
+              rate: collection.rate,
+              amount: collection.amount,
+              machineId: machine.machine_id,
+              machineType: machine.machine_type || 'UNKNOWN',
+              time: collection.time
+            }, {
+              adminSchema: schemaName
+            }).then(result => {
+              if (result.success) {
+                console.log(`📧 Invoice sent: Farmer ${collection.farmerId} - ${result.invoiceNumber}`);
+              } else {
+                console.warn(`⚠️ Invoice failed: Farmer ${collection.farmerId} - ${result.message}`);
+              }
+            }).catch(err => {
+              console.error(`❌ Invoice error: Farmer ${collection.farmerId}`, err);
+            });
+          }
         } else if (affectedRows === 2) {
           updateCount++;
           duplicates.push(`Farmer ${collection.farmerId} on ${collection.date} (${collection.shift})`);

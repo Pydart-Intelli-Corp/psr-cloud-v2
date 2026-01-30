@@ -39,6 +39,24 @@ module.exports = {
       time: true,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    },
+    {
+      name: 'payment-scheduler',
+      script: 'scripts/payment-scheduler.js',
+      cwd: '/var/www/psr-v4',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,
+      cron_restart: '0 2 * * *', // Run daily at 2 AM
+      env: {
+        NODE_ENV: 'production'
+      },
+      error_file: '/var/www/psr-v4/logs/scheduler-err.log',
+      out_file: '/var/www/psr-v4/logs/scheduler-out.log',
+      log_file: '/var/www/psr-v4/logs/scheduler.log',
+      time: true,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     }
   ],
 
