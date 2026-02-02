@@ -369,9 +369,12 @@ export default function APIManagementPage() {
                   type="text"
                   value={societyId}
                   onChange={(e) => setSocietyId(e.target.value)}
-                  placeholder="e.g., S-101"
+                  placeholder="e.g., S-101, DAIRY-A, Q1, MySociety"
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all placeholder:text-gray-400 dark:placeholder:text-gray-500"
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Enter any alphanumeric identifier (letters, numbers, hyphens, underscores)
+                </p>
               </div>
 
               {/* Machine Models Section */}
