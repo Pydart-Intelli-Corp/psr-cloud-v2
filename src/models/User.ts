@@ -30,6 +30,7 @@ export interface UserAttributes {
   role: UserRole;
   status: UserStatus;
   dbKey?: string; // For admins - their dedicated schema key
+  phone?: string;
   companyName?: string;
   companyPincode?: string;
   companyCity?: string;
@@ -60,6 +61,7 @@ class User extends Model<UserAttributes> implements UserAttributes {
   declare role: UserRole;
   declare status: UserStatus;
   declare dbKey?: string;
+  declare phone?: string;
   declare companyName?: string;
   declare companyPincode?: string;
   declare companyCity?: string;
@@ -193,6 +195,13 @@ export const initUserModel = (sequelize: Sequelize): typeof User => {
         allowNull: true,
         unique: true,
         comment: 'Dedicated database schema key for admins'
+      },
+      phone: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        validate: {
+          len: [10, 20]
+        }
       },
       companyName: {
         type: DataTypes.STRING(255),

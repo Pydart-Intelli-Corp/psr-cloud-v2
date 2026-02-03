@@ -350,8 +350,8 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 flex items-center justify-between shadow-sm">
-      {/* Search Bar - Hidden on mobile, dashboard, and analytics pages */}
-      {!pathname?.includes('/analytics') && !pathname?.includes('/dashboard') ? (
+      {/* Search Bar - Hidden on mobile, dashboard, analytics, settings, and profile pages */}
+      {!pathname?.includes('/analytics') && !pathname?.includes('/dashboard') && !pathname?.includes('/settings') && !pathname?.includes('/profile') ? (
         <div className="hidden lg:flex items-center space-x-4 flex-1 max-w-2xl">
           <div className="flex-1 max-w-md">
           <form onSubmit={handleSearch} className="relative">
@@ -454,112 +454,6 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
                   ))}
                 </div>
               </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Notifications */}
-        <div className="relative" ref={notificationRef}>
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            {unreadCount > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center"
-              >
-                {unreadCount}
-              </motion.span>
-            )}
-          </button>
-
-          <AnimatePresence>
-            {showNotifications && (
-              <>
-                {/* Mobile overlay */}
-                <div 
-                  className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-                  onClick={() => setShowNotifications(false)}
-                />
-                
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="
-                    fixed lg:absolute 
-                    inset-x-0 lg:inset-x-auto
-                    bottom-0 lg:bottom-auto
-                    lg:right-0 lg:top-full lg:mt-2
-                    w-full lg:w-80
-                    max-h-[80vh] lg:max-h-[32rem]
-                    bg-white dark:bg-gray-800 
-                    rounded-t-2xl lg:rounded-xl
-                    shadow-2xl 
-                    border-t lg:border
-                    border-gray-200 dark:border-gray-700 
-                    z-50
-                    overflow-hidden
-                  "
-                >
-                  {/* Drag handle for mobile */}
-                  <div className="lg:hidden flex justify-center py-2">
-                    <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
-                  </div>
-
-                  <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">{t.notifications.title}</h3>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={markAllAsRead}
-                        className="text-xs sm:text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-500"
-                      >
-                        {t.common.markAllRead}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 120px)' }}>
-                    {isLoadingNotifications ? (
-                      <div className="p-8 sm:p-12 text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">Loading notifications...</p>
-                      </div>
-                    ) : notifications.length > 0 ? (
-                      notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          onClick={() => handleNotificationClick(notification)}
-                          className={`p-3 sm:p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors active:bg-gray-100 dark:active:bg-gray-600 ${
-                            !notification.read ? 'bg-green-50 dark:bg-green-900/20' : ''
-                          }`}
-                        >
-                          <div className="flex items-start space-x-2 sm:space-x-3">
-                            <span className="text-base sm:text-lg flex-shrink-0">{getNotificationIcon(notification.type)}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 truncate">{notification.title}</p>
-                              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">{notification.message}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1.5 sm:mt-2">{notification.time}</p>
-                            </div>
-                            {!notification.read && (
-                              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-1"></div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-8 sm:p-12 text-center text-gray-500 dark:text-gray-400">
-                        <Bell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                        <p className="text-sm sm:text-base">{t.notifications.noNotifications}</p>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              </>
             )}
           </AnimatePresence>
         </div>
@@ -722,22 +616,26 @@ export default function Header({ user, onLogout, onSearch }: HeaderProps) {
                                 }
                                 setShowProfile(false);
                               }}
-                              className="w-full flex items-center space-x-3 p-2.5 sm:p-3 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 rounded-lg transition-colors"
-                            >
-                              <User className="w-4 h-4 flex-shrink-0" />
-                              <span className="text-sm sm:text-base font-medium">{t.nav.profile}</span>
-                            </button>
-                            <Link
-                              href="/settings"
-                              onClick={() => setShowProfile(false)}
                               className={`w-full flex items-center space-x-3 p-2.5 sm:p-3 rounded-lg transition-colors ${
-                                pathname === '/settings'
+                                pathname === '/admin/profile' || pathname === '/superadmin/profile'
                                   ? `bg-gradient-to-r ${roleColors[user.role]} text-white shadow-md`
                                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600'
                               }`}
                             >
-                              <Settings className={`w-4 h-4 flex-shrink-0 ${pathname === '/settings' ? 'text-white' : ''}`} />
-                              <span className={`text-sm sm:text-base font-medium ${pathname === '/settings' ? 'text-white' : ''}`}>
+                              <User className={`w-4 h-4 flex-shrink-0 ${pathname === '/admin/profile' || pathname === '/superadmin/profile' ? 'text-white' : ''}`} />
+                              <span className={`text-sm sm:text-base font-medium ${pathname === '/admin/profile' || pathname === '/superadmin/profile' ? 'text-white' : ''}`}>{t.nav.profile}</span>
+                            </button>
+                            <Link
+                              href="/admin/settings"
+                              onClick={() => setShowProfile(false)}
+                              className={`w-full flex items-center space-x-3 p-2.5 sm:p-3 rounded-lg transition-colors ${
+                                pathname === '/admin/settings'
+                                  ? `bg-gradient-to-r ${roleColors[user.role]} text-white shadow-md`
+                                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600'
+                              }`}
+                            >
+                              <Settings className={`w-4 h-4 flex-shrink-0 ${pathname === '/admin/settings' ? 'text-white' : ''}`} />
+                              <span className={`text-sm sm:text-base font-medium ${pathname === '/admin/settings' ? 'text-white' : ''}`}>
                                 {t.nav.settings}
                               </span>
                             </Link>

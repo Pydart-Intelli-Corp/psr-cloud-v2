@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const { User } = getModels();
     
     // Get token from cookie or Authorization header
-    const token = request.cookies.get('auth-token')?.value || 
+    const token = request.cookies.get('authToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) {
@@ -62,7 +62,7 @@ export async function PUT(request: NextRequest) {
     const { User } = getModels();
     
     // Get token from cookie or Authorization header
-    const token = request.cookies.get('auth-token')?.value || 
+    const token = request.cookies.get('authToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
     if (!token) {
@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest) {
 
     const userId = decoded.id;
     const body = await request.json();
-    const { firstName, lastName, companyName, companyAddress, companyPhone } = body;
+    const { fullName, firstName, lastName, phone, companyName, companyCity, companyState, companyPincode } = body;
 
     // Find user
     const user = await User.findByPk(userId);
@@ -87,17 +87,26 @@ export async function PUT(request: NextRequest) {
 
     // Update allowed fields only
     const updateData: Partial<{
-      firstName: string;
-      lastName: string;
+      fullName: string;
+      phone: string;
       companyName: string;
-      companyAddress: string;
-      companyPhone: string;
+      companyCity: string;
+      companyState: string;
+      companyPincode: string;
     }> = {};
-    if (firstName !== undefined) updateData.firstName = firstName;
-    if (lastName !== undefined) updateData.lastName = lastName;
+    
+    // Handle fullName - construct from firstName and lastName if provided
+    if (firstName && lastName) {
+      updateData.fullName = `${firstName.trim()} ${lastName.trim()}`;
+    } else if (fullName !== undefined) {
+      updateData.fullName = fullName;
+    }
+    
+    if (phone !== undefined) updateData.phone = phone;
     if (companyName !== undefined) updateData.companyName = companyName;
-    if (companyAddress !== undefined) updateData.companyAddress = companyAddress;
-    if (companyPhone !== undefined) updateData.companyPhone = companyPhone;
+    if (companyCity !== undefined) updateData.companyCity = companyCity;
+    if (companyState !== undefined) updateData.companyState = companyState;
+    if (companyPincode !== undefined) updateData.companyPincode = companyPincode;
 
     await user.update(updateData);
 

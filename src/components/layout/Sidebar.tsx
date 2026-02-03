@@ -102,30 +102,18 @@ const navigationItems: NavItem[] = [
     href: '/superadmin/api-management',
     roles: [UserRole.SUPER_ADMIN]
   },
-  {
-    icon: Settings,
-    labelKey: 'paymentSettings',
-    href: '/admin/payment-settings',
-    roles: [UserRole.ADMIN]
-  },
-  {
-    icon: Receipt,
-    labelKey: 'paymentTransactions',
-    href: '/admin/payment-transactions',
-    roles: [UserRole.ADMIN]
-  },
-  {
-    icon: Bell,
-    labelKey: 'notifications',
-    href: '/notifications',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY, UserRole.FARMER]
-  },
-  {
-    icon: Settings,
-    labelKey: 'settings',
-    href: '/settings',
-    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY, UserRole.FARMER]
-  }
+  // {
+  //   icon: Receipt,
+  //   labelKey: 'paymentTransactions',
+  //   href: '/admin/payment-transactions',
+  //   roles: [UserRole.ADMIN]
+  // },
+  // {
+  //   icon: Bell,
+  //   labelKey: 'notifications',
+  //   href: '/notifications',
+  //   roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.DAIRY, UserRole.BMC, UserRole.SOCIETY, UserRole.FARMER]
+  // }
 ];
 
 const roleColors: Record<UserRole, string> = {
