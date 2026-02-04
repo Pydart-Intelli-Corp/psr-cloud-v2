@@ -111,6 +111,12 @@ interface ItemCardProps {
   onImageClick?: () => void;
   // Footer status sections (like mobile app)
   footerStatus?: FooterStatusProps;
+  // BLE Connection button (top right header)
+  bleButton?: {
+    status: 'connected' | 'connecting' | 'available' | 'offline';
+    onClick: () => void;
+    disabled?: boolean;
+  };
 }
 
 /**
@@ -142,7 +148,8 @@ const ItemCard: React.FC<ItemCardProps> = ({
   showStatus = true,
   imageUrl,
   onImageClick,
-  footerStatus
+  footerStatus,
+  bleButton
 }) => {
   const [imageLoading, setImageLoading] = React.useState(true);
   const [imageError, setImageError] = React.useState(false);
@@ -196,12 +203,87 @@ const ItemCard: React.FC<ItemCardProps> = ({
               </p>
             </div>
           </div>
-          {showStatus && onStatusChange && (
-            <StatusDropdown
-              currentStatus={status}
-              onStatusChange={onStatusChange}
-            />
-          )}
+          {bleButton && (() => {
+            const getBleButtonConfig = () => {
+              switch (bleButton.status) {
+                case 'connected':
+                  return {
+                    label: 'Connected',
+                    icon: (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z" />
+                      </svg>
+                    ),
+                    bgColor: 'bg-green-500/10 dark:bg-green-500/20',
+                    textColor: 'text-green-600 dark:text-green-400',
+                    borderColor: 'border-green-500/30',
+                    pulseColor: 'bg-green-500'
+                  };
+                case 'connecting':
+                  return {
+                    label: 'Connecting',
+                    icon: (
+                      <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z" />
+                      </svg>
+                    ),
+                    bgColor: 'bg-amber-500/10 dark:bg-amber-500/20',
+                    textColor: 'text-amber-600 dark:text-amber-400',
+                    borderColor: 'border-amber-500/30',
+                    pulseColor: 'bg-amber-500'
+                  };
+                case 'available':
+                  return {
+                    label: 'Connect',
+                    icon: (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z" />
+                      </svg>
+                    ),
+                    bgColor: 'bg-blue-500/10 dark:bg-blue-500/20',
+                    textColor: 'text-blue-600 dark:text-blue-400',
+                    borderColor: 'border-blue-500/30',
+                    pulseColor: 'bg-blue-500'
+                  };
+                default:
+                  return {
+                    label: 'Offline',
+                    icon: (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88zM17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29z" opacity="0.3" />
+                      </svg>
+                    ),
+                    bgColor: 'bg-gray-500/10 dark:bg-gray-500/20',
+                    textColor: 'text-gray-500 dark:text-gray-400',
+                    borderColor: 'border-gray-500/30',
+                    pulseColor: 'bg-gray-500'
+                  };
+              }
+            };
+            const config = getBleButtonConfig();
+            return (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  bleButton.onClick();
+                }}
+                disabled={bleButton.disabled || bleButton.status === 'connecting' || bleButton.status === 'offline'}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all ${config.bgColor} ${config.textColor} ${config.borderColor} ${bleButton.disabled || bleButton.status === 'connecting' || bleButton.status === 'offline' ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md active:scale-95'}`}
+                title={`Bluetooth ${config.label}`}
+              >
+                <div className="relative">
+                  {config.icon}
+                  {bleButton.status === 'connected' && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.pulseColor} opacity-75`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${config.pulseColor}`}></span>
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide">{config.label}</span>
+              </button>
+            );
+          })()}
         </div>
 
         {/* Details */}
@@ -437,6 +519,12 @@ const ItemCard: React.FC<ItemCardProps> = ({
         {/* Actions */}
         <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-gray-100 dark:border-gray-700 mt-auto">
           <div className="flex space-x-1 sm:space-x-2">
+            {showStatus && onStatusChange && (
+              <StatusDropdown
+                currentStatus={status}
+                onStatusChange={onStatusChange}
+              />
+            )}
             <button
               onClick={onEdit}
               className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 touch-target sm:min-h-0 sm:min-w-0 flex items-center justify-center"

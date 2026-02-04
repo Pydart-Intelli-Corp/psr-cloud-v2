@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatPhoneInput, validatePhoneOnBlur, validateIndianPhone } from '@/lib/validation/phoneValidation';
-import { 
+import {
   Settings, 
   MapPin,
   Phone,
@@ -34,7 +34,8 @@ import {
   Award,
   BarChart3,
   Users,
-  X
+  X,
+  Cable
 } from 'lucide-react';
 import {
   LineChart,
@@ -235,7 +236,7 @@ function MachineManagement() {
 
   // Folder view state
   const [expandedSocieties, setExpandedSocieties] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'folder' | 'list'>('folder');
+  const [viewMode, setViewMode] = useState<'folder' | 'list'>('list');
   const [selectedSocieties, setSelectedSocieties] = useState<Set<number>>(new Set());
   
   // Selection state
@@ -271,6 +272,90 @@ function MachineManagement() {
   const [viewingPasswords, setViewingPasswords] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<{ userPassword: string | null; supervisorPassword: string | null } | null>(null);
   const [machineToShowPassword, setMachineToShowPassword] = useState<Machine | null>(null);
+  
+  // Serial port state
+  const [serialPortDropdownOpen, setSerialPortDropdownOpen] = useState(false);
+  const [serialPorts, setSerialPorts] = useState<SerialPort[]>([]);
+  const [connectedPort, setConnectedPort] = useState<SerialPort | null>(null);
+  const [loadingPorts, setLoadingPorts] = useState(false);
+  
+  // Debug mode for verbose logging (disable in production to prevent buffer overruns)
+  const DEBUG_MODE = process.env.NODE_ENV === 'development';
+  const [serialPortError, setSerialPortError] = useState('');
+  const serialPortDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // BLE Dongle state - tracks available and connected machines via wifi dongle
+  const [availableBLEMachines, setAvailableBLEMachines] = useState<Set<string>>(new Set()); // Machine IDs detected via BLE scan
+  const [connectedBLEMachines, setConnectedBLEMachines] = useState<Set<string>>(new Set()); // Machine IDs connected
+  const [machineIdToDongleId, setMachineIdToDongleId] = useState<Map<string, string>>(new Map()); // Map machine ID to dongle device ID
+  const [bleScanning, setBleScanning] = useState(false);
+  const [bleConnectingMachine, setBleConnectingMachine] = useState<string | null>(null); // Machine ID currently connecting
+  const serialReaderRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
+  const serialWriterRef = useRef<WritableStreamDefaultWriter<Uint8Array> | null>(null); // Dedicated writer for serial commands
+  const bleDataBufferRef = useRef<string>(''); // Buffer for incomplete serial data
+  const [hasCompletedInitialScan, setHasCompletedInitialScan] = useState(false);
+  const [bleDataReceived, setBleDataReceived] = useState<Map<string, string>>(new Map()); // Store received data per machine
+  
+  // All discovered BLE devices (not just Poornasree machines)
+  interface BLEDevice {
+    name: string;
+    address: string;
+    rssi: number;
+  }
+  const [allBLEDevices, setAllBLEDevices] = useState<BLEDevice[]>([]);
+  const [bleDevicesDropdownOpen, setBleDevicesDropdownOpen] = useState(false);
+  const bleDevicesDropdownRef = useRef<HTMLDivElement>(null);
+  const [controlPanelDropdownOpen, setControlPanelDropdownOpen] = useState(false);
+  const controlPanelDropdownRef = useRef<HTMLDivElement>(null);
+  const [isDongleVerified, setIsDongleVerified] = useState(false); // Verified as Poornasree dongle
+  const isDongleVerifiedRef = useRef(false); // Ref for immediate access in async functions
+  const [connectingAll, setConnectingAll] = useState(false); // Track if Connect All is in progress
+  const [connectAllProgress, setConnectAllProgress] = useState({ current: 0, total: 0 }); // Track connection progress
+  const connectingAddressRef = useRef<string | null>(null); // Track the address currently being connected (for CONNECT_ALL)
+  const connectAllAddressMapRef = useRef<Map<string, string>>(new Map()); // Map addresses to machine IDs during CONNECT_ALL
+  const individualConnectionMapRef = useRef<Map<string, string>>(new Map()); // Map addresses to machine IDs for individual connections
+
+  // Safe logging helper to prevent buffer overruns
+  const safeLog = (message: string, data?: any) => {
+    if (!DEBUG_MODE) return; // Skip all debug logs in production
+    
+    try {
+      if (data !== undefined) {
+        // Stringify and truncate if data is too large
+        const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+        const truncated = dataStr.length > 500 ? dataStr.substring(0, 500) + '... (truncated)' : dataStr;
+        console.log(message, truncated);
+      } else {
+        console.log(message);
+      }
+    } catch (e) {
+      // Silently fail if console buffer is full
+    }
+  };
+
+  // Helper function to check if device is a Poornasree machine (Lactosure or Poornasree)
+  const isPoornasreeMachine = (deviceName: string): boolean => {
+    const lowerName = deviceName.toLowerCase();
+    return lowerName.includes('lactosure') || lowerName.includes('poornasree');
+  };
+
+  // Extract machine ID from device name (supports both Lactosure and Poornasree formats)
+  const extractMachineId = (deviceName: string): string | null => {
+    if (!deviceName || typeof deviceName !== 'string') {
+      console.warn('⚠️ [extractMachineId] Invalid input:', deviceName);
+      return null;
+    }
+    
+    const match = deviceName.match(/(?:Lactosure|Poornasree).*?(\d+)/i);
+    
+    if (!match) {
+      console.warn('⚠️ [extractMachineId] No match found for device:', deviceName);
+      console.warn('   Expected format: "Lactosure/Poornasree" followed by numbers');
+      console.warn('   Examples: "Lactosure - Sl.No - 48", "Poornasree-123"');
+    }
+    
+    return match ? match[1] : null;
+  };
 
   // Password validation functions
   const validatePasswordFormat = (password: string) => {
@@ -280,6 +365,1328 @@ function MachineManagement() {
     }
     return '';
   };
+
+  // Serial port handler
+  const handleSerialPortClick = async () => {
+    setSerialPortError('');
+    
+    // Check if Web Serial API is supported
+    if (!('serial' in navigator)) {
+      setSerialPortError('Web Serial API is not supported in this browser. Please use Chrome, Edge, or Opera.');
+      setSerialPortDropdownOpen(true);
+      return;
+    }
+    
+    // Toggle dropdown
+    if (!serialPortDropdownOpen) {
+      try {
+        setLoadingPorts(true);
+        setSerialPortDropdownOpen(true);
+        
+        // Get list of paired ports
+        const ports = await navigator.serial.getPorts();
+        setSerialPorts(ports);
+        
+        // Set connected port if only one exists
+        if (ports.length === 1) {
+          setConnectedPort(ports[0]);
+        }
+        
+        if (ports.length === 0) {
+          setSerialPortError('No serial ports found. Click "Connect Port" to connect a device.');
+        }
+      } catch (err) {
+        console.error('Error listing serial ports:', err);
+        setSerialPortError('Failed to list serial ports: ' + (err as Error).message);
+      } finally {
+        setLoadingPorts(false);
+      }
+    } else {
+      setSerialPortDropdownOpen(false);
+    }
+  };
+  
+  // Request new serial port
+  const handleRequestPort = async () => {
+    // Check if a port is already connected
+    if (connectedPort) {
+      setSerialPortError('Please disconnect the current port before connecting a new one.');
+      return;
+    }
+    
+    try {
+      setLoadingPorts(true);
+      setSerialPortError('');
+      
+      // Request port from user
+      const port = await navigator.serial.requestPort();
+      
+      // Open the port
+      await port.open({ baudRate: 115200 });
+      
+      // Set as connected port first
+      setConnectedPort(port);
+      
+      // Wait for streams to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Create writer for sending commands (must be done before starting reader)
+      if (!port.writable) {
+        throw new Error('Writable stream not available');
+      }
+      const writer = port.writable.getWriter();
+      serialWriterRef.current = writer;
+      console.log('✅ Serial writer created successfully');
+      
+      // Start reader for BLE responses
+      console.log('🔄 Starting reader...');
+      startDongleReader(port); // Pass port directly since state hasn't updated yet
+      console.log('🔄 Reader start call completed');
+      
+      // Wait for reader to be ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Send VERSION command to verify dongle
+      console.log('🔍 Sending VERSION command to verify dongle...');
+      const versionData = new TextEncoder().encode('VERSION\n');
+      await writer.write(versionData);
+      
+      // Wait for VERSION response and verification (max 3 seconds)
+      console.log('⏳ Waiting for Poornasree HUB verification...');
+      const verificationTimeout = 3000;
+      const startTime = Date.now();
+      
+      while (!isDongleVerifiedRef.current && (Date.now() - startTime) < verificationTimeout) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Check if verification succeeded
+      if (!isDongleVerifiedRef.current) {
+        // Not a Poornasree HUB - disconnect and clean up
+        console.log('❌ Device is not a Poornasree HUB');
+        
+        // Clean up reader
+        if (serialReaderRef.current) {
+          try {
+            await serialReaderRef.current.cancel();
+            serialReaderRef.current = null;
+          } catch {}
+        }
+        
+        // Clean up writer
+        if (serialWriterRef.current) {
+          try {
+            await serialWriterRef.current.releaseLock();
+            serialWriterRef.current = null;
+          } catch {}
+        }
+        
+        // Close port
+        try {
+          await port.close();
+        } catch {}
+        
+        setConnectedPort(null);
+        setIsDongleVerified(false);
+        isDongleVerifiedRef.current = false;
+        setSerialPortError('This device is not a Poornasree HUB. Please connect the correct USB dongle.\n\nExpected: Poornasree USB Dongle v2.0 - Multi-Device Manager');
+        setLoadingPorts(false);
+        return;
+      }
+      
+      // Verified as Poornasree HUB
+      console.log('✅ Verified as Poornasree HUB');
+      
+      // Save port configuration to localStorage for auto-connect
+      try {
+        const portInfo = port.getInfo();
+        const portConfig = {
+          vendorId: portInfo.usbVendorId,
+          productId: portInfo.usbProductId,
+          verified: true,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('poornasree_hub_port', JSON.stringify(portConfig));
+        console.log('💾 [Port Config] Saved to localStorage:', portConfig);
+      } catch (err) {
+        console.warn('⚠️ [Port Config] Could not save configuration:', err);
+      }
+      
+      // Refresh the ports list
+      const ports = await navigator.serial.getPorts();
+      setSerialPorts(ports);
+      
+      // Clear any previous errors immediately
+      setSerialPortError('');
+      setLoadingPorts(false);
+      
+      setSuccess('Poornasree HUB connected successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+      
+      // Automatically start BLE scan after successful connection
+      console.log('🔍 [Auto-Scan] Starting automatic scan after connection...');
+      setTimeout(() => {
+        handleBLEScan();
+      }, 500); // Small delay to ensure UI is ready
+    } catch (err) {
+      const error = err as Error;
+      
+      // User cancelled the port selection dialog
+      if (error.name === 'NotFoundError') {
+        setLoadingPorts(false);
+        return;
+      }
+      
+      // Handle specific serial port errors
+      console.error('Error requesting serial port:', error);
+      
+      let errorMessage = '';
+      
+      // Port already open (by this app or another)
+      if (error.name === 'InvalidStateError' || error.message.includes('Failed to open')) {
+        errorMessage = 'Port is already in use. Close other applications using this port (Arduino IDE, PuTTY, etc.) and try again.';
+      }
+      // Permission denied
+      else if (error.name === 'NotAllowedError' || error.message.includes('permission')) {
+        errorMessage = 'Permission denied. Try disconnecting and reconnecting the USB device.';
+      }
+      // Network error (common with serial port issues)
+      else if (error.name === 'NetworkError') {
+        errorMessage = 'Failed to open serial port. The device may be disconnected, in use by another program, or locked by the system. Try:\n• Disconnect and reconnect the USB device\n• Close Arduino IDE, PuTTY, or other serial monitors\n• Check Device Manager for port issues';
+      }
+      // Device disconnected during operation
+      else if (error.name === 'NotFoundError' && connectedPort) {
+        errorMessage = 'Device disconnected. Please reconnect the USB device and try again.';
+      }
+      // Generic error
+      else {
+        errorMessage = `Failed to connect: ${error.message}`;
+      }
+      
+      setSerialPortError(errorMessage);
+      
+      // Clean up if port was set but connection failed
+      if (connectedPort) {
+        setConnectedPort(null);
+        setIsDongleVerified(false);
+        isDongleVerifiedRef.current = false;
+      }
+      if (serialWriterRef.current) {
+        try {
+          await serialWriterRef.current.releaseLock();
+        } catch {}
+        serialWriterRef.current = null;
+      }
+    } finally {
+      setLoadingPorts(false);
+    }
+  };
+  
+  // Disconnect serial port
+  const handleDisconnectPort = async (port: SerialPort) => {
+    try {
+      setLoadingPorts(true);
+      setSerialPortError('');
+      
+      // Cancel reader first
+      if (serialReaderRef.current) {
+        try {
+          await serialReaderRef.current.cancel();
+          serialReaderRef.current = null;
+        } catch (err) {
+          console.log('Reader already cancelled');
+        }
+      }
+      
+      // Release writer
+      if (serialWriterRef.current) {
+        try {
+          await serialWriterRef.current.releaseLock();
+          serialWriterRef.current = null;
+        } catch (err) {
+          console.log('Writer already released');
+        }
+      }
+      
+      // Close the port if it's open
+      if (port) {
+        try {
+          await port.close();
+        } catch (err) {
+          console.log('Port already closed');
+        }
+        
+        try {
+          // Forget the port
+          await (port as any).forget();
+        } catch (err) {
+          console.log('Port forget not available or already removed');
+        }
+      }
+      
+      // Clear BLE state
+      setAvailableBLEMachines(new Set());
+      setConnectedBLEMachines(new Set());
+      setBleScanning(false);
+      setBleConnectingMachine(null);
+      bleDataBufferRef.current = '';
+      setHasCompletedInitialScan(false);
+      setBleDataReceived(new Map());
+      
+      // Note: autoScanTimerRef was removed with auto-connect feature
+      
+      // Clear connected port
+      setConnectedPort(null);
+      setIsDongleVerified(false);
+      isDongleVerifiedRef.current = false;
+      
+      // Clear saved port config on manual disconnect
+      try {
+        localStorage.removeItem('poornasree_hub_port');
+        console.log('💾 [Port Config] Cleared saved configuration');
+      } catch {}
+      
+      // Refresh the ports list
+      const ports = await navigator.serial.getPorts();
+      setSerialPorts(ports);
+      
+      setSuccess('Serial port disconnected successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error disconnecting serial port:', err);
+      setSerialPortError('Failed to disconnect port: ' + (err as Error).message);
+    } finally {
+      setLoadingPorts(false);
+    }
+  };
+  
+  // Get port info with friendly name
+  const getPortInfo = (port: SerialPort) => {
+    const info = port.getInfo();
+    if (info.usbVendorId && info.usbProductId) {
+      // Always show 'Poornasree HUB' since we only allow verified devices to connect
+      return 'Poornasree HUB';
+    }
+    return 'Serial Port';
+  };
+
+  // ==================== BLE DONGLE FUNCTIONS ====================
+  
+  // Test if a port is Poornasree HUB (returns true if verified)
+  const testPortIsPoornasreeHub = async (port: SerialPort): Promise<boolean> => {
+    let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+    let reader: ReadableStreamDefaultReader<string> | null = null;
+    
+    try {
+      // Open port
+      await port.open({ baudRate: 115200 });
+      
+      // Wait for port to be ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Create writer
+      if (!port.writable) {
+        await port.close();
+        return false;
+      }
+      writer = port.writable.getWriter();
+      
+      // Create reader
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = port.readable?.pipeThrough(textDecoder);
+      reader = readableStreamClosed?.getReader();
+      
+      if (!reader) {
+        await writer.releaseLock();
+        await port.close();
+        return false;
+      }
+      
+      // Send VERSION command
+      const versionData = new TextEncoder().encode('VERSION\n');
+      await writer.write(versionData);
+      
+      // Wait for response (max 2 seconds)
+      const timeout = 2000;
+      const startTime = Date.now();
+      let buffer = '';
+      
+      while ((Date.now() - startTime) < timeout) {
+        const readPromise = reader.read();
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ value: '', done: true }), 500));
+        
+        const result = await Promise.race([readPromise, timeoutPromise]) as { value?: string; done: boolean };
+        
+        if (result.done) break;
+        if (!result.value) continue;
+        
+        buffer += result.value;
+        
+        // Check if response contains Poornasree identifier
+        if (buffer.includes('Poornasree USB Dongle v2.0')) {
+          // Clean up
+          await reader.cancel();
+          await writer.releaseLock();
+          await port.close();
+          return true;
+        }
+      }
+      
+      // Not verified
+      await reader.cancel();
+      await writer.releaseLock();
+      await port.close();
+      return false;
+      
+    } catch (err) {
+      console.warn('⚠️ [Port Test] Error testing port:', err);
+      
+      // Clean up on error
+      try {
+        if (reader) await reader.cancel();
+        if (writer) await writer.releaseLock();
+        await port.close();
+      } catch {}
+      
+      return false;
+    }
+  };
+  
+  // Send command to dongle via serial port
+  const sendDongleCommand = async (command: string): Promise<boolean> => {
+    // Only check writer ref - more reliable than port state
+    if (!serialWriterRef.current) {
+      console.error('No serial writer available');
+      return false;
+    }
+
+    try {
+      // Use the dedicated writer stored in ref
+      const writer = serialWriterRef.current;
+      
+      // Send command with newline
+      const data = new TextEncoder().encode(command + '\n');
+      await writer.write(data);
+      
+      // Only log non-scan commands to reduce console spam
+      if (!command.startsWith('SCAN')) {
+        console.log(`🔵 [Dongle] ${command}`);
+      }
+      return true;
+    } catch (err) {
+      const error = err as Error;
+      console.error('Error sending command to dongle:', error);
+      
+      // Handle device disconnection during write
+      if (error.name === 'NetworkError' || error.message.includes('device has been lost')) {
+        console.log('🔌 [Writer] Device disconnected during write');
+        
+        // Clean up state
+        setConnectedPort(null);
+        setIsDongleVerified(false);
+        isDongleVerifiedRef.current = false;
+        setAvailableBLEMachines(new Set());
+        setConnectedBLEMachines(new Set());
+        setAllBLEDevices([]);
+        setBleScanning(false);
+        setBleConnectingMachine(null);
+        setMachineIdToDongleId(new Map());
+        serialWriterRef.current = null;
+        serialReaderRef.current = null;
+        bleDataBufferRef.current = '';
+        
+        // Show user-friendly error
+        setSerialPortError('USB device disconnected. Please reconnect the Poornasree HUB and try again.');
+      }
+      
+      return false;
+    }
+  };
+
+  // Start reading from dongle (listens for BLE scan results and responses)
+  const startDongleReader = async (port?: SerialPort) => {
+    const portToUse = port || connectedPort;
+    if (!portToUse || serialReaderRef.current) {
+      console.log('⚠️ [Reader] Skipping start - port:', !!portToUse, 'reader exists:', !!serialReaderRef.current);
+      return;
+    }
+
+    console.log('🟢 [Reader] Starting dongle reader...');
+    try {
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = portToUse.readable?.pipeThrough(textDecoder);
+      const reader = readableStreamClosed?.getReader();
+      
+      if (!reader) {
+        console.error('❌ [Reader] Failed to get reader');
+        return;
+      }
+      
+      serialReaderRef.current = reader;
+      console.log('✅ [Reader] Reader started successfully');
+
+      // Read loop
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          console.log('🛑 [Reader] Stream done');
+          break;
+        }
+        if (!value) continue;
+
+        // Add to buffer
+        bleDataBufferRef.current += value;
+
+        // Process complete lines
+        const lines = bleDataBufferRef.current.split('\n');
+        bleDataBufferRef.current = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          // Log important connection messages for debugging (with safe logging)
+          try {
+            if (trimmed.startsWith('ERROR') || trimmed.startsWith('CONNECT') || trimmed.startsWith('DISCONNECT') || trimmed.startsWith('STATUS')) {
+              // Truncate long messages to prevent buffer overrun
+              const msg = trimmed.length > 200 ? trimmed.substring(0, 200) + '...' : trimmed;
+              console.log(`🔵 [Dongle] ${msg}`);
+            }
+          } catch (logError) {
+            // Silently ignore logging errors
+          }
+          
+          try {
+            processDongleResponse(trimmed);
+          } catch (processError) {
+            console.error('❌ [Reader] Error processing response:', processError instanceof Error ? processError.message : 'Unknown error');
+          }
+        }
+      }
+    } catch (err) {
+      const error = err as Error;
+      const errorMsg = error.message?.substring(0, 200) || 'Unknown error';
+      console.error('❌ [Reader] Error:', errorMsg);
+      
+      // Handle device disconnection
+      if (error.name === 'NetworkError' || error.message?.includes('device has been lost')) {
+        console.log('🔌 [Reader] Device disconnected');
+        
+        // Clean up state
+        setConnectedPort(null);
+        setIsDongleVerified(false);
+        isDongleVerifiedRef.current = false;
+        setAvailableBLEMachines(new Set());
+        setConnectedBLEMachines(new Set());
+        setAllBLEDevices([]);
+        setBleScanning(false);
+        setBleConnectingMachine(null);
+        setMachineIdToDongleId(new Map());
+        bleDataBufferRef.current = '';
+        
+        // Show user-friendly error
+        setSerialPortError('USB device disconnected. Please reconnect the Poornasree HUB and try again.');
+        
+        // Try to release writer if it exists
+        if (serialWriterRef.current) {
+          try {
+            await serialWriterRef.current.releaseLock();
+          } catch {}
+          serialWriterRef.current = null;
+        }
+      }
+    } finally {
+      serialReaderRef.current = null;
+    }
+  };
+
+  // Process dongle response line
+  const processDongleResponse = (line: string) => {
+    // ACK - acknowledgment from dongle
+    if (line === 'ACK') {
+      // Silently acknowledge - no logging needed
+      return;
+    }
+    // VERSION response - verify it's Poornasree dongle
+    else if (line.includes('Poornasree USB Dongle v2.0')) {
+      setIsDongleVerified(true);
+      isDongleVerifiedRef.current = true;
+      console.log('✅ [Dongle] Verified as Poornasree USB Dongle v2.0 - Multi-Device Manager');
+      return;
+    }
+    // FOUND,DeviceName,Address,RSSI - tracks all discovered devices
+    else if (line.startsWith('FOUND,')) {
+      const parts = line.split(',');
+      if (parts.length >= 4) {
+        const deviceName = parts[1];
+        const address = parts[2];
+        const rssiStr = parts[3];
+        const rssi = parseInt(rssiStr);
+        
+        // Validate data
+        if (!deviceName || !address) {
+          console.warn('⚠️ [BLE] Invalid FOUND response - missing device name or address');
+          return;
+        }
+        
+        if (isNaN(rssi)) {
+          console.warn(`⚠️ [BLE] Invalid RSSI value: "${rssiStr}" for device ${deviceName}`);
+        }
+        
+        setAllBLEDevices(prev => {
+          // Check if device already exists (update RSSI if so)
+          const existing = prev.findIndex(d => d.address === address);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = { name: deviceName, address, rssi: isNaN(rssi) ? -100 : rssi };
+            return updated;
+          }
+          // Add new device (only log Poornasree/Lactosure devices)
+          const newDevices = [...prev, { name: deviceName, address, rssi: isNaN(rssi) ? -100 : rssi }];
+          if (isPoornasreeMachine(deviceName)) {
+            console.log(`📡 Found: ${deviceName} (${address}, RSSI: ${rssi})`);
+          }
+          return newDevices;
+        });
+        
+        // Auto-connect to Poornasree/Lactosure devices if enabled
+        if (isPoornasreeMachine(deviceName)) {
+          // Extract machine ID from device name
+          const machineId = extractMachineId(deviceName);
+          if (machineId) {
+            
+            setAvailableBLEMachines(prev => {
+              const newSet = new Set(prev);
+              newSet.add(machineId);
+              return newSet;
+            });
+          }
+        }
+      }
+    }
+    // SCAN_RESULT,Lactosure/Poornasree - Sl.No - 201,XX:XX:XX:XX:XX:XX,-XX
+    else if (line.startsWith('SCAN_RESULT,')) {
+      const parts = line.split(',');
+      if (parts.length >= 3) {
+        const deviceName = parts[1];
+        // Extract machine ID from device name
+        const machineId = extractMachineId(deviceName);
+        if (machineId) {
+          setAvailableBLEMachines(prev => {
+            const newSet = new Set(prev);
+            const isNew = !newSet.has(machineId);
+            newSet.add(machineId);
+            
+            if (isNew) {
+              // Auto-connect if enabled and not manually disconnected
+              if (autoConnectEnabled && !manuallyDisconnectedMachines.has(machineId)) {
+                // Small delay to avoid overwhelming the dongle
+                setTimeout(() => {
+                  handleBLEConnect(machineId);
+                }, 500);
+              }
+            }
+            
+            return newSet;
+          });
+        }
+      }
+    }
+    // SCAN,START or SCAN,STARTED
+    else if (line === 'SCAN,START' || line === 'SCAN,STARTED') {
+      setBleScanning(true);
+    }
+    // SCAN,COMPLETE
+    else if (line === 'SCAN,COMPLETE') {
+      setBleScanning(false);
+      setSerialPortError(''); // Clear any errors after successful scan
+      
+      // Mark initial scan as completed
+      if (!hasCompletedInitialScan) {
+        setHasCompletedInitialScan(true);
+      }
+      
+      // Clean up stale devices (not seen in this scan and not connected)
+      cleanupStaleDevices();
+    }
+    // CONNECTED,OK,ID=n - Connection successful with device ID
+    else if (line.startsWith('CONNECTED,OK,ID=')) {
+      const dongleDeviceId = line.split('=')[1];
+      
+      // Update CONNECT_ALL progress if in progress
+      setConnectAllProgress(prev => {
+        if (prev.total > 0) {
+          return { ...prev, current: prev.current + 1 };
+        }
+        return prev;
+      });
+      
+      // Try to get machine ID from multiple sources
+      let machineId = bleConnectingMachine;
+      
+      // If no bleConnectingMachine, try individual connection map first
+      if (!machineId && connectingAddressRef.current) {
+        machineId = individualConnectionMapRef.current.get(connectingAddressRef.current.toLowerCase());
+        if (machineId) {
+          console.log(`🔗 [BLE] Resolved machine ID ${machineId} from individual connection map (${connectingAddressRef.current})`);
+        }
+      }
+      
+      // If still no machineId, try address map (for CONNECT_ALL)
+      if (!machineId && connectingAddressRef.current) {
+        machineId = connectAllAddressMapRef.current.get(connectingAddressRef.current.toLowerCase());
+        if (machineId) {
+          console.log(`🔗 [BLE] Resolved machine ID ${machineId} from CONNECT_ALL address map (${connectingAddressRef.current})`);
+        }
+      }
+      
+      // Fallback: try to find in allBLEDevices
+      if (!machineId && connectingAddressRef.current) {
+        const device = allBLEDevices.find(d => d.address.toLowerCase() === connectingAddressRef.current?.toLowerCase());
+        if (device && isPoornasreeMachine(device.name)) {
+          machineId = extractMachineId(device.name);
+          console.log(`🔗 [BLE] Resolved machine ID ${machineId} from allBLEDevices (${connectingAddressRef.current})`);
+        } else {
+          console.warn(`⚠️ [BLE] Could not find device with address ${connectingAddressRef.current} in allBLEDevices (${allBLEDevices.length} devices)`);
+        }
+      }
+      
+      if (machineId) {
+        // Add to connected set
+        setConnectedBLEMachines(prev => {
+          const newSet = new Set(prev);
+          newSet.add(machineId);
+          console.log(`✅ [BLE] Added ${machineId} to connected set, Total: ${newSet.size}`);
+          return newSet;
+        });
+        
+        // Map machine ID to dongle device ID
+        setMachineIdToDongleId(prev => {
+          const newMap = new Map(prev);
+          newMap.set(machineId, dongleDeviceId);
+          console.log(`🔗 [BLE] Mapped ${machineId} → Dongle ID: ${dongleDeviceId}`);
+          return newMap;
+        });
+        
+        console.log(`✅ [BLE] Connected to machine ${machineId} (Dongle ID: ${dongleDeviceId})`);
+        
+        // Clean up individual connection map if used
+        if (connectingAddressRef.current) {
+          individualConnectionMapRef.current.delete(connectingAddressRef.current.toLowerCase());
+        }
+      } else {
+        // Enhanced error logging for machine ID resolution failure
+        const connectingAddr = connectingAddressRef.current?.toLowerCase();
+        const deviceFromAddr = connectingAddr ? allBLEDevices.find(d => d.address.toLowerCase() === connectingAddr) : null;
+        
+        console.error('❌ [BLE] Failed to resolve machine ID for connection');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('Dongle Device ID:', dongleDeviceId);
+        console.error('Connecting Address:', connectingAddressRef.current || 'Not available');
+        console.error('BLE Connecting Machine:', bleConnectingMachine || 'Not set');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('Connection Maps:');
+        console.error('  • Individual Map Size:', individualConnectionMapRef.current.size);
+        if (individualConnectionMapRef.current.size > 0) {
+          console.error('  • Individual Map Entries:', Array.from(individualConnectionMapRef.current.entries()));
+        }
+        console.error('  • Connect All Map Size:', connectAllAddressMapRef.current.size);
+        if (connectAllAddressMapRef.current.size > 0) {
+          console.error('  • Connect All Map Entries:', Array.from(connectAllAddressMapRef.current.entries()));
+        }
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('BLE Devices State:');
+        console.error('  • Total Devices Found:', allBLEDevices.length);
+        if (connectingAddr && deviceFromAddr) {
+          console.error('  • Device at Address:', deviceFromAddr.name, `(RSSI: ${deviceFromAddr.rssi})`);
+          const extractedId = extractMachineId(deviceFromAddr.name);
+          console.error('  • Extracted Machine ID:', extractedId || 'Failed to extract');
+          console.error('  • Is Poornasree Device:', isPoornasreeMachine(deviceFromAddr.name));
+        } else if (connectingAddr) {
+          console.error('  • Device at Address: NOT FOUND in allBLEDevices');
+          console.error('  • Available Addresses:', allBLEDevices.slice(0, 5).map(d => d.address).join(', '), allBLEDevices.length > 5 ? '...' : '');
+        }
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('Possible Causes:');
+        console.error('  1. Device name format not recognized (expected: Lactosure/Poornasree-XXX or Sl.No-XXX)');
+        console.error('  2. Device not in allBLEDevices array (may need to rescan)');
+        console.error('  3. Address mismatch (case sensitivity or formatting)');
+        console.error('  4. Connection race condition (device connected before scan completed)');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error('Suggested Actions:');
+        console.error('  • Querying dongle for device info (sending LIST command)...');
+        console.error('  • Rescan BLE devices to refresh allBLEDevices array');
+        console.error('  • Check device naming convention matches expected format');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        // Automatically send LIST command to try to resolve the device
+        console.log(`🔄 [BLE] Sending LIST command to query device info for Dongle ID: ${dongleDeviceId}...`);
+        sendDongleCommand('LIST').catch(err => {
+          console.error('❌ [BLE] Failed to send LIST command:', err);
+        });
+        
+        // Show user-friendly error notification
+        setSerialPortError(`Device connected but not identified (ID: ${dongleDeviceId}). Querying dongle...`);
+        setTimeout(() => setSerialPortError(''), 3000);
+      }
+      
+      // Clear connecting state
+      setBleConnectingMachine(null);
+      connectingAddressRef.current = null;
+    }
+    // STATUS,CONNECTED,n - Intermediate status message from firmware
+    else if (line.startsWith('STATUS,CONNECTED,')) {
+      // Just acknowledge, wait for CONNECTED,OK,ID= message
+    }
+    // STATUS,CCCD_ENABLED - Notifications enabled
+    else if (line === 'STATUS,CCCD_ENABLED') {
+      // Notifications enabled successfully
+    }
+    // CONNECTED,OK (legacy format)
+    else if (line === 'CONNECTED,OK') {
+      setBleConnectingMachine(currentConnecting => {
+        if (currentConnecting) {
+          const machineId = currentConnecting;
+          setConnectedBLEMachines(prev => {
+            const newSet = new Set(prev);
+            newSet.add(machineId);
+            console.log(`✅ [BLE] Connected to machine ${machineId} (legacy format)`);
+            return newSet;
+          });
+        }
+        return null; // Clear connecting state
+      });
+    }
+    // CONNECTING,address - Connection in progress (individual connection)
+    else if (line.startsWith('CONNECTING,') && !line.startsWith('CONNECTING_ALL,')) {
+      const address = line.split(',')[1];
+      connectingAddressRef.current = address; // Store address for later resolution
+      
+      // Find device by address and set as connecting
+      const device = allBLEDevices.find(d => d.address.toLowerCase() === address.toLowerCase());
+      if (device) {
+        if (isPoornasreeMachine(device.name)) {
+          const machineId = extractMachineId(device.name);
+          if (machineId) {
+            // Store in individual connection map for reliable lookup
+            individualConnectionMapRef.current.set(address.toLowerCase(), machineId);
+            setBleConnectingMachine(machineId);
+            console.log(`🔗 [BLE] Connecting to machine ${machineId} (${address})...`);
+            console.log(`🗺️ [BLE] Mapped ${address} → Machine ${machineId} (individual)`);
+          } else {
+            console.warn(`⚠️ [BLE] Failed to extract machine ID from device: "${device.name}"`);
+            console.warn(`   Address: ${address}`);
+          }
+        } else {
+          console.warn(`⚠️ [BLE] Device is not a Poornasree/Lactosure machine: "${device.name}"`);
+        }
+      } else {
+        // Device not in scan results - this is OK, dongle may be connecting directly
+        console.log(`ℹ️ [BLE] Connecting to device ${address} (not in scan results yet)`);
+        console.log(`   This is normal when:`);
+        console.log(`   • Connecting before scan completes`);
+        console.log(`   • Reconnecting to a known device`);
+        console.log(`   • Using direct address connection`);
+        console.log(`   The device will be identified when CONNECTED,OK,ID=X is received`);
+        
+        // Still store the address for later lookup
+        // The machine ID will be resolved when CONNECTED response arrives
+      }
+    }
+    // CONNECTING_ALL,address - CONNECT_ALL command connecting to a device
+    else if (line.startsWith('CONNECTING_ALL,')) {
+      const address = line.split(',')[1];
+      connectingAddressRef.current = address; // Store address for later resolution
+      
+      // Find device by address and set as connecting
+      const device = allBLEDevices.find(d => d.address.toLowerCase() === address.toLowerCase());
+      if (device) {
+        if (isPoornasreeMachine(device.name)) {
+          const machineId = extractMachineId(device.name);
+          if (machineId) {
+            // Skip if already connected
+            if (connectedBLEMachines.has(machineId)) {
+              console.log(`⏭️ [CONNECT_ALL] Skipping machine ${machineId} (${address}) - already connected`);
+              return; // Skip processing
+            }
+            setBleConnectingMachine(machineId);
+            console.log(`🔗 [CONNECT_ALL] Connecting to machine ${machineId} (${address})...`);
+          } else {
+            console.warn(`⚠️ [CONNECT_ALL] Failed to extract machine ID from: "${device.name}"`);
+          }
+        }
+      } else {
+        console.warn(`⚠️ [CONNECT_ALL] Device ${address} not found in scan results`);
+      }
+    }
+    // CONNECT_ALL,COMPLETE,CONNECTED=n,SKIPPED=m - CONNECT_ALL operation completed
+    else if (line.startsWith('CONNECT_ALL,COMPLETE')) {
+      const parts = line.split(',');
+      let connected = 0;
+      let skipped = 0;
+      
+      for (const part of parts) {
+        if (part.startsWith('CONNECTED=')) {
+          connected = parseInt(part.split('=')[1]);
+        } else if (part.startsWith('SKIPPED=')) {
+          skipped = parseInt(part.split('=')[1]);
+        }
+      }
+      
+      console.log(`✅ [CONNECT_ALL] Completed: ${connected} connected, ${skipped} skipped`);
+      setConnectingAll(false);
+      setConnectAllProgress({ current: 0, total: 0 });
+      setBleConnectingMachine(null);
+      connectAllAddressMapRef.current.clear(); // Clear the address map
+    }
+    // DISCONNECTED,OK - Single device disconnected successfully
+    else if (line === 'DISCONNECTED,OK') {
+      // Clear connecting state if connection failed
+      if (bleConnectingMachine) {
+        setBleConnectingMachine(null);
+      }
+    }
+    // DISCONNECTED,ALL - All devices disconnected
+    else if (line === 'DISCONNECTED,ALL') {
+      setConnectedBLEMachines(new Set());
+      setBleConnectingMachine(null);
+    }
+    // DISCONNECTED or DISCONNECTED,OK
+    else if (line.startsWith('DISCONNECTED')) {
+      // Clear connecting state if connection failed
+      if (bleConnectingMachine) {
+        setBleConnectingMachine(null);
+      }
+    }
+    // ERROR responses
+    else if (line.startsWith('ERROR,')) {
+      const errorParts = line.split(',');
+      const errorType = errorParts[1] || 'UNKNOWN';
+      const errorDetail = errorParts.slice(2).join(',') || 'No details provided';
+      
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('❌ [Dongle Error]');
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('Error Type:', errorType);
+      console.error('Error Detail:', errorDetail);
+      console.error('Full Response:', line);
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.error('Context:');
+      if (bleConnectingMachine) {
+        console.error('  • Was connecting to machine:', bleConnectingMachine);
+      }
+      if (connectingAddressRef.current) {
+        console.error('  • Device address:', connectingAddressRef.current);
+      }
+      if (bleScanning) {
+        console.error('  • BLE scan was in progress');
+      }
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      // Set user-friendly error message
+      const friendlyErrors: Record<string, string> = {
+        'CONNECTION_FAILED': 'Failed to connect to device. It may be out of range or already connected.',
+        'TIMEOUT': 'Connection timed out. Please move closer to the device and try again.',
+        'NOT_FOUND': 'Device not found. Please ensure the device is powered on and nearby.',
+        'SCAN_FAILED': 'BLE scan failed. Please disconnect and reconnect the dongle.',
+        'INVALID_COMMAND': 'Invalid command sent to dongle. Please refresh the page.',
+      };
+      
+      const userMessage = friendlyErrors[errorType] || `Dongle error: ${errorType}`;
+      setSerialPortError(userMessage);
+      
+      // Clear states
+      setBleConnectingMachine(null);
+      setBleScanning(false);
+    }
+    // DEVICE,id,name,address - Response from LIST command
+    else if (line.startsWith('DEVICE,')) {
+      const parts = line.split(',');
+      if (parts.length >= 4) {
+        const deviceId = parts[1];
+        let deviceName = parts[2];
+        const deviceAddress = parts[3].toLowerCase(); // Normalize to lowercase
+        
+        console.log(`📋 [LIST] Device ${deviceId}: ${deviceName} (${deviceAddress})`);
+        
+        // If device name is "Unknown", try to find it in allBLEDevices by address (case-insensitive)
+        if (deviceName === 'Unknown') {
+          const knownDevice = allBLEDevices.find(d => d.address.toLowerCase() === deviceAddress);
+          if (knownDevice) {
+            deviceName = knownDevice.name;
+            console.log(`📋 [LIST] Resolved Unknown device to: ${deviceName}`);
+          } else {
+            // Use safeLog to prevent buffer issues with large device arrays
+            safeLog(`📋 [LIST] Could not resolve Unknown device (${deviceAddress}). ${allBLEDevices.length} devices available`);
+          }
+        }
+        
+        // Extract machine ID from device name if it's a Poornasree/Lactosure device
+        if (isPoornasreeMachine(deviceName)) {
+          const machineId = extractMachineId(deviceName);
+          if (machineId) {
+            
+            // Add to available machines
+            setAvailableBLEMachines(prev => {
+              const newSet = new Set(prev);
+              newSet.add(machineId);
+              return newSet;
+            });
+            
+            // Add to connected machines
+            setConnectedBLEMachines(prev => {
+              const newSet = new Set(prev);
+              newSet.add(machineId);
+              return newSet;
+            });
+            
+            // Map machine ID to dongle device ID
+            setMachineIdToDongleId(prev => {
+              const newMap = new Map(prev);
+              newMap.set(machineId, deviceId);
+              return newMap;
+            });
+            
+            // Add to discovered devices list for display
+            setAllBLEDevices(prev => {
+              const existing = prev.find(d => d.address === deviceAddress);
+              if (!existing) {
+                return [...prev, { name: deviceName, address: deviceAddress, rssi: -50 }];
+              }
+              return prev;
+            });
+          }
+        }
+      }
+    }
+    // NO_DEVICES - No devices connected (response from LIST command)
+    else if (line === 'NO_DEVICES') {
+      console.log('📋 [LIST] No devices currently connected');
+    }
+    // Data packets (STX...ETX wrapped)
+    else if (line.includes('\x02') || line.includes('\x03')) {
+      // Extract machine data between STX and ETX
+      const dataMatch = line.match(/\x02(.*?)\x03/);
+      if (dataMatch) {
+        const data = dataMatch[1];
+        // Use safeLog to prevent buffer overruns with large data packets
+        safeLog(`📥 [BLE Data] Received (${data.length} bytes):`, data.substring(0, 100));
+        
+        // Extract machine ID from data and store
+        const machineIdMatch = data.match(/MM(\d+)/);
+        if (machineIdMatch) {
+          const machineId = machineIdMatch[1];
+          setBleDataReceived(prev => new Map(prev).set(machineId, data));
+        }
+      }
+    }
+  };
+
+  // Clean up stale devices (not seen in recent scan and not connected)
+  const cleanupStaleDevices = () => {
+    setAvailableBLEMachines(prev => {
+      const newSet = new Set<string>();
+      prev.forEach(machineId => {
+        // Keep if connected
+        if (connectedBLEMachines.has(machineId)) {
+          newSet.add(machineId);
+        }
+        // Otherwise, remove stale devices
+      });
+      
+      if (newSet.size !== prev.size) {
+        console.log(`🧹 [BLE] Cleaned up ${prev.size - newSet.size} stale devices`);
+      }
+      
+      return newSet;
+    });
+  };
+
+  // Query existing connections from dongle
+  const queryExistingConnections = async () => {
+    if (!connectedPort || !serialWriterRef.current) {
+      console.log('⚠️ [BLE] Cannot query - port not connected or writer not ready');
+      return;
+    }
+    
+    console.log('🔍 [BLE] Querying existing connections...');
+    
+    // Send LIST command to get currently connected devices
+    await sendDongleCommand('LIST');
+  };
+
+  // Start BLE scan via dongle
+  const handleBLEScan = async () => {
+    console.log('🔍 [BLE] handleBLEScan called, connectedPort:', !!connectedPort, 'writer:', !!serialWriterRef.current, 'verified:', isDongleVerifiedRef.current);
+    
+    // Check if dongle is verified first
+    if (!isDongleVerifiedRef.current) {
+      setSerialPortError('Please connect to a Poornasree HUB device first.');
+      return;
+    }
+    
+    // Check if writer exists immediately
+    if (!serialWriterRef.current) {
+      setSerialPortError('Not connected to Poornasree HUB. Please connect the device first.');
+      return;
+    }
+
+    // Clear any previous errors
+    setSerialPortError('');
+
+    // Clear all discovered devices for fresh scan
+    setAllBLEDevices([]);
+    console.log('🧹 [BLE] Cleared device list');
+    
+    // Don't clear available machines - keep connected ones visible
+    // Only clear if no machines are connected
+    if (connectedBLEMachines.size === 0) {
+      setAvailableBLEMachines(new Set());
+    }
+    
+    // Send SCAN command to dongle with 5-second duration
+    console.log('📤 [BLE] Sending SCAN,5 command...');
+    const success = await sendDongleCommand('SCAN,5');
+    console.log('📤 [BLE] Command result:', success);
+    if (success) {
+      setBleScanning(true);
+      console.log('🔍 [BLE] Scan command sent (5 seconds)');
+      // Scan will complete automatically (dongle sends SCAN,COMPLETE)
+    } else {
+      console.error('❌ [BLE] Failed to send scan command');
+      setSerialPortError('Failed to send scan command to dongle');
+    }
+  };
+
+  // Stop BLE scan
+  const handleStopScan = () => {
+    setBleScanning(false);
+    console.log('🛑 [BLE] Scan stopped by user');
+  };
+
+  // Disconnect all BLE devices
+  const handleDisconnectAll = async () => {
+    if (!serialWriterRef.current || !isDongleVerifiedRef.current) {
+      setSerialPortError('Please connect to a Poornasree HUB device first.');
+      return;
+    }
+
+    console.log('🔌 [BLE] Disconnecting all devices...');
+    const success = await sendDongleCommand('DISCONNECT');
+    
+    if (success) {
+      // Clear all connected devices
+      setConnectedBLEMachines(new Set());
+      setMachineIdToDongleId(new Map());
+      console.log('✅ [BLE] Disconnect all command sent');
+    } else {
+      console.error('❌ [BLE] Failed to send disconnect all command');
+      setSerialPortError('Failed to disconnect all devices');
+    }
+  };
+
+  // Connect to all available Poornasree devices
+  const handleConnectAll = async () => {
+    if (!serialWriterRef.current || !isDongleVerifiedRef.current) {
+      setSerialPortError('Please connect to a Poornasree HUB device first.');
+      return;
+    }
+
+    // Filter for Poornasree devices that aren't already connected
+    const availableDevices = allBLEDevices.filter(d => {
+      const machineId = extractMachineId(d.name);
+      return isPoornasreeMachine(d.name) && machineId && !connectedBLEMachines.has(machineId);
+    });
+    
+    const alreadyConnectedCount = allBLEDevices.filter(d => {
+      const machineId = extractMachineId(d.name);
+      return isPoornasreeMachine(d.name) && machineId && connectedBLEMachines.has(machineId);
+    }).length;
+    
+    if (alreadyConnectedCount > 0) {
+      console.log(`⏭️ [CONNECT_ALL] Skipping ${alreadyConnectedCount} already connected machine(s)`);
+    }
+    
+    if (availableDevices.length === 0) {
+      if (alreadyConnectedCount > 0) {
+        setSerialPortError(`All machines are already connected (${alreadyConnectedCount})`);
+      } else {
+        setSerialPortError('No devices available to connect');
+      }
+      setTimeout(() => setSerialPortError(''), 2000);
+      return;
+    }
+
+    console.log(`🔗 [BLE] Using CONNECT_ALL command for ${availableDevices.length} devices...`);
+    setConnectingAll(true);
+    setConnectAllProgress({ current: 0, total: availableDevices.length });
+
+    // Build a map of addresses to machine IDs for quick lookup
+    connectAllAddressMapRef.current = new Map();
+    availableDevices.forEach(device => {
+      const machineId = extractMachineId(device.name);
+      if (machineId) {
+        connectAllAddressMapRef.current.set(device.address.toLowerCase(), machineId);
+        console.log(`🗺️ [CONNECT_ALL] Mapped ${device.address} → Machine ${machineId}`);
+      }
+    });
+
+    // Use the dongle's native CONNECT_ALL command for super fast connection
+    const success = await sendDongleCommand('CONNECT_ALL');
+    
+    if (success) {
+      console.log('✅ [BLE] CONNECT_ALL command sent successfully');
+      // The dongle will send CONNECTED,OK,ID=n for each device as they connect
+      // Wait a bit for connections to establish
+      await new Promise(resolve => setTimeout(resolve, availableDevices.length * 300));
+    } else {
+      console.error('❌ [BLE] CONNECT_ALL command failed');
+      setSerialPortError('Failed to send connect all command');
+    }
+    
+    setConnectingAll(false);
+    setConnectAllProgress({ current: 0, total: 0 });
+  };
+
+  // Connect to BLE machine via dongle
+  const handleBLEConnect = async (machineId: string, deviceAddress?: string): Promise<boolean> => {
+    if (!serialWriterRef.current || !isDongleVerifiedRef.current) {
+      setSerialPortError('Please connect to a Poornasree HUB device first.');
+      return false;
+    }
+
+    // Check if already connected
+    if (connectedBLEMachines.has(machineId)) {
+      return true;
+    }
+
+    // Find the device address if not provided
+    let address = deviceAddress;
+    if (!address) {
+      // Try to find the actual device name from allBLEDevices, fallback to Poornasree format
+      const knownDevice = allBLEDevices.find(d => extractMachineId(d.name) === machineId);
+      const deviceName = knownDevice ? knownDevice.name : `Poornasree - Sl.No - ${machineId}`;
+      const device = allBLEDevices.find(d => d.name === deviceName);
+      if (!device) {
+        setSerialPortError(`Device ${machineId} not found. Please scan first.`);
+        return false;
+      }
+      address = device.address;
+    }
+    
+    setBleConnectingMachine(machineId);
+    
+    // Store address -> machineId mapping for reliable lookup when CONNECTED,OK,ID arrives
+    individualConnectionMapRef.current.set(address.toLowerCase(), machineId);
+    console.log(`🗺️ [Individual Connection] Mapped ${address} → Machine ${machineId}`);
+    
+    // Create a promise that resolves when connection succeeds or fails
+    return new Promise<boolean>((resolve) => {
+      let timeout: NodeJS.Timeout;
+      
+      // Set up a one-time listener for this specific connection
+      const checkConnection = setInterval(() => {
+        if (connectedBLEMachines.has(machineId)) {
+          clearInterval(checkConnection);
+          clearTimeout(timeout);
+          setBleConnectingMachine(null);
+          resolve(true);
+        }
+      }, 50);
+      
+      // Timeout after 3 seconds
+      timeout = setTimeout(() => {
+        clearInterval(checkConnection);
+        setBleConnectingMachine(null);
+        console.warn(`⏱️ [BLE] Connection timeout for machine ${machineId}`);
+        resolve(false);
+      }, 3000);
+      
+      // Send CONNECT command
+      sendDongleCommand(`CONNECT,${address}`).then(success => {
+        if (!success) {
+          clearInterval(checkConnection);
+          clearTimeout(timeout);
+          setBleConnectingMachine(null);
+          resolve(false);
+        }
+      });
+    });
+  };
+
+  // Disconnect from BLE machine via dongle
+  const handleBLEDisconnect = async (machineId: string) => {
+    if (!serialWriterRef.current || !isDongleVerifiedRef.current) {
+      setSerialPortError('Please connect to a Poornasree HUB device first.');
+      return;
+    }
+
+    // Get the dongle device ID for this machine
+    const dongleDeviceId = machineIdToDongleId.get(machineId);
+    
+    if (dongleDeviceId) {
+      // Send DISCONNECT,id command to disconnect specific device
+      await sendDongleCommand(`DISCONNECT,${dongleDeviceId}`);
+    } else {
+      // Fallback: disconnect all if we don't have the device ID
+      await sendDongleCommand('DISCONNECT');
+    }
+    
+    // Remove from connected set
+    setConnectedBLEMachines(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(machineId);
+      return newSet;
+    });
+    
+    // Keep device in available set (it's still in range after disconnect)
+    setAvailableBLEMachines(prev => {
+      const newSet = new Set(prev);
+      newSet.add(machineId);
+      return newSet;
+    });
+    
+    // Remove from mapping
+    setMachineIdToDongleId(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(machineId);
+      return newMap;
+    });
+  };
+
+  // Toggle auto-connect feature
+  const toggleAutoConnect = () => {
+    setAutoConnectEnabled(prev => {
+      const newValue = !prev;
+      autoConnectEnabledRef.current = newValue;
+      return newValue;
+    });
+  };
+
+  // Check if machine is available via BLE
+  const isMachineBLEAvailable = (machineId: string): boolean => {
+    // Extract numeric part from machine ID (e.g., "M201" -> "201")
+    const numericId = machineId.replace(/[^0-9]/g, '');
+    return availableBLEMachines.has(numericId);
+  };
+
+  // Check if machine is connected via BLE
+  const isMachineBLEConnected = (machineId: string): boolean => {
+    const numericId = machineId.replace(/[^0-9]/g, '');
+    return connectedBLEMachines.has(numericId);
+  };
+
+  // Get BLE button status for machine
+  const getBLEButtonStatus = (machineId: string): 'offline' | 'available' | 'connecting' | 'connected' => {
+    const numericId = machineId.replace(/[^0-9]/g, '');
+    
+    if (bleConnectingMachine === numericId) return 'connecting';
+    if (connectedBLEMachines.has(numericId)) return 'connected';
+    if (availableBLEMachines.has(numericId)) return 'available';
+    return 'offline';
+  };
+
+  // ==================== END BLE DONGLE FUNCTIONS ====================
 
   // Parse rate chart details from concatenated string
   const parseChartDetails = (chartDetails?: string) => {
@@ -750,6 +2157,220 @@ function MachineManagement() {
     }
   }, [user, fetchMachines, fetchSocieties, fetchMachineTypes, fetchDairies, fetchBmcs, fetchPerformanceStats]);
 
+  // Global error handler for buffer overruns and other errors
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      event.preventDefault();
+      const error = event.error || new Error(event.message);
+      const errorMsg = error.message || 'Unknown error occurred';
+      
+      // Check if it's a buffer overrun
+      if (errorMsg.includes('Buffer overrun') || errorMsg.includes('buffer')) {
+        setSerialPortError('Console buffer overflow detected. Reducing log output. Please refresh if issues persist.');
+      } else {
+        setSerialPortError(`Error: ${errorMsg.substring(0, 200)}`);
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault();
+      const reason = event.reason;
+      const errorMsg = reason?.message || String(reason) || 'Unhandled promise rejection';
+      
+      if (errorMsg.includes('Buffer overrun') || errorMsg.includes('buffer')) {
+        setSerialPortError('Console buffer overflow detected. Please refresh the page.');
+      } else {
+        setSerialPortError(`Promise Error: ${errorMsg.substring(0, 200)}`);
+      }
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
+  // Effect to fetch initial data on mount
+  useEffect(() => {
+    const initializeData = async () => {
+      if (typeof navigator === 'undefined' || !navigator.serial) {
+        return;
+      }
+
+      try {
+        // Check for saved port configuration
+        const savedConfigStr = localStorage.getItem('poornasree_hub_port');
+        let savedConfig = null;
+        
+        if (savedConfigStr) {
+          try {
+            savedConfig = JSON.parse(savedConfigStr);
+            console.log('💾 [Auto-connect] Found saved port config:', savedConfig);
+          } catch {}
+        }
+        
+        const ports = await navigator.serial.getPorts();
+        console.log('🔌 [Auto-connect] Found', ports.length, 'previously granted ports');
+        
+        // Update serial ports list in UI
+        setSerialPorts(ports);
+        
+        if (ports.length === 0 || connectedPort) {
+          return;
+        }
+        
+        // If we have saved config, try to find matching port first
+        if (savedConfig && savedConfig.vendorId && savedConfig.productId) {
+          console.log('🔍 [Auto-connect] Looking for saved port (VID: 0x' + savedConfig.vendorId.toString(16) + ', PID: 0x' + savedConfig.productId.toString(16) + ')');
+          
+          for (const port of ports) {
+            const info = port.getInfo();
+            if (info.usbVendorId === savedConfig.vendorId && info.usbProductId === savedConfig.productId) {
+              console.log('✅ [Auto-connect] Found matching saved port, connecting...');
+              
+              try {
+                // Open the port
+                await port.open({ baudRate: 115200 });
+                setConnectedPort(port);
+                
+                // Wait for streams
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Create writer
+                if (!port.writable) throw new Error('Writable stream not available');
+                const writer = port.writable.getWriter();
+                serialWriterRef.current = writer;
+                
+                // Start reader
+                startDongleReader(port);
+                
+                // Send VERSION to verify
+                await new Promise(resolve => setTimeout(resolve, 200));
+                const versionData = new TextEncoder().encode('VERSION\n');
+                await writer.write(versionData);
+                
+                // Wait for verification
+                const verificationTimeout = 3000;
+                const startTime = Date.now();
+                while (!isDongleVerifiedRef.current && (Date.now() - startTime) < verificationTimeout) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                if (isDongleVerifiedRef.current) {
+                  setSerialPortError(''); // Clear any errors from auto-connect
+                  setSuccess('Poornasree HUB auto-connected!');
+                  setTimeout(() => setSuccess(''), 3000);
+                  
+                  // Automatically start BLE scan after auto-connect
+                  console.log('🔍 [Auto-Scan] Starting automatic scan after auto-connect...');
+                  setTimeout(() => {
+                    handleBLEScan();
+                  }, 500);
+                  return;
+                } else {
+                  // Verification failed, disconnect
+                  console.warn('⚠️ [Auto-connect] Saved port verification failed');
+                  if (serialWriterRef.current) {
+                    try { await serialWriterRef.current.releaseLock(); } catch {}
+                    serialWriterRef.current = null;
+                  }
+                  if (serialReaderRef.current) {
+                    try { await serialReaderRef.current.cancel(); } catch {}
+                    serialReaderRef.current = null;
+                  }
+                  await port.close();
+                  setConnectedPort(null);
+                  // Clear saved config since it's not valid
+                  localStorage.removeItem('poornasree_hub_port');
+                }
+              } catch (err) {
+                console.warn('⚠️ [Auto-connect] Error with saved port:', err);
+              }
+              break;
+            }
+          }
+        }
+        
+        // If no saved config or saved port failed, try to detect Poornasree HUB
+        if (!connectedPort && ports.length > 0) {
+          console.log('🔍 [Auto-connect] Scanning ports to detect Poornasree HUB...');
+          
+          for (const port of ports) {
+            console.log('🔌 [Auto-connect] Testing port...');
+            
+            const isPoornasreeHub = await testPortIsPoornasreeHub(port);
+            
+            if (isPoornasreeHub) {
+              console.log('✅ [Auto-connect] Found Poornasree HUB! Connecting...');
+              
+              try {
+                // Open and connect
+                await port.open({ baudRate: 115200 });
+                setConnectedPort(port);
+                
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                if (!port.writable) throw new Error('Writable stream not available');
+                const writer = port.writable.getWriter();
+                serialWriterRef.current = writer;
+                
+                startDongleReader(port);
+                
+                // Send VERSION again to trigger verification state
+                await new Promise(resolve => setTimeout(resolve, 200));
+                const versionData = new TextEncoder().encode('VERSION\n');
+                await writer.write(versionData);
+                
+                // Wait for verification
+                const verificationTimeout = 3000;
+                const startTime = Date.now();
+                while (!isDongleVerifiedRef.current && (Date.now() - startTime) < verificationTimeout) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                if (isDongleVerifiedRef.current) {
+                  // Save this port config
+                  const info = port.getInfo();
+                  const portConfig = {
+                    vendorId: info.usbVendorId,
+                    productId: info.usbProductId,
+                    verified: true,
+                    timestamp: Date.now()
+                  };
+                  localStorage.setItem('poornasree_hub_port', JSON.stringify(portConfig));
+                  
+                  setSerialPortError(''); // Clear any errors from detection
+                  setSuccess('Poornasree HUB detected and connected!');
+                  setTimeout(() => setSuccess(''), 3000);
+                  
+                  // Automatically start BLE scan after detection
+                  console.log('🔍 [Auto-Scan] Starting automatic scan after detection...');
+                  setTimeout(() => {
+                    handleBLEScan();
+                  }, 500);
+                  return;
+                }
+              } catch (err) {
+                console.warn('⚠️ [Auto-connect] Error connecting to detected port:', err);
+              }
+              break;
+            }
+          }
+          
+          console.log('⚠️ [Auto-connect] No Poornasree HUB detected among available ports');
+        }
+      } catch (err) {
+        console.log('⚠️ [Auto-connect] Could not auto-connect:', (err as Error).message);
+      }
+    };
+
+    // Enable auto-connect on page load
+    initializeData();
+  }, []); // Run once on mount
+
   // Listen for global search events from header
   useEffect(() => {
     const handleGlobalSearch = (e: Event) => {
@@ -771,6 +2392,24 @@ function MachineManagement() {
       return () => clearTimeout(timer);
     }
   }, [success, error]);
+  
+  // Close serial port dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (serialPortDropdownRef.current && !serialPortDropdownRef.current.contains(event.target as Node)) {
+        setSerialPortDropdownOpen(false);
+      }
+      if (bleDevicesDropdownRef.current && !bleDevicesDropdownRef.current.contains(event.target as Node)) {
+        setBleDevicesDropdownOpen(false);
+      }
+      if (controlPanelDropdownRef.current && !controlPanelDropdownRef.current.contains(event.target as Node)) {
+        setControlPanelDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Reset machine filter when society filter changes (similar to farmer management)
   useEffect(() => {
@@ -1616,7 +3255,6 @@ function MachineManagement() {
     setMachineToShowPassword(null);
   };
 
-
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMachine) return;
@@ -1850,15 +3488,359 @@ function MachineManagement() {
     )}
     
     <div className="p-3 xs:p-4 sm:p-6 lg:p-8 space-y-3 xs:space-y-4 sm:space-y-6 lg:pb-8">
+      
       {/* Page Header */}
-      <ManagementPageHeader
-        title="Machine Management"
-        subtitle="Manage dairy equipment and machinery across societies"
-        icon={<Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />}
-        onRefresh={fetchMachines}
-        onStatistics={() => router.push('/admin/machine/statistics')}
-        hasData={filteredMachines.length > 0}
-      />
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-0 sm:items-center sm:justify-between">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <div className="p-2 sm:p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg sm:rounded-xl">
+              <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100">
+                Machine Management
+              </h1>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5 sm:mt-1">
+                Manage dairy equipment and machinery across societies
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+            <button
+              onClick={openAddModal}
+              className="flex items-center justify-center w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg shadow-blue-500/25"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Machine
+            </button>
+            
+            <button
+              onClick={() => router.push('/admin/machine/statistics')}
+              className="flex items-center justify-center w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg shadow-green-500/25"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Statistics
+            </button>
+            
+            {/* BLE Devices Dropdown - Only shown when port connected */}
+            {connectedPort && (
+              <div ref={bleDevicesDropdownRef} className="relative">
+                {/* Devices Button - Opens dropdown without scanning */}
+                <button
+                  onClick={() => {
+                    const newState = !bleDevicesDropdownOpen;
+                    setBleDevicesDropdownOpen(newState);
+                    // Query existing connections when opening dropdown
+                    if (newState) {
+                      queryExistingConnections();
+                    }
+                  }}
+                  className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base font-medium text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg transition-all duration-200 shadow-lg shadow-purple-500/25"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
+                  </svg>
+                  <span>Devices</span>
+                  {allBLEDevices.filter(d => isPoornasreeMachine(d.name)).length > 0 && (
+                    <span className="px-2 py-0.5 text-xs bg-white/20 rounded-full">
+                      {allBLEDevices.filter(d => isPoornasreeMachine(d.name)).length}
+                    </span>
+                  )}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${bleDevicesDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {/* BLE Devices Dropdown */}
+                {bleDevicesDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 max-h-96 overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
+                    {/* Header with Scan Button */}
+                    <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Poornasree Machines ({allBLEDevices.filter(d => isPoornasreeMachine(d.name)).length})
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {/* Scan/Stop Scan Button */}
+                          <button
+                            onClick={() => {
+                              if (bleScanning) {
+                                handleStopScan();
+                              } else {
+                                handleBLEScan();
+                              }
+                            }}
+                            disabled={!isDongleVerified || !connectedPort}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-all duration-200 ${
+                              !isDongleVerified || !connectedPort
+                                ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
+                                : bleScanning
+                                ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
+                                : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
+                            }`}
+                            title={!isDongleVerified || !connectedPort ? 'Connect to Poornasree HUB first' : ''}
+                          >
+                            {bleScanning ? (
+                              <>
+                                <FlowerSpinner size={14} />
+                                <span>Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <span>Scan</span>
+                              </>
+                            )}
+                          </button>
+                          {/* Connect All Button */}
+                          <button
+                            onClick={handleConnectAll}
+                            disabled={connectingAll || !isDongleVerified || !connectedPort || allBLEDevices.filter(d => isPoornasreeMachine(d.name)).length === 0 || bleScanning}
+                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={connectingAll ? `Connecting ${connectAllProgress.current}/${connectAllProgress.total}...` : (!isDongleVerified || !connectedPort ? 'Connect to Poornasree HUB first' : 'Connect to all available devices')}
+                          >
+                            {connectingAll ? (
+                              <>
+                                <FlowerSpinner size={12} />
+                                <span>{connectAllProgress.current}/{connectAllProgress.total}</span>
+                              </>
+                            ) : (
+                              <span>All</span>
+                            )}
+                          </button>
+                          {/* Disconnect All Button */}
+                          <button
+                            onClick={handleDisconnectAll}
+                            className="px-1.5 py-1 text-[10px] font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded transition-all duration-200"
+                            title="Disconnect all devices"
+                          >
+                            DC
+                          </button>
+                          {/* Close Button */}
+                          <button
+                            onClick={() => setBleDevicesDropdownOpen(false)}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Device List or Empty State */}
+                    {allBLEDevices.length > 0 ? (
+                      <div className="py-1">
+                        {allBLEDevices
+                          .filter(device => isPoornasreeMachine(device.name)) // Only show Poornasree/Lactosure devices
+                          .sort((a, b) => b.rssi - a.rssi) // Sort by signal strength
+                          .map((device, index) => {
+                          const machineIdMatch = device.name.match(/(\d+)/);
+                          const machineId = machineIdMatch ? machineIdMatch[1] : null;
+                          const isConnected = machineId && connectedBLEMachines.has(machineId);
+                          const isConnecting = machineId && bleConnectingMachine === machineId;
+                          
+                          return (
+                            <div
+                              key={device.address}
+                              className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700/50 last:border-0 bg-emerald-50/50 dark:bg-emerald-900/10"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      device.rssi > -60 ? 'bg-green-500' :
+                                      device.rssi > -75 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`} />
+                                    <p className="text-sm font-medium truncate text-emerald-700 dark:text-emerald-400">
+                                      {device.name}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <p className={`text-xs font-semibold ${
+                                      device.rssi > -60 ? 'text-green-600 dark:text-green-400' :
+                                      device.rssi > -75 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+                                    }`}>
+                                      {device.rssi} dBm
+                                    </p>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                                      {device.rssi > -60 ? 'Excellent' :
+                                       device.rssi > -75 ? 'Good' : 'Weak'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    if (machineId) {
+                                      if (isConnected) {
+                                        handleBLEDisconnect(machineId);
+                                      } else {
+                                        handleBLEConnect(machineId, device.address);
+                                      }
+                                    }
+                                  }}
+                                  disabled={!machineId || isConnecting}
+                                  className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 flex-shrink-0 ${
+                                    isConnected
+                                      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                      : isConnecting
+                                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 cursor-wait'
+                                      : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                  {isConnecting ? (
+                                    <>
+                                      <FlowerSpinner size={14} />
+                                      <span>Connecting...</span>
+                                    </>
+                                  ) : isConnected ? (
+                                    'Disconnect'
+                                  ) : (
+                                    'Connect'
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-12 px-4 text-center">
+                        <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">No devices found</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">Click the Scan button above to discover Poornasree machines</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Serial Port Dropdown */}
+            <div ref={serialPortDropdownRef} className="relative">
+              <button
+                onClick={handleSerialPortClick}
+                className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 shadow-lg shadow-blue-500/25"
+              >
+                <Cable className="w-4 h-4" />
+                <span>Port</span>
+                {connectedPort && (
+                  <span className="px-2 py-0.5 text-xs bg-white/20 rounded-full">
+                    ✓
+                  </span>
+                )}
+                <ChevronDown className={`w-4 h-4 transition-transform ${serialPortDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {serialPortDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-96 overflow-hidden flex flex-col">
+                  {/* Header */}
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <Cable className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          Serial Port Connection
+                        </h3>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          {connectedPort ? 'Connected device (1 port allowed)' : 'No device connected'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSerialPortDropdownOpen(false)}
+                        className="p-1.5 hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+                        title="Close"
+                      >
+                        <X className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Error Message */}
+                  {serialPortError && (
+                    <div className="p-3 mx-3 mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                        <div className="text-xs text-red-700 dark:text-red-300 whitespace-pre-line">{serialPortError}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ports List */}
+                  <div className="flex-1 overflow-y-auto p-3">
+                    {loadingPorts ? (
+                      <div className="flex items-center justify-center py-8">
+                        <FlowerSpinner size={24} />
+                      </div>
+                    ) : connectedPort ? (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded">
+                              <Cable className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                {getPortInfo(connectedPort)}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="inline-block px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">
+                                  Connected
+                                </span>
+                                <button
+                                  onClick={() => handleDisconnectPort(connectedPort)}
+                                  disabled={loadingPorts}
+                                  className="px-3 py-1 text-xs font-medium text-white bg-gradient-to-r from-red-600 to-red-700 rounded-lg hover:from-red-700 hover:to-red-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Disconnect
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Cable className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">No port connected</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                          Click below to connect a device
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <button
+                      onClick={handleRequestPort}
+                      disabled={loadingPorts || !!connectedPort}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {connectedPort ? 'Port Already Connected' : 'Connect Port'}
+                    </button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                      Only one port can be connected at a time
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <button
+              onClick={fetchMachines}
+              className="flex items-center justify-center w-full sm:w-auto px-4 py-2.5 text-sm sm:text-base text-white bg-gradient-to-r from-gray-600 to-gray-700 rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all shadow-lg shadow-gray-500/25"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
 
         {/* Success/Error Messages */}
         <StatusMessage 
@@ -2332,6 +4314,21 @@ function MachineManagement() {
                                     };
                                   })()
                                 ]}
+                                bleButton={(() => {
+                                  const bleStatus = getBLEButtonStatus(machine.machineId);
+                                  const numericId = machine.machineId.replace(/[^0-9]/g, '');
+                                  return {
+                                    status: bleStatus,
+                                    onClick: () => {
+                                      if (bleStatus === 'connected') {
+                                        handleBLEDisconnect(numericId);
+                                      } else if (bleStatus === 'available') {
+                                        handleBLEConnect(numericId);
+                                      }
+                                    },
+                                    disabled: !connectedPort
+                                  };
+                                })()}
                                 onEdit={() => handleEditClick(machine)}
                                 onDelete={() => handleDeleteClick(machine)}
                                 onView={() => router.push(`/admin/machine/${machine.id}`)}
@@ -2468,6 +4465,21 @@ function MachineManagement() {
                       };
                     })()
                   ]}
+                  bleButton={(() => {
+                    const bleStatus = getBLEButtonStatus(machine.machineId);
+                    const numericId = machine.machineId.replace(/[^0-9]/g, '');
+                    return {
+                      status: bleStatus,
+                      onClick: () => {
+                        if (bleStatus === 'connected') {
+                          handleBLEDisconnect(numericId);
+                        } else if (bleStatus === 'available') {
+                          handleBLEConnect(numericId);
+                        }
+                      },
+                      disabled: !connectedPort
+                    };
+                  })()}
                   onEdit={() => handleEditClick(machine)}
                   onDelete={() => handleDeleteClick(machine)}
                   onView={() => router.push(`/admin/machine/${machine.id}`)}
@@ -3429,18 +5441,249 @@ function MachineManagement() {
         onBulkStatusChange={(status) => setBulkStatus(status as typeof bulkStatus)}
       />
 
-      {/* Floating Action Button */}
-      <FloatingActionButton
-        actions={[
-          {
-            icon: <Plus className="w-6 h-6 text-white" />,
-            label: 'Add Machine',
-            onClick: openAddModal,
-            color: 'bg-gradient-to-br from-blue-500 to-blue-600'
-          }
-        ]}
-        directClick={true}
-      />
+      {/* Control Panel Dropdown Modal - Only shown when machines are connected and dropdown is open */}
+      {connectedBLEMachines.size > 0 && controlPanelDropdownOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-end p-8 pb-32 pointer-events-none">
+          {/* Backdrop with blur */}
+          <div 
+            className="absolute inset-0 bg-gradient-to-br from-black/20 via-violet-900/10 to-black/20 backdrop-blur-md animate-in fade-in duration-300 pointer-events-auto"
+            onClick={() => setControlPanelDropdownOpen(false)}
+          ></div>
+          
+          {/* Modal card with glassmorphism */}
+          <div className="relative pointer-events-auto w-[420px] animate-in slide-in-from-bottom-8 fade-in duration-500">
+            {/* Animated glow */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500 rounded-3xl blur-2xl opacity-40 animate-pulse"></div>
+            
+            {/* Glass container */}
+            <div className="relative backdrop-blur-2xl bg-gradient-to-br from-white/90 to-white/70 dark:from-gray-900/90 dark:to-gray-800/90 rounded-3xl border border-white/30 dark:border-white/10 shadow-2xl overflow-hidden">
+              {/* Gradient mesh overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-fuchsia-500/5 to-cyan-500/5 pointer-events-none"></div>
+              
+              {/* Animated gradient line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-600 animate-gradient-x"></div>
+              
+              {/* Header */}
+              <div className="relative p-6 border-b border-white/20 dark:border-white/5">
+                {/* Background pattern */}
+                <div className="absolute inset-0 opacity-5">
+                  <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+                </div>
+                
+                <div className="relative flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    {/* Icon with 3D effect */}
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-2xl blur-xl opacity-50"></div>
+                      <div className="relative w-14 h-14 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600 rounded-2xl flex items-center justify-center shadow-xl shadow-violet-500/30 border border-white/20">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl"></div>
+                        <svg className="relative w-7 h-7 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">
+                          Control Panel
+                        </h3>
+                        {/* Live pulse indicator */}
+                        <div className="flex h-2.5 w-2.5 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg shadow-emerald-500/50"></span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                        {connectedBLEMachines.size} {connectedBLEMachines.size === 1 ? 'Device' : 'Devices'} Online
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => setControlPanelDropdownOpen(false)}
+                    className="relative group/close p-2.5 hover:bg-white/50 dark:hover:bg-white/5 rounded-xl transition-all duration-300 hover:rotate-90"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-red-500/0 to-red-500/0 group-hover/close:from-red-500/10 group-hover/close:to-red-500/20 rounded-xl transition-all duration-300"></div>
+                    <X className="relative w-5 h-5 text-gray-600 dark:text-gray-400 group-hover/close:text-red-600 dark:group-hover/close:text-red-400 transition-colors" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Connected Machines List */}
+              <div className="relative p-4 max-h-[28rem] overflow-y-auto">
+                <div className="space-y-3">
+                  {Array.from(connectedBLEMachines).map((numericId, index) => {
+                    const machine = machines.find(m => m.machineId.replace(/[^0-9]/g, '') === numericId);
+                    if (!machine) return null;
+                    
+                    return (
+                      <div
+                        key={numericId}
+                        className="animate-in slide-in-from-right fade-in duration-500"
+                        style={{ animationDelay: `${index * 100}ms`, animationFillMode: 'backwards' }}
+                      >
+                        <button
+                          onClick={() => {
+                            router.push(`/admin/machine/${machine.id}/control-panel`);
+                            setControlPanelDropdownOpen(false);
+                          }}
+                          className="group/item relative w-full overflow-hidden rounded-2xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          {/* Gradient glow on hover */}
+                          <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-600 rounded-2xl opacity-0 group-hover/item:opacity-30 blur-xl transition-all duration-500"></div>
+                          
+                          {/* Card content */}
+                          <div className="relative backdrop-blur-xl bg-gradient-to-br from-white/60 to-white/40 dark:from-white/5 dark:to-white/[0.02] group-hover/item:from-white/80 group-hover/item:to-white/60 dark:group-hover/item:from-white/10 dark:group-hover/item:to-white/5 border border-white/30 dark:border-white/10 rounded-2xl p-4 transition-all duration-500">
+                            {/* Mesh pattern */}
+                            <div className="absolute inset-0 opacity-0 group-hover/item:opacity-100 transition-opacity duration-500">
+                              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-violet-500/10 via-transparent to-transparent rounded-full blur-2xl"></div>
+                              <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-cyan-500/10 via-transparent to-transparent rounded-full blur-2xl"></div>
+                            </div>
+                            
+                            <div className="relative flex items-center gap-4">
+                              {/* Machine icon with 3D effect */}
+                              <div className="flex-shrink-0 relative">
+                                <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-cyan-600 rounded-2xl blur-lg opacity-0 group-hover/item:opacity-50 transition-all duration-500"></div>
+                                <div className="relative w-16 h-16 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600 rounded-2xl flex items-center justify-center shadow-xl shadow-violet-500/20 group-hover/item:shadow-violet-500/50 transition-all duration-500 group-hover/item:scale-110 border border-white/20">
+                                  <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-2xl"></div>
+                                  <Settings className="relative w-8 h-8 text-white group-hover/item:rotate-180 transition-transform duration-700 drop-shadow-lg" />
+                                </div>
+                              </div>
+                              
+                              {/* Machine info */}
+                              <div className="flex-1 text-left min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="text-base font-black text-gray-900 dark:text-white group-hover/item:text-transparent group-hover/item:bg-clip-text group-hover/item:bg-gradient-to-r group-hover/item:from-violet-600 group-hover/item:to-fuchsia-600 transition-all duration-500 truncate">
+                                    {machine.machineId}
+                                  </p>
+                                  {/* Type badge */}
+                                  <span className="px-2 py-0.5 text-[10px] font-bold bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 text-violet-700 dark:text-violet-300 rounded-lg border border-violet-500/20">
+                                    {machine.machineType}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400">
+                                  <div className="flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-gradient-to-br from-emerald-400 to-green-500"></span>
+                                  </div>
+                                  <span>Connected & Ready</span>
+                                </div>
+                              </div>
+                              
+                              {/* Arrow with animation */}
+                              <div className="flex-shrink-0">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 group-hover/item:from-violet-500/20 group-hover/item:to-fuchsia-500/20 flex items-center justify-center transition-all duration-500 border border-violet-500/0 group-hover/item:border-violet-500/30">
+                                  <svg className="w-5 h-5 text-gray-400 dark:text-gray-500 group-hover/item:text-violet-600 dark:group-hover/item:text-violet-400 group-hover/item:translate-x-1 transition-all duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Footer accent */}
+              <div className="h-1 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-cyan-600 opacity-30"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Control Panel Floating Button - Only shown when machines are connected */}
+      {connectedBLEMachines.size > 0 && (
+        <div className="fixed bottom-6 right-24 z-50" ref={controlPanelDropdownRef}>
+          <div className="relative group">
+            {/* Animated gradient glow rings */}
+            <div className="absolute -inset-2 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500 rounded-full opacity-0 group-hover:opacity-70 blur-xl transition-all duration-500 animate-pulse"></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-600 rounded-full opacity-40 blur-lg animate-spin-slow"></div>
+            
+            {/* Glass morphism container */}
+            <div className="relative backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/[0.02] p-0.5 rounded-2xl border border-white/20 dark:border-white/10 shadow-2xl">
+              {/* Main button with gradient mesh */}
+              <button
+                onClick={() => setControlPanelDropdownOpen(!controlPanelDropdownOpen)}
+                className="relative w-14 h-14 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-cyan-500 rounded-[18px] shadow-2xl shadow-violet-500/30 hover:shadow-violet-500/50 transition-all duration-500 flex items-center justify-center overflow-hidden group/btn"
+                title="Control Panel"
+              >
+                {/* Animated mesh pattern */}
+                <div className="absolute inset-0 opacity-30">
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"></div>
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-white/30 via-transparent to-transparent rounded-full blur-lg"></div>
+                  <div className="absolute bottom-0 left-0 w-12 h-12 bg-gradient-to-tr from-cyan-400/30 via-transparent to-transparent rounded-full blur-lg"></div>
+                </div>
+                
+                {/* Shimmer overlay */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 skew-x-12"></div>
+                
+                {/* Rotating border gradient */}
+                <div className="absolute inset-0 rounded-[18px] bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 opacity-0 group-hover/btn:opacity-100 blur-sm transition-opacity duration-500"></div>
+                
+                {/* Icon with 3D effect */}
+                <div className="relative z-10 transform group-hover/btn:scale-110 group-hover/btn:rotate-180 transition-all duration-700 ease-out">
+                  <div className="absolute inset-0 bg-white/20 rounded-lg blur-sm"></div>
+                  <svg className="relative w-6 h-6 drop-shadow-2xl filter" fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </div>
+                
+                {/* Corner accents */}
+                <div className="absolute top-1.5 left-1.5 w-1.5 h-1.5 rounded-full bg-white/60 shadow-lg shadow-white/50"></div>
+                <div className="absolute bottom-1.5 right-1.5 w-1 h-1 rounded-full bg-cyan-300/60 shadow-lg shadow-cyan-300/50"></div>
+              </button>
+            </div>
+            
+            {/* Badge - positioned outside button as overlay with high z-index */}
+            <div className="absolute -top-2 -right-2 z-[100]">
+              {/* Multiple animated rings */}
+              <span className="absolute inline-flex h-8 w-8 rounded-full bg-gradient-to-r from-emerald-400 to-green-400 opacity-20 animate-ping"></span>
+              <span className="absolute inline-flex h-7 w-7 rounded-full bg-gradient-to-r from-emerald-400 to-green-400 opacity-30 animate-pulse"></span>
+              
+              {/* Glass badge with higher contrast */}
+              <div className="relative backdrop-blur-xl bg-gradient-to-br from-emerald-500 to-green-600 border-2 border-white dark:border-gray-900 rounded-full shadow-2xl shadow-emerald-500/60">
+                <div className="relative flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-full">
+                  <span className="text-xs font-black text-white drop-shadow-lg relative z-10">
+                    {connectedBLEMachines.size}
+                  </span>
+                  {/* Inner glow for depth */}
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-t from-white/30 to-transparent"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modern tooltip */}
+            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all duration-300 pointer-events-none z-[90]">
+              <div className="relative">
+                {/* Glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-cyan-600 rounded-2xl blur-xl opacity-60"></div>
+                
+                {/* Glass tooltip */}
+                <div className="relative backdrop-blur-xl bg-gradient-to-br from-gray-900/95 to-gray-800/95 dark:from-gray-800/95 dark:to-gray-700/95 px-4 py-2.5 rounded-2xl border border-white/20 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-violet-400 to-fuchsia-400 animate-pulse"></div>
+                    <p className="text-xs font-bold text-white whitespace-nowrap">Control Panel</p>
+                  </div>
+                  <p className="text-[10px] text-gray-300 font-medium pl-3.5">
+                    {connectedBLEMachines.size} machine{connectedBLEMachines.size !== 1 ? 's' : ''} connected
+                  </p>
+                </div>
+                
+                {/* Arrow */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1.5">
+                  <div className="border-6 border-transparent border-t-gray-900/95 dark:border-t-gray-800/95"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
 
       {/* Show Password Modal */}
       <FormModal
