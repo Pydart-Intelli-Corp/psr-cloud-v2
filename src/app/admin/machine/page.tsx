@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo, Suspense, useRef } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useDongle } from '@/contexts/DongleContext';
+import { motion } from 'framer-motion';
 import { formatPhoneInput, validatePhoneOnBlur, validateIndianPhone } from '@/lib/validation/phoneValidation';
 import {
   Settings, 
@@ -35,7 +37,8 @@ import {
   BarChart3,
   Users,
   X,
-  Cable
+  Cable,
+  Sliders
 } from 'lucide-react';
 import {
   LineChart,
@@ -71,6 +74,7 @@ import {
   FilterDropdown,
   StatsGrid
 } from '@/components/management';
+import ControlPanelDialog from '@/components/dialogs/ControlPanelDialog';
 
 interface Machine {
   id: number;
@@ -161,6 +165,7 @@ function MachineManagement() {
   const searchParams = useSearchParams();
   const { user } = useUser();
   const { } = useLanguage();
+  const { injectConnection, forwardBleData } = useDongle();
   
   // State management
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -307,6 +312,8 @@ function MachineManagement() {
   const bleDevicesDropdownRef = useRef<HTMLDivElement>(null);
   const [controlPanelDropdownOpen, setControlPanelDropdownOpen] = useState(false);
   const controlPanelDropdownRef = useRef<HTMLDivElement>(null);
+  const [controlPanelDialogOpen, setControlPanelDialogOpen] = useState(false);
+  const [controlPanelMachineId, setControlPanelMachineId] = useState<string | null>(null);
   const [isDongleVerified, setIsDongleVerified] = useState(false); // Verified as Poornasree dongle
   const isDongleVerifiedRef = useRef(false); // Ref for immediate access in async functions
   const [connectingAll, setConnectingAll] = useState(false); // Track if Connect All is in progress
@@ -314,6 +321,15 @@ function MachineManagement() {
   const connectingAddressRef = useRef<string | null>(null); // Track the address currently being connected (for CONNECT_ALL)
   const connectAllAddressMapRef = useRef<Map<string, string>>(new Map()); // Map addresses to machine IDs during CONNECT_ALL
   const individualConnectionMapRef = useRef<Map<string, string>>(new Map()); // Map addresses to machine IDs for individual connections
+  
+  // Auto-connect feature (future enhancement - currently disabled)
+  const [autoConnectEnabled, setAutoConnectEnabled] = useState(false);
+  const autoConnectEnabledRef = useRef(false);
+  const manuallyDisconnectedMachines = useRef<Set<string>>(new Set());
+  
+  // Auto-reconnect state
+  const [isAutoConnecting, setIsAutoConnecting] = useState(false);
+  const autoConnectAttemptedRef = useRef(false);
 
   // Safe logging helper to prevent buffer overruns
   const safeLog = (message: string, data?: any) => {
@@ -489,7 +505,7 @@ function MachineManagement() {
         setConnectedPort(null);
         setIsDongleVerified(false);
         isDongleVerifiedRef.current = false;
-        setSerialPortError('This device is not a Poornasree HUB. Please connect the correct USB dongle.\n\nExpected: Poornasree USB Dongle v2.0 - Multi-Device Manager');
+        setSerialPortError('This device is not a Poornasree HUB. Please connect the correct USB dongle.\n\nExpected: Poornasree HUB v3.0.0 (ESP32-S3)');
         setLoadingPorts(false);
         return;
       }
@@ -669,6 +685,141 @@ function MachineManagement() {
     }
     return 'Serial Port';
   };
+  
+  // Retry auto-connect (called manually if auto-connect fails)
+  const retryAutoConnect = async () => {
+    console.log('🔄 [Auto-connect] Manual retry triggered by user');
+    autoConnectAttemptedRef.current = false; // Reset the flag
+    setIsAutoConnecting(true);
+    setSerialPortError(''); // Clear any errors
+    
+    try {
+      const ports = await navigator.serial.getPorts();
+      setSerialPorts(ports);
+      
+      if (ports.length === 0) {
+        setSerialPortError('No ports available. Please connect a device first.');
+        setIsAutoConnecting(false);
+        return;
+      }
+      
+      // Try saved config first
+      const savedConfigStr = localStorage.getItem('poornasree_hub_port');
+      let savedConfig = null;
+      
+      if (savedConfigStr) {
+        try {
+          savedConfig = JSON.parse(savedConfigStr);
+        } catch {}
+      }
+      
+      let connected = false;
+      
+      // Try saved port
+      if (savedConfig) {
+        for (const port of ports) {
+          const info = port.getInfo();
+          if (info.usbVendorId === savedConfig.vendorId && info.usbProductId === savedConfig.productId) {
+            try {
+              await port.open({ baudRate: 115200 });
+              setConnectedPort(port);
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              if (!port.writable) throw new Error('Writable stream not available');
+              const writer = port.writable.getWriter();
+              serialWriterRef.current = writer;
+              
+              startDongleReader(port);
+              
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const versionData = new TextEncoder().encode('VERSION\\n');
+              await writer.write(versionData);
+              
+              // Wait for verification
+              const verificationTimeout = 3000;
+              const startTime = Date.now();
+              while (!isDongleVerifiedRef.current && (Date.now() - startTime) < verificationTimeout) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+              }
+              
+              if (isDongleVerifiedRef.current) {
+                setSuccess('Poornasree HUB connected successfully!');
+                setTimeout(() => setSuccess(''), 3000);
+                setTimeout(() => handleBLEScan(), 500);
+                connected = true;
+                break;
+              }
+            } catch (err) {
+              console.warn('⚠️ [Retry] Error with saved port:', err);
+            }
+          }
+        }
+      }
+      
+      // Try detecting if saved port failed
+      if (!connected) {
+        for (const port of ports) {
+          const isPoornasreeHub = await testPortIsPoornasreeHub(port);
+          
+          if (isPoornasreeHub) {
+            try {
+              await port.open({ baudRate: 115200 });
+              setConnectedPort(port);
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              if (!port.writable) throw new Error('Writable stream not available');
+              const writer = port.writable.getWriter();
+              serialWriterRef.current = writer;
+              
+              startDongleReader(port);
+              
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const versionData = new TextEncoder().encode('VERSION\\n');
+              await writer.write(versionData);
+              
+              // Wait for verification
+              const verificationTimeout = 3000;
+              const startTime = Date.now();
+              while (!isDongleVerifiedRef.current && (Date.now() - startTime) < verificationTimeout) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+              }
+              
+              if (isDongleVerifiedRef.current) {
+                // Save config
+                const info = port.getInfo();
+                const portConfig = {
+                  vendorId: info.usbVendorId,
+                  productId: info.usbProductId,
+                  verified: true,
+                  timestamp: Date.now()
+                };
+                localStorage.setItem('poornasree_hub_port', JSON.stringify(portConfig));
+                
+                setSuccess('Poornasree HUB connected successfully!');
+                setTimeout(() => setSuccess(''), 3000);
+                setTimeout(() => handleBLEScan(), 500);
+                connected = true;
+                break;
+              }
+            } catch (err) {
+              console.warn('⚠️ [Retry] Error connecting:', err);
+            }
+          }
+        }
+      }
+      
+      if (!connected) {
+        setSerialPortError('Could not connect to Poornasree HUB. Please try connecting manually.');
+      }
+    } catch (err) {
+      console.error('❌ [Retry] Error during retry:', err);
+      setSerialPortError('Retry failed: ' + (err as Error).message);
+    } finally {
+      setIsAutoConnecting(false);
+    }
+  };
 
   // ==================== BLE DONGLE FUNCTIONS ====================
   
@@ -676,17 +827,37 @@ function MachineManagement() {
   const testPortIsPoornasreeHub = async (port: SerialPort): Promise<boolean> => {
     let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
     let reader: ReadableStreamDefaultReader<string> | null = null;
+    let wasAlreadyOpen = false;
     
     try {
-      // Open port
-      await port.open({ baudRate: 115200 });
+      // Check if port is already open
+      try {
+        const info = port.getInfo();
+        // Try to access readable to see if port is open
+        if (port.readable) {
+          wasAlreadyOpen = true;
+          console.log('ℹ️ [Port Test] Port already open, skipping test');
+          return false; // Don't test an already-open port
+        }
+      } catch {}
+      
+      // Open port with error handling for locked/in-use ports
+      try {
+        await port.open({ baudRate: 115200 });
+      } catch (openErr: any) {
+        if (openErr.name === 'InvalidStateError') {
+          console.log('ℹ️ [Port Test] Port already open or locked, skipping');
+          return false;
+        }
+        throw openErr; // Re-throw other errors
+      }
       
       // Wait for port to be ready
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Create writer
       if (!port.writable) {
-        await port.close();
+        try { await port.close(); } catch {}
         return false;
       }
       writer = port.writable.getWriter();
@@ -697,8 +868,8 @@ function MachineManagement() {
       reader = readableStreamClosed?.getReader();
       
       if (!reader) {
-        await writer.releaseLock();
-        await port.close();
+        try { await writer.releaseLock(); } catch {}
+        try { await port.close(); } catch {}
         return false;
       }
       
@@ -722,31 +893,47 @@ function MachineManagement() {
         
         buffer += result.value;
         
-        // Check if response contains Poornasree identifier
-        if (buffer.includes('Poornasree USB Dongle v2.0')) {
-          // Clean up
-          await reader.cancel();
-          await writer.releaseLock();
-          await port.close();
+        // Check if response contains Poornasree identifier (HUB v3.0.0)
+        if (buffer.includes('Poornasree HUB')) {
+          // Clean up in correct order
+          try { await reader.cancel(); } catch {}
+          try { await writer.releaseLock(); } catch {}
+          try { await port.close(); } catch {}
+          // Wait for port to fully close before returning
+          await new Promise(resolve => setTimeout(resolve, 300));
           return true;
         }
       }
       
-      // Not verified
-      await reader.cancel();
-      await writer.releaseLock();
-      await port.close();
+      // Not verified - clean up in correct order
+      try { await reader.cancel(); } catch {}
+      try { await writer.releaseLock(); } catch {}
+      try { await port.close(); } catch {}
+      // Wait for port to fully close
+      await new Promise(resolve => setTimeout(resolve, 200));
       return false;
       
     } catch (err) {
       console.warn('⚠️ [Port Test] Error testing port:', err);
       
-      // Clean up on error
+      // Clean up on error - in correct order, individually wrapped
       try {
         if (reader) await reader.cancel();
+      } catch (e) {
+        console.warn('⚠️ [Port Test] Could not cancel reader:', e);
+      }
+      
+      try {
         if (writer) await writer.releaseLock();
-        await port.close();
-      } catch {}
+      } catch (e) {
+        console.warn('⚠️ [Port Test] Could not release writer:', e);
+      }
+      
+      try {
+        if (!wasAlreadyOpen) await port.close();
+      } catch (e) {
+        console.warn('⚠️ [Port Test] Could not close port:', e);
+      }
       
       return false;
     }
@@ -907,11 +1094,11 @@ function MachineManagement() {
       // Silently acknowledge - no logging needed
       return;
     }
-    // VERSION response - verify it's Poornasree dongle
-    else if (line.includes('Poornasree USB Dongle v2.0')) {
+    // VERSION response - verify it's Poornasree HUB (v3.0.0)
+    else if (line.includes('Poornasree HUB')) {
       setIsDongleVerified(true);
       isDongleVerifiedRef.current = true;
-      console.log('✅ [Dongle] Verified as Poornasree USB Dongle v2.0 - Multi-Device Manager');
+      console.log('✅ [Dongle] Verified as Poornasree HUB v3.0.0');
       return;
     }
     // FOUND,DeviceName,Address,RSSI - tracks all discovered devices
@@ -1070,6 +1257,61 @@ function MachineManagement() {
         
         console.log(`✅ [BLE] Connected to machine ${machineId} (Dongle ID: ${dongleDeviceId})`);
         
+        // Save connected BLE devices to localStorage for auto-reconnect
+        try {
+          const savedDevices = JSON.parse(localStorage.getItem('connected_ble_devices') || '[]');
+          
+          // Find device address from mapping (CONNECT_ALL or individual)
+          let deviceAddress = connectingAddressRef.current?.toLowerCase();
+          
+          // If not found (during rapid CONNECT_ALL), search in maps
+          if (!deviceAddress || deviceAddress === 'null') {
+            // Check CONNECT_ALL map
+            for (const [addr, mId] of connectAllAddressMapRef.current.entries()) {
+              if (mId === machineId) {
+                deviceAddress = addr;
+                break;
+              }
+            }
+            // Check individual map
+            if (!deviceAddress) {
+              for (const [addr, mId] of individualConnectionMapRef.current.entries()) {
+                if (mId === machineId) {
+                  deviceAddress = addr;
+                  break;
+                }
+              }
+            }
+          }
+          
+          if (deviceAddress) {
+            const deviceInfo = allBLEDevices.find(d => d.address.toLowerCase() === deviceAddress);
+            
+            if (!deviceInfo) {
+              console.log(`ℹ️ [BLE] Device not in allBLEDevices (${allBLEDevices.length} devices), using machine ID for name`);
+            }
+            
+            // Save with device info if available, otherwise construct from machineId
+            const deviceToSave = deviceInfo || { 
+              address: deviceAddress, 
+              name: `Poornasree - Sl.No - ${machineId}`,
+              rssi: -50
+            };
+            
+            if (!savedDevices.some((d: any) => d.address === deviceToSave.address)) {
+              savedDevices.push({ address: deviceToSave.address, name: deviceToSave.name, machineId });
+              localStorage.setItem('connected_ble_devices', JSON.stringify(savedDevices));
+              console.log('💾 [BLE] Saved device to auto-reconnect list:', deviceToSave.name);
+            } else {
+              console.log('ℹ️ [BLE] Device already in saved list:', deviceToSave.name);
+            }
+          } else {
+            console.warn('⚠️ [BLE] Could not find device address for machine', machineId);
+          }
+        } catch (err) {
+          console.warn('⚠️ [BLE] Could not save connected device:', err);
+        }
+        
         // Clean up individual connection map if used
         if (connectingAddressRef.current) {
           individualConnectionMapRef.current.delete(connectingAddressRef.current.toLowerCase());
@@ -1219,43 +1461,96 @@ function MachineManagement() {
         console.warn(`⚠️ [CONNECT_ALL] Device ${address} not found in scan results`);
       }
     }
-    // CONNECT_ALL,COMPLETE,CONNECTED=n,SKIPPED=m - CONNECT_ALL operation completed
+    // CONNECT_ALL,COMPLETE,CONNECTED=n,FAILED=m - New firmware v3.0.0 format
     else if (line.startsWith('CONNECT_ALL,COMPLETE')) {
       const parts = line.split(',');
       let connected = 0;
-      let skipped = 0;
+      let failed = 0;
       
       for (const part of parts) {
         if (part.startsWith('CONNECTED=')) {
           connected = parseInt(part.split('=')[1]);
+        } else if (part.startsWith('FAILED=')) {
+          failed = parseInt(part.split('=')[1]);
         } else if (part.startsWith('SKIPPED=')) {
-          skipped = parseInt(part.split('=')[1]);
+          // Legacy support for old firmware
+          failed = parseInt(part.split('=')[1]);
         }
       }
       
-      console.log(`✅ [CONNECT_ALL] Completed: ${connected} connected, ${skipped} skipped`);
+      console.log(`✅ [CONNECT_ALL] Completed: ${connected} connected, ${failed} failed`);
       setConnectingAll(false);
       setConnectAllProgress({ current: 0, total: 0 });
       setBleConnectingMachine(null);
       connectAllAddressMapRef.current.clear(); // Clear the address map
     }
-    // DISCONNECTED,OK - Single device disconnected successfully
-    else if (line === 'DISCONNECTED,OK') {
-      // Clear connecting state if connection failed
-      if (bleConnectingMachine) {
+    // DISCONNECTED,id or DISCONNECTED,ALL - Firmware v3.0.0 format
+    else if (line.startsWith('DISCONNECTED,')) {
+      if (line === 'DISCONNECTED,ALL') {
+        setConnectedBLEMachines(new Set());
+        setMachineIdToDongleId(new Map());
         setBleConnectingMachine(null);
-      }
-    }
-    // DISCONNECTED,ALL - All devices disconnected
-    else if (line === 'DISCONNECTED,ALL') {
-      setConnectedBLEMachines(new Set());
-      setBleConnectingMachine(null);
-    }
-    // DISCONNECTED or DISCONNECTED,OK
-    else if (line.startsWith('DISCONNECTED')) {
-      // Clear connecting state if connection failed
-      if (bleConnectingMachine) {
-        setBleConnectingMachine(null);
+        console.log('🔌 [BLE] All devices disconnected');
+        
+        // Don't auto-reconnect after manual disconnect all
+        // (saved devices list is already cleared by handleDisconnectAll)
+      } else if (line === 'DISCONNECTED,OK') {
+        // Legacy format - single device disconnected successfully
+        if (bleConnectingMachine) {
+          setBleConnectingMachine(null);
+        }
+      } else {
+        // DISCONNECTED,id - specific device disconnected
+        const dongleDeviceId = line.split(',')[1];
+        
+        // Find and remove machine with this dongle ID
+        let removedMachineId: string | null = null;
+        machineIdToDongleId.forEach((dId, mId) => {
+          if (dId === dongleDeviceId) {
+            removedMachineId = mId;
+          }
+        });
+        
+        if (removedMachineId) {
+          setConnectedBLEMachines(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(removedMachineId);
+            return newSet;
+          });
+          
+          setMachineIdToDongleId(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(removedMachineId);
+            return newMap;
+          });
+          
+          console.log(`🔌 [BLE] Machine ${removedMachineId} disconnected (Dongle ID: ${dongleDeviceId})`);
+          
+          // Check if device is in saved list for auto-reconnect
+          try {
+            const savedDevices = JSON.parse(localStorage.getItem('connected_ble_devices') || '[]');
+            const savedDevice = savedDevices.find((d: any) => d.machineId === removedMachineId);
+            
+            if (savedDevice) {
+              console.log(`🔄 [Auto-Reconnect] Device ${removedMachineId} was in saved list, attempting reconnect...`);
+              
+              // Wait 2 seconds then try to reconnect
+              setTimeout(async () => {
+                console.log(`🔗 [Auto-Reconnect] Reconnecting to ${savedDevice.name} (${savedDevice.address})...`);
+                await sendDongleCommand(`CONNECT,${savedDevice.address}`);
+              }, 2000);
+            }
+          } catch (err) {
+            console.warn('⚠️ [Auto-Reconnect] Error checking saved devices:', err);
+          }
+        } else {
+          console.warn(`⚠️ [BLE] Disconnected dongle ID ${dongleDeviceId} but no matching machine found`);
+        }
+        
+        // Clear connecting state if this was the connecting machine
+        if (bleConnectingMachine) {
+          setBleConnectingMachine(null);
+        }
       }
     }
     // ERROR responses
@@ -1355,6 +1650,18 @@ function MachineManagement() {
               }
               return prev;
             });
+            
+            // Save to localStorage for auto-reconnect (for already-connected devices)
+            try {
+              const savedDevices = JSON.parse(localStorage.getItem('connected_ble_devices') || '[]');
+              if (!savedDevices.some((d: any) => d.address === deviceAddress)) {
+                savedDevices.push({ address: deviceAddress, name: deviceName, machineId });
+                localStorage.setItem('connected_ble_devices', JSON.stringify(savedDevices));
+                console.log('💾 [LIST] Saved existing connection to auto-reconnect list');
+              }
+            } catch (err) {
+              console.warn('⚠️ [LIST] Could not save device:', err);
+            }
           }
         }
       }
@@ -1363,7 +1670,48 @@ function MachineManagement() {
     else if (line === 'NO_DEVICES') {
       console.log('📋 [LIST] No devices currently connected');
     }
-    // Data packets (STX...ETX wrapped)
+    // DATA,id,<payload> - New firmware v3.0.0 format with STX/ETX framing
+    else if (line.startsWith('DATA,')) {
+      const parts = line.split(',');
+      if (parts.length >= 3) {
+        const dongleDeviceId = parts[1];
+        const payload = parts.slice(2).join(',');
+        
+        // Extract machine data between STX and ETX
+        const dataMatch = payload.match(/\x02(.*?)\x03/);
+        if (dataMatch) {
+          const data = dataMatch[1];
+          // Use safeLog to prevent buffer overruns with large data packets
+          safeLog(`📥 [BLE Data] Device ${dongleDeviceId} (${data.length} bytes):`, data.substring(0, 100));
+          
+          // Extract machine ID from data and store
+          const machineIdMatch = data.match(/MM(\d+)/);
+          if (machineIdMatch) {
+            const machineId = machineIdMatch[1];
+            setBleDataReceived(prev => new Map(prev).set(machineId, data));
+            forwardBleData(machineId, data); // Forward to Control Panel via context
+            console.log(`📊 [BLE Data] Machine ${machineId} → Dongle ID ${dongleDeviceId}`);
+          } else {
+            // Try to find machine ID from dongleDeviceId mapping
+            let foundMachineId: string | null = null;
+            machineIdToDongleId.forEach((dId, mId) => {
+              if (dId === dongleDeviceId) {
+                foundMachineId = mId;
+              }
+            });
+            
+            if (foundMachineId) {
+              setBleDataReceived(prev => new Map(prev).set(foundMachineId, data));
+              forwardBleData(foundMachineId, data); // Forward to Control Panel via context
+              console.log(`📊 [BLE Data] Machine ${foundMachineId} (via mapping) → Dongle ID ${dongleDeviceId}`);
+            } else {
+              console.warn(`⚠️ [BLE Data] Could not identify machine for dongle ID ${dongleDeviceId}`);
+            }
+          }
+        }
+      }
+    }
+    // Legacy data packets (STX...ETX wrapped) - fallback for old firmware
     else if (line.includes('\x02') || line.includes('\x03')) {
       // Extract machine data between STX and ETX
       const dataMatch = line.match(/\x02(.*?)\x03/);
@@ -1377,6 +1725,7 @@ function MachineManagement() {
         if (machineIdMatch) {
           const machineId = machineIdMatch[1];
           setBleDataReceived(prev => new Map(prev).set(machineId, data));
+          forwardBleData(machineId, data); // Forward to Control Panel via context
         }
       }
     }
@@ -1404,8 +1753,8 @@ function MachineManagement() {
 
   // Query existing connections from dongle
   const queryExistingConnections = async () => {
-    if (!connectedPort || !serialWriterRef.current) {
-      console.log('⚠️ [BLE] Cannot query - port not connected or writer not ready');
+    if (!serialWriterRef.current) {
+      console.log('⚠️ [BLE] Cannot query - writer not ready');
       return;
     }
     
@@ -1472,6 +1821,11 @@ function MachineManagement() {
     }
 
     console.log('🔌 [BLE] Disconnecting all devices...');
+    
+    // Clear saved connections from localStorage
+    localStorage.removeItem('connected_ble_devices');
+    console.log('🧹 [BLE] Cleared auto-reconnect list');
+    
     const success = await sendDongleCommand('DISCONNECT');
     
     if (success) {
@@ -1777,8 +2131,6 @@ function MachineManagement() {
 
   // Check master machine status for selected society
   const checkMasterMachineStatus = (societyId: string) => {
-    console.log('checkMasterMachineStatus called with:', societyId);
-    
     if (!societyId) {
       setSocietyHasMaster(false);
       setExistingMasterMachine(null);
@@ -1788,8 +2140,6 @@ function MachineManagement() {
 
     const societyMachines = machines.filter(m => m.societyId === parseInt(societyId));
     const masterMachine = societyMachines.find(m => m.isMasterMachine);
-    
-    console.log('Society machines:', societyMachines.length, 'Master:', masterMachine?.machineId);
     
     setIsFirstMachine(societyMachines.length === 0);
     setSocietyHasMaster(!!masterMachine);
@@ -1823,9 +2173,6 @@ function MachineManagement() {
 
     try {
       const token = localStorage.getItem('authToken');
-      console.log('Token from localStorage:', token);
-      console.log('Token type:', typeof token);
-      console.log('Token length:', token?.length);
       
       if (!token) {
         setError('Authentication token not found. Please login again.');
@@ -1976,11 +2323,8 @@ function MachineManagement() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      console.log('📊 Performance Stats Response Status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Performance Stats Data:', data);
         setPerformanceStats(data);
       } else {
         const errorData = await response.json();
@@ -2157,6 +2501,40 @@ function MachineManagement() {
     }
   }, [user, fetchMachines, fetchSocieties, fetchMachineTypes, fetchDairies, fetchBmcs, fetchPerformanceStats]);
 
+  // Sync connection state to DongleContext for Control Panel
+  useEffect(() => {
+    // Transform local BLEDevice type to context type
+    const contextDevices = allBLEDevices.map(d => ({
+      name: d.name,
+      address: d.address,
+      rssi: d.rssi,
+      isPoornasree: isPoornasreeMachine(d.name),
+      machineId: extractMachineId(d.name) || undefined
+    }));
+    
+    // Debug log before injecting
+    console.log('🔄 [Machine Management] Syncing to DongleContext:', {
+      hasPort: !!connectedPort,
+      verified: isDongleVerified,
+      connectedMachines: Array.from(connectedBLEMachines),
+      deviceCount: contextDevices.length,
+    });
+    
+    injectConnection({
+      port: connectedPort,
+      writer: serialWriterRef.current,
+      reader: serialReaderRef.current,
+      verified: isDongleVerified,
+      connectedMachines: connectedBLEMachines,
+      machineIdMap: machineIdToDongleId,
+      availableMachines: availableBLEMachines,
+      devices: contextDevices
+    });
+  }, [
+    connectedPort, isDongleVerified, connectedBLEMachines, 
+    machineIdToDongleId, availableBLEMachines, allBLEDevices, injectConnection
+  ]);
+
   // Global error handler for buffer overruns and other errors
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -2197,8 +2575,21 @@ function MachineManagement() {
   useEffect(() => {
     const initializeData = async () => {
       if (typeof navigator === 'undefined' || !navigator.serial) {
+        console.log('⚠️ [Auto-connect] Web Serial API not available');
         return;
       }
+
+      // Prevent multiple auto-connect attempts
+      if (autoConnectAttemptedRef.current) {
+        console.log('⚠️ [Auto-connect] Already attempted, skipping');
+        return;
+      }
+      
+      // Wait a bit to ensure any previous cleanup is complete (for hot reload)
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      autoConnectAttemptedRef.current = true;
+      setIsAutoConnecting(true);
 
       try {
         // Check for saved port configuration
@@ -2218,8 +2609,27 @@ function MachineManagement() {
         // Update serial ports list in UI
         setSerialPorts(ports);
         
-        if (ports.length === 0 || connectedPort) {
+        if (ports.length === 0) {
+          console.log('ℹ️ [Auto-connect] No ports available, user must grant permission');
+          setIsAutoConnecting(false);
           return;
+        }
+        
+        // Don't skip if connectedPort is set - it might be stale state from refresh
+        if (connectedPort) {
+          console.log('⚠️ [Auto-connect] Port already connected, verifying...');
+          // Verify it's actually connected and working
+          if (serialWriterRef.current && isDongleVerifiedRef.current) {
+            console.log('✅ [Auto-connect] Existing connection is valid');
+            setIsAutoConnecting(false);
+            return;
+          } else {
+            console.log('⚠️ [Auto-connect] Existing connection is stale, reconnecting...');
+            // Clean up stale connection
+            setConnectedPort(null);
+            setIsDongleVerified(false);
+            isDongleVerifiedRef.current = false;
+          }
         }
         
         // If we have saved config, try to find matching port first
@@ -2264,11 +2674,18 @@ function MachineManagement() {
                   setSuccess('Poornasree HUB auto-connected!');
                   setTimeout(() => setSuccess(''), 3000);
                   
-                  // Automatically start BLE scan after auto-connect
-                  console.log('🔍 [Auto-Scan] Starting automatic scan after auto-connect...');
-                  setTimeout(() => {
+                  // Query existing BLE connections to restore UI state
+                  console.log('🔍 [Auto-Connect] Querying existing BLE connections from dongle...');
+                  setTimeout(async () => {
+                    await queryExistingConnections();
+                    
+                    // Wait for LIST response to populate connected devices
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    
+                    // Then scan for new devices
+                    console.log('🔍 [Auto-Connect] Scanning for BLE devices...');
                     handleBLEScan();
-                  }, 500);
+                  }, 800);
                   return;
                 } else {
                   // Verification failed, disconnect
@@ -2298,6 +2715,9 @@ function MachineManagement() {
         if (!connectedPort && ports.length > 0) {
           console.log('🔍 [Auto-connect] Scanning ports to detect Poornasree HUB...');
           
+          // Wait a bit to ensure any cleanup is complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           for (const port of ports) {
             console.log('🔌 [Auto-connect] Testing port...');
             
@@ -2307,8 +2727,12 @@ function MachineManagement() {
               console.log('✅ [Auto-connect] Found Poornasree HUB! Connecting...');
               
               try {
-                // Open and connect
-                await port.open({ baudRate: 115200 });
+                // Open and connect (check if already open first)
+                if (!port.readable) {
+                  await port.open({ baudRate: 115200 });
+                } else {
+                  console.log('ℹ️ [Auto-connect] Port already open, reusing connection');
+                }
                 setConnectedPort(port);
                 
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -2346,15 +2770,31 @@ function MachineManagement() {
                   setSuccess('Poornasree HUB detected and connected!');
                   setTimeout(() => setSuccess(''), 3000);
                   
-                  // Automatically start BLE scan after detection
-                  console.log('🔍 [Auto-Scan] Starting automatic scan after detection...');
-                  setTimeout(() => {
+                  // Query existing connections then scan for new devices
+                  console.log('🔍 [Auto-Connect] Querying existing BLE connections from dongle...');
+                  setTimeout(async () => {
+                    await queryExistingConnections();
+                    
+                    // Wait for LIST response
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    
+                    // Then scan for new devices
+                    console.log('🔍 [Auto-Connect] Scanning for BLE devices...');
                     handleBLEScan();
-                  }, 500);
+                  }, 800);
                   return;
                 }
-              } catch (err) {
+              } catch (err: any) {
                 console.warn('⚠️ [Auto-connect] Error connecting to detected port:', err);
+                // If port is already open, try to close and retry once
+                if (err.name === 'InvalidStateError' && err.message?.includes('already open')) {
+                  console.log('🔄 [Auto-connect] Port stuck open, closing and retrying...');
+                  try {
+                    await port.close();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Don't retry here, will be handled by manual connect
+                  } catch {}
+                }
               }
               break;
             }
@@ -2363,13 +2803,58 @@ function MachineManagement() {
           console.log('⚠️ [Auto-connect] No Poornasree HUB detected among available ports');
         }
       } catch (err) {
-        console.log('⚠️ [Auto-connect] Could not auto-connect:', (err as Error).message);
+        console.error('❌ [Auto-connect] Error during auto-connect:', err);
+        setSerialPortError('Auto-connect failed: ' + (err as Error).message);
+        setTimeout(() => setSerialPortError(''), 5000);
+      } finally {
+        setIsAutoConnecting(false);
       }
     };
 
-    // Enable auto-connect on page load
-    initializeData();
+    // Enable auto-connect on page load with small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      initializeData();
+    }, 500); // Increased from 300ms to 500ms for better stability
+    
+    return () => clearTimeout(timer);
   }, []); // Run once on mount
+  
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Use async IIFE for proper cleanup order
+      (async () => {
+        // Cancel reader first
+        if (serialReaderRef.current) {
+          try {
+            await serialReaderRef.current.cancel();
+            serialReaderRef.current = null;
+          } catch (err) {
+            console.warn('⚠️ [Cleanup] Error canceling reader:', err);
+          }
+        }
+        
+        // Release writer second
+        if (serialWriterRef.current) {
+          try {
+            await serialWriterRef.current.releaseLock();
+            serialWriterRef.current = null;
+          } catch (err) {
+            console.warn('⚠️ [Cleanup] Error releasing writer:', err);
+          }
+        }
+        
+        // Close port last
+        if (connectedPort) {
+          try {
+            await connectedPort.close();
+          } catch (err) {
+            console.warn('⚠️ [Cleanup] Error closing port:', err);
+          }
+        }
+      })();
+    };
+  }, [connectedPort]);
 
   // Listen for global search events from header
   useEffect(() => {
@@ -2880,8 +3365,6 @@ function MachineManagement() {
       const totalMachines = machineIds.length;
       setUpdateProgress(10);
       
-      console.log(`🔄 Bulk updating ${totalMachines} machines to status: ${statusToUpdate}`);
-      
       // Step 3: Single bulk update API call (10% to 90%)
       setUpdateProgress(30);
       const response = await fetch('/api/user/machine', {
@@ -2916,8 +3399,6 @@ function MachineManagement() {
       setSelectedMachines(new Set());
       setSelectedSocieties(new Set());
       setSelectAll(false);
-      
-      console.log(`✅ Successfully updated ${updatedCount} machines`);
       
       setSuccess(
         `Successfully updated status to "${statusToUpdate}" for ${updatedCount} machine(s)${
@@ -3723,16 +4204,23 @@ function MachineManagement() {
             <div ref={serialPortDropdownRef} className="relative">
               <button
                 onClick={handleSerialPortClick}
-                className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 shadow-lg shadow-blue-500/25"
+                disabled={isAutoConnecting}
+                className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 sm:px-6 py-2.5 text-sm sm:text-base font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-wait"
               >
-                <Cable className="w-4 h-4" />
-                <span>Port</span>
-                {connectedPort && (
+                {isAutoConnecting ? (
+                  <FlowerSpinner size={16} />
+                ) : (
+                  <Cable className="w-4 h-4" />
+                )}
+                <span>{isAutoConnecting ? 'Connecting...' : 'Port'}</span>
+                {connectedPort && !isAutoConnecting && (
                   <span className="px-2 py-0.5 text-xs bg-white/20 rounded-full">
                     ✓
                   </span>
                 )}
-                <ChevronDown className={`w-4 h-4 transition-transform ${serialPortDropdownOpen ? 'rotate-180' : ''}`} />
+                {!isAutoConnecting && (
+                  <ChevronDown className={`w-4 h-4 transition-transform ${serialPortDropdownOpen ? 'rotate-180' : ''}`} />
+                )}
               </button>
 
               {serialPortDropdownOpen && (
@@ -3768,12 +4256,27 @@ function MachineManagement() {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Auto-connecting Message */}
+                  {isAutoConnecting && (
+                    <div className="p-3 mx-3 mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <FlowerSpinner size={16} />
+                        <div className="text-xs text-blue-700 dark:text-blue-300">
+                          Auto-connecting to Poornasree HUB...
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Ports List */}
                   <div className="flex-1 overflow-y-auto p-3">
-                    {loadingPorts ? (
-                      <div className="flex items-center justify-center py-8">
+                    {loadingPorts || isAutoConnecting ? (
+                      <div className="flex flex-col items-center justify-center py-8">
                         <FlowerSpinner size={24} />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                          {isAutoConnecting ? 'Auto-connecting...' : 'Loading...'}
+                        </p>
                       </div>
                     ) : connectedPort ? (
                       <div className="space-y-2">
@@ -3806,9 +4309,20 @@ function MachineManagement() {
                       <div className="text-center py-8">
                         <Cable className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">No port connected</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                          Click below to connect a device
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                          {serialPorts.length > 0 
+                            ? 'Auto-connect did not find Poornasree HUB' 
+                            : 'Click below to connect a device'}
                         </p>
+                        {serialPorts.length > 0 && !connectedPort && (
+                          <button
+                            onClick={retryAutoConnect}
+                            className="px-4 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                          >
+                            <RefreshCw className="w-3 h-3 inline mr-1" />
+                            Retry Auto-Connect
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -4332,6 +4846,7 @@ function MachineManagement() {
                                 onEdit={() => handleEditClick(machine)}
                                 onDelete={() => handleDeleteClick(machine)}
                                 onView={() => router.push(`/admin/machine/${machine.id}`)}
+                                onControlPanel={() => { setControlPanelMachineId(machine.id.toString()); setControlPanelDialogOpen(true); }}
                                 onStatusChange={(status) => handleStatusChange(machine, status as 'active' | 'inactive' | 'maintenance' | 'suspended')}
                                 viewText="View"
                               />
@@ -4483,6 +4998,7 @@ function MachineManagement() {
                   onEdit={() => handleEditClick(machine)}
                   onDelete={() => handleDeleteClick(machine)}
                   onView={() => router.push(`/admin/machine/${machine.id}`)}
+                  onControlPanel={() => { setControlPanelMachineId(machine.id.toString()); setControlPanelDialogOpen(true); }}
                   onStatusChange={(status) => handleStatusChange(machine, status as 'active' | 'inactive' | 'maintenance' | 'suspended')}
                   viewText="View"
                 />
@@ -4584,7 +5100,6 @@ function MachineManagement() {
                 label="Society"
                 value={formData.societyId}
                 onChange={(value) => {
-                  console.log('Society selected:', value, 'Type:', typeof value);
                   setFormData({ ...formData, societyId: value });
                   checkMasterMachineStatus(value);
                 }}
@@ -5514,8 +6029,13 @@ function MachineManagement() {
               <div className="relative p-4 max-h-[28rem] overflow-y-auto">
                 <div className="space-y-3">
                   {Array.from(connectedBLEMachines).map((numericId, index) => {
-                    const machine = machines.find(m => m.machineId.replace(/[^0-9]/g, '') === numericId);
-                    if (!machine) return null;
+                    const foundMachine = machines.find(m => parseInt(m.machineId.replace(/[^0-9]/g, ''), 10) === parseInt(numericId, 10));
+                    // Create fallback machine object (like Flutter's orElse) if not found in list
+                    const machine = foundMachine || {
+                      id: numericId,
+                      machineId: `M-${numericId}`,
+                      machineType: 'Lactosure',
+                    };
                     
                     return (
                       <div
@@ -5525,7 +6045,8 @@ function MachineManagement() {
                       >
                         <button
                           onClick={() => {
-                            router.push(`/admin/machine/${machine.id}/control-panel`);
+                            setControlPanelMachineId(machine.id.toString());
+                            setControlPanelDialogOpen(true);
                             setControlPanelDropdownOpen(false);
                           }}
                           className="group/item relative w-full overflow-hidden rounded-2xl transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]"
@@ -5607,7 +6128,15 @@ function MachineManagement() {
             <div className="relative backdrop-blur-xl bg-gradient-to-br from-white/10 to-white/5 dark:from-white/5 dark:to-white/[0.02] p-0.5 rounded-2xl border border-white/20 dark:border-white/10 shadow-2xl">
               {/* Main button with gradient mesh */}
               <button
-                onClick={() => setControlPanelDropdownOpen(!controlPanelDropdownOpen)}
+                onClick={() => {
+                  // Navigate directly to control panel (like Flutter) - use first connected machine
+                  // The control panel dialog has internal machine switcher for multiple machines
+                  const firstMachineId = Array.from(connectedBLEMachines)[0];
+                  const machine = machines.find(m => parseInt(m.machineId.replace(/[^0-9]/g, ''), 10) === parseInt(firstMachineId, 10));
+                  // Use machine.id if found, otherwise use BLE numeric ID as fallback (like Flutter's orElse)
+                  setControlPanelMachineId(machine?.id?.toString() || firstMachineId);
+                  setControlPanelDialogOpen(true);
+                }}
                 className="relative w-14 h-14 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600 hover:from-violet-500 hover:via-fuchsia-500 hover:to-cyan-500 rounded-[18px] shadow-2xl shadow-violet-500/30 hover:shadow-violet-500/50 transition-all duration-500 flex items-center justify-center overflow-hidden group/btn"
                 title="Control Panel"
               >
@@ -5874,6 +6403,18 @@ function MachineManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Control Panel Dialog */}
+      {controlPanelMachineId && (
+        <ControlPanelDialog
+          isOpen={controlPanelDialogOpen}
+          onClose={() => {
+            setControlPanelDialogOpen(false);
+            setControlPanelMachineId(null);
+          }}
+          machineDbId={controlPanelMachineId}
+        />
       )}
     </>
   );

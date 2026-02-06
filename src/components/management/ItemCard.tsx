@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit3, Trash2, Eye, Lock, CheckCircle, Clock } from 'lucide-react';
+import { Edit3, Trash2, Eye, Lock, CheckCircle, Clock, Sliders } from 'lucide-react';
 import StatusDropdown from './StatusDropdown';
 
 interface DetailItem {
@@ -117,6 +117,9 @@ interface ItemCardProps {
     onClick: () => void;
     disabled?: boolean;
   };
+  // Control Panel button
+  onControlPanel?: () => void;
+  controlPanelTitle?: string;
 }
 
 /**
@@ -149,7 +152,9 @@ const ItemCard: React.FC<ItemCardProps> = ({
   imageUrl,
   onImageClick,
   footerStatus,
-  bleButton
+  bleButton,
+  onControlPanel,
+  controlPanelTitle = 'Control Panel'
 }) => {
   const [imageLoading, setImageLoading] = React.useState(true);
   const [imageError, setImageError] = React.useState(false);
@@ -539,6 +544,15 @@ const ItemCard: React.FC<ItemCardProps> = ({
                 title={passwordTitle}
               >
                 <Lock className="w-4 h-4" />
+              </button>
+            )}
+            {onControlPanel && (
+              <button
+                onClick={onControlPanel}
+                className="p-1.5 sm:p-2 text-gray-400 dark:text-gray-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors rounded-lg hover:bg-cyan-50 dark:hover:bg-cyan-900/30 touch-target sm:min-h-0 sm:min-w-0 flex items-center justify-center"
+                title={controlPanelTitle}
+              >
+                <Sliders className="w-4 h-4" />
               </button>
             )}
             <button
