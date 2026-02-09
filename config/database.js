@@ -1,4 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
+require('dotenv').config();
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require('path');
 
 module.exports = {
