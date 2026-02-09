@@ -864,8 +864,8 @@ function MachineManagement() {
       
       // Create reader
       const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = port.readable?.pipeThrough(textDecoder);
-      reader = readableStreamClosed?.getReader();
+      const readableStreamClosed = port.readable?.pipeThrough(textDecoder as any);
+      reader = (readableStreamClosed?.getReader() as ReadableStreamDefaultReader<string>) || null;
       
       if (!reader) {
         try { await writer.releaseLock(); } catch {}
@@ -1001,8 +1001,8 @@ function MachineManagement() {
     console.log('🟢 [Reader] Starting dongle reader...');
     try {
       const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = portToUse.readable?.pipeThrough(textDecoder);
-      const reader = readableStreamClosed?.getReader();
+      const readableStreamClosed = portToUse.readable?.pipeThrough(textDecoder as any);
+      const reader = readableStreamClosed?.getReader() as ReadableStreamDefaultReader<string>;
       
       if (!reader) {
         console.error('❌ [Reader] Failed to get reader');
@@ -1166,7 +1166,7 @@ function MachineManagement() {
             
             if (isNew) {
               // Auto-connect if enabled and not manually disconnected
-              if (autoConnectEnabled && !manuallyDisconnectedMachines.has(machineId)) {
+              if (autoConnectEnabled && !manuallyDisconnectedMachines.current.has(machineId)) {
                 // Small delay to avoid overwhelming the dongle
                 setTimeout(() => {
                   handleBLEConnect(machineId);
@@ -1213,7 +1213,7 @@ function MachineManagement() {
       
       // If no bleConnectingMachine, try individual connection map first
       if (!machineId && connectingAddressRef.current) {
-        machineId = individualConnectionMapRef.current.get(connectingAddressRef.current.toLowerCase());
+        machineId = individualConnectionMapRef.current.get(connectingAddressRef.current.toLowerCase()) || null;
         if (machineId) {
           console.log(`🔗 [BLE] Resolved machine ID ${machineId} from individual connection map (${connectingAddressRef.current})`);
         }
@@ -1221,7 +1221,7 @@ function MachineManagement() {
       
       // If still no machineId, try address map (for CONNECT_ALL)
       if (!machineId && connectingAddressRef.current) {
-        machineId = connectAllAddressMapRef.current.get(connectingAddressRef.current.toLowerCase());
+        machineId = connectAllAddressMapRef.current.get(connectingAddressRef.current.toLowerCase()) || null;
         if (machineId) {
           console.log(`🔗 [BLE] Resolved machine ID ${machineId} from CONNECT_ALL address map (${connectingAddressRef.current})`);
         }
@@ -1512,27 +1512,28 @@ function MachineManagement() {
         });
         
         if (removedMachineId) {
+          const machineId = removedMachineId; // Store non-null value for callbacks
           setConnectedBLEMachines(prev => {
             const newSet = new Set(prev);
-            newSet.delete(removedMachineId);
+            newSet.delete(machineId);
             return newSet;
           });
           
           setMachineIdToDongleId(prev => {
             const newMap = new Map(prev);
-            newMap.delete(removedMachineId);
+            newMap.delete(machineId);
             return newMap;
           });
           
-          console.log(`🔌 [BLE] Machine ${removedMachineId} disconnected (Dongle ID: ${dongleDeviceId})`);
+          console.log(`🔌 [BLE] Machine ${machineId} disconnected (Dongle ID: ${dongleDeviceId})`);
           
           // Check if device is in saved list for auto-reconnect
           try {
             const savedDevices = JSON.parse(localStorage.getItem('connected_ble_devices') || '[]');
-            const savedDevice = savedDevices.find((d: any) => d.machineId === removedMachineId);
+            const savedDevice = savedDevices.find((d: any) => d.machineId === machineId);
             
             if (savedDevice) {
-              console.log(`🔄 [Auto-Reconnect] Device ${removedMachineId} was in saved list, attempting reconnect...`);
+              console.log(`🔄 [Auto-Reconnect] Device ${machineId} was in saved list, attempting reconnect...`);
               
               // Wait 2 seconds then try to reconnect
               setTimeout(async () => {
@@ -1701,9 +1702,10 @@ function MachineManagement() {
             });
             
             if (foundMachineId) {
-              setBleDataReceived(prev => new Map(prev).set(foundMachineId, data));
-              forwardBleData(foundMachineId, data); // Forward to Control Panel via context
-              console.log(`📊 [BLE Data] Machine ${foundMachineId} (via mapping) → Dongle ID ${dongleDeviceId}`);
+              const machineId = foundMachineId; // Store non-null value
+              setBleDataReceived(prev => new Map(prev).set(machineId, data));
+              forwardBleData(machineId, data); // Forward to Control Panel via context
+              console.log(`📊 [BLE Data] Machine ${machineId} (via mapping) → Dongle ID ${dongleDeviceId}`);
             } else {
               console.warn(`⚠️ [BLE Data] Could not identify machine for dongle ID ${dongleDeviceId}`);
             }
@@ -4161,7 +4163,7 @@ function MachineManagement() {
                                       }
                                     }
                                   }}
-                                  disabled={!machineId || isConnecting}
+                                  disabled={!!(!machineId || isConnecting)}
                                   className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 flex-shrink-0 ${
                                     isConnected
                                       ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'

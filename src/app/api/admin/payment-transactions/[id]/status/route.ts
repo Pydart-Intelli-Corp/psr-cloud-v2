@@ -10,9 +10,10 @@ import { getNotificationService } from '@/lib/services/notifications';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
       return createErrorResponse('Authentication required', 401);
@@ -77,7 +78,7 @@ export async function PUT(
       updates.push('completion_date = CURRENT_TIMESTAMP');
     }
 
-    replacements.push(params.id);
+    replacements.push(id);
 
     // Update transaction
     await sequelize.query(`
@@ -96,7 +97,7 @@ export async function PUT(
           f.last_payment_amount = pt.amount,
           f.pending_payment_amount = GREATEST(f.pending_payment_amount - pt.amount, 0)
         WHERE pt.id = ?
-      `, { replacements: [params.id] });
+      `, { replacements: [id] });
     }
 
     // Get updated transaction with farmer and settings
@@ -110,7 +111,7 @@ export async function PUT(
       FROM \`${schemaName}\`.\`payment_transactions\` pt
       LEFT JOIN \`${schemaName}\`.\`farmers\` f ON pt.farmer_id = f.id
       WHERE pt.id = ?
-    `, { replacements: [params.id] });
+    `, { replacements: [id] });
 
     if (!Array.isArray(updatedTransaction) || updatedTransaction.length === 0) {
       return createErrorResponse('Transaction not found', 404);

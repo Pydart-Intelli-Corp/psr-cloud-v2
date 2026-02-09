@@ -74,6 +74,13 @@ cd /var/www/psr-v4
 git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git .
 ```
 
+### Clone with HTTPS (fallback):
+
+```bash
+cd /var/www/psr-v4
+git clone https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git .
+```
+
 ### Pull updates:
 
 ```bash

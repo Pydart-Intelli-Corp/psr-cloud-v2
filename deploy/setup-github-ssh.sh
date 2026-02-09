@@ -117,13 +117,14 @@ read -p "Test clone [n]: " TEST
 if [ "$TEST" == "y" ] || [ "$TEST" == "Y" ]; then
     mkdir -p /tmp/test-clone
     cd /tmp/test-clone
-    echo "Testing clone..."
+    echo "Testing clone from: git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git"
     if git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git . 2>&1; then
         echo -e "${GREEN}✓ Clone test successful!${NC}"
         cd ~
         rm -rf /tmp/test-clone
     else
         echo -e "${YELLOW}Clone test failed. Check your GitHub access.${NC}"
+        echo "Try HTTPS: git clone https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git"
     fi
 fi
 

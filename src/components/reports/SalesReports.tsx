@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Trash2,
   Mail,
-  Settings
+  Settings,
+  X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';

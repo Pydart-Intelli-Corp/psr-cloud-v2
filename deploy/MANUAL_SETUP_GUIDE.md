@@ -309,9 +309,17 @@ Now you can clone using SSH URL:
 ```bash
 cd /var/www/psr-v4
 
-# Clone with SSH (recommended)
+# Clone with SSH (password-free)
 git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git .
+
+# Verify remote URL
+git remote -v
+# Should show: git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git
 ```
+
+**Repository URLs:**
+- SSH: `git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git`
+- HTTPS: `https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git`
 
 ### Troubleshooting SSH
 
@@ -353,12 +361,21 @@ ls -la ~/.ssh/
 ```bash
 cd /var/www/psr-v4
 
-# Option A: SSH (recommended if you configured SSH above)
+# Option A: SSH (recommended if you configured SSH in Part 3)
 git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git .
 
-# Option B: HTTPS (requires GitHub credentials each time)
+# Option B: HTTPS (works without SSH setup, requires GitHub credentials)
 # git clone https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git .
 ```
+
+**Choose SSH if:**
+- ✅ You completed Part 3 (GitHub SSH Setup)
+- ✅ `ssh -T git@github.com` works
+
+**Choose HTTPS if:**
+- ✅ You skipped SSH setup
+- ✅ Quick one-time deployment
+- ⚠️ You'll need to enter GitHub username and password (or personal access token)
 
 ### 2. Install Application Dependencies
 

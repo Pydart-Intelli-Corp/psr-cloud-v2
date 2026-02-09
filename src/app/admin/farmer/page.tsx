@@ -955,7 +955,12 @@ const FarmerManagement = () => {
           societyId: '',
           machineId: '',
           status: 'active',
-          notes: ''
+          notes: '',
+          // Payment fields
+          paytmPhone: '',
+          paytmEnabled: 'NO',
+          upiId: '',
+          pendingPaymentAmount: 0
         });
         setSuccess('Farmer created successfully');
         setError('');
@@ -1056,7 +1061,12 @@ const FarmerManagement = () => {
           societyId: '',
           machineId: '',
           status: 'active',
-          notes: ''
+          notes: '',
+          // Payment fields
+          paytmPhone: '',
+          paytmEnabled: 'NO',
+          upiId: '',
+          pendingPaymentAmount: 0
         });
         setSuccess('Farmer updated successfully');
         setError('');
@@ -1238,7 +1248,12 @@ const FarmerManagement = () => {
       societyId: '',
       machineId: '',
       status: 'active',
-      notes: ''
+      notes: '',
+      // Payment fields
+      paytmPhone: '',
+      paytmEnabled: 'NO',
+      upiId: '',
+      pendingPaymentAmount: 0
     });
     setShowAddForm(true);
     setError('');
