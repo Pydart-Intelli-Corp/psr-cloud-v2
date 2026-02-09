@@ -1,7 +1,7 @@
 # Test Remote MySQL Connection
 # Tests connection to VPS MySQL database
 
-$Host = "168.231.121.19"
+$ServerHost = "168.231.121.19"
 $Port = 3306
 $User = "psr_admin"
 $Password = "PsrAdmin@2025!"
@@ -13,13 +13,13 @@ Write-Host "=========================================="
 Write-Host ""
 
 Write-Host "Step 1: Testing network connectivity..."
-Write-Host "Host: $Host"
+Write-Host "Host: $ServerHost"
 Write-Host "Port: $Port"
 Write-Host ""
 
 # Test if port is open
 try {
-    $tcpTest = Test-NetConnection -ComputerName $Host -Port $Port -WarningAction SilentlyContinue
+    $tcpTest = Test-NetConnection -ComputerName $ServerHost -Port $Port -WarningAction SilentlyContinue
     
     if ($tcpTest.TcpTestSucceeded) {
         Write-Host "✅ Port $Port is OPEN" -ForegroundColor Green
@@ -61,7 +61,7 @@ if ($mysqlPath) {
     $testQuery = "SELECT VERSION() as version, DATABASE() as db, USER() as user;"
     
     try {
-        $result = & mysql -h $Host -P $Port -u $User $Database -e $testQuery 2>&1
+        $result = & mysql -h $ServerHost -P $Port -u $User $Database -e $testQuery 2>&1
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ MySQL connection successful!" -ForegroundColor Green
@@ -99,7 +99,7 @@ Write-Host ""
 
 $envConfig = @"
 # Database Configuration (VPS MySQL - Remote)
-DB_HOST=$Host
+DB_HOST=$ServerHost
 DB_PORT=$Port
 DB_USER=$User
 DB_PASSWORD=$Password
