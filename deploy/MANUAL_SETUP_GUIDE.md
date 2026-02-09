@@ -490,12 +490,17 @@ npm run build
 ```bash
 cd /var/www/psr-v4
 
-# Run migrations
-npx sequelize-cli db:migrate --env production
+# Initialize database (creates tables and seeds data)
+node scripts/init-database.js
 
 # Verify tables created
 mysql -u psr_admin -p psr_v4_main -e "SHOW TABLES;"
 ```
+
+**Expected output:**
+- ✅ 6 tables created (users, admin_schemas, audit_logs, machines, machinetype, sequelize_meta)
+- ✅ Super admin user created
+- ✅ 33 machine types seeded
 
 ---
 
