@@ -51,16 +51,15 @@ async function initializeDatabase() {
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        uid VARCHAR(255) UNIQUE NOT NULL,
+        uid VARCHAR(50) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
-        phone VARCHAR(20),
-        fullName VARCHAR(255) NOT NULL,
+        fullName VARCHAR(200) NOT NULL,
         role ENUM('super_admin', 'admin', 'dairy', 'bmc', 'society', 'farmer') NOT NULL,
-        status ENUM('pending', 'active', 'suspended') DEFAULT 'pending',
-        dbKey VARCHAR(50),
+        status ENUM('pending', 'pending_approval', 'active', 'inactive', 'suspended') DEFAULT 'pending_approval',
+        dbKey VARCHAR(50) UNIQUE,
+        phone VARCHAR(20),
         companyName VARCHAR(255),
-        companyAddress TEXT,
         companyPincode VARCHAR(10),
         companyCity VARCHAR(100),
         companyState VARCHAR(100),
@@ -158,9 +157,11 @@ async function initializeDatabase() {
         machine_type VARCHAR(100) UNIQUE NOT NULL,
         description TEXT,
         is_active BOOLEAN DEFAULT true,
+        image_url VARCHAR(500),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_machinetype_type (machine_type)
+        INDEX idx_machinetype_type (machine_type),
+        INDEX idx_machinetype_active (is_active)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
     console.log('   ✅ machinetype table created');
