@@ -59,7 +59,9 @@ export async function POST(request: NextRequest) {
     await writeFile(filePath, buffer);
 
     // Update machine record with image URL
-    const imageUrl = `/uploads/machines/${fileName}`;
+    // Use full URL with domain from environment variables
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.CLIENT_URL || '';
+    const imageUrl = baseUrl ? `${baseUrl}/uploads/machines/${fileName}` : `/uploads/machines/${fileName}`;
     await machine.update({ imageUrl });
 
     console.log(`✅ Image uploaded successfully for machine ${machineId}: ${imageUrl}`);
