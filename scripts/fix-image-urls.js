@@ -6,11 +6,13 @@
  * Run this after configuring domain in .env
  */
 
-require('dotenv').config();
-const { connectDB } = require('../src/lib/database');
-const { getModels } = require('../src/models');
+const path = require('path');
+const mysql = require('mysql2/promise');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 async function fixImageUrls() {
+  let connection;
+  
   try {
     console.log('🔧 Fixing image URLs in database...\n');
 
@@ -26,17 +28,19 @@ async function fixImageUrls() {
     console.log('Connecting to database...\n');
 
     // Connect to database
-    await connectDB();
-    const { Machine } = getModels();
-
-    // Find all machines with relative image URLs
-    const machines = await Machine.findAll({
-      where: {
-        imageUrl: {
-          [require('sequelize').Op.ne]: null
-        }
-      }
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'psr_admin',
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME || 'psr_v4_main'
     });
+
+    console.log('✅ Connected to database\n');
+
+    // Find all machines with image URLs
+    const [machines] = await connection.execute(
+      'SELECT id, machine_type, image_url FROM machinetype WHERE image_url IS NOT NULL'
+    );
 
     console.log(`Found ${machines.length} machine(s) with images\n`);
 
@@ -44,11 +48,11 @@ async function fixImageUrls() {
     let skippedCount = 0;
 
     for (const machine of machines) {
-      const currentUrl = machine.imageUrl;
+      const currentUrl = machine.image_url;
 
       // Skip if already a full URL
-      if (currentUrl.startsWith('http://') || currentUrl.startsWith('https://')) {
-        console.log(`✓ Skipped: ${machine.machineType} - Already full URL`);
+      if (currentUrl && (currentUrl.startsWith('http://') || currentUrl.startsWith('https://'))) {
+        console.log(`✓ Skipped: ${machine.machine_type} - Already full URL`);
         skippedCount++;
         continue;
       }
@@ -56,8 +60,12 @@ async function fixImageUrls() {
       // Convert relative to full URL
       const newUrl = `${baseUrl}${currentUrl.startsWith('/') ? '' : '/'}${currentUrl}`;
 
-      await machine.update({ imageUrl: newUrl });
-      console.log(`✅ Updated: ${machine.machineType}`);
+      await connection.execute(
+        'UPDATE machinetype SET image_url = ? WHERE id = ?',
+        [newUrl, machine.id]
+      );
+      
+      console.log(`✅ Updated: ${machine.machine_type}`);
       console.log(`   Old: ${currentUrl}`);
       console.log(`   New: ${newUrl}\n`);
       updatedCount++;
@@ -70,10 +78,12 @@ async function fixImageUrls() {
     console.log(`   Total: ${machines.length}`);
     console.log('==========================================\n');
 
+    await connection.end();
     process.exit(0);
 
   } catch (error) {
     console.error('❌ Error fixing image URLs:', error);
+    if (connection) await connection.end();
     process.exit(1);
   }
 }
