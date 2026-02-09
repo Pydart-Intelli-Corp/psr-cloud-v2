@@ -7,11 +7,15 @@ Complete automated deployment solution for PSR Cloud V2 on Ubuntu VPS.
 | File | Purpose |
 |------|---------|
 | `deploy.sh` | Main deployment script (run on server) |
+| `setup-server.sh` | Server infrastructure setup only (MySQL, Node.js, etc) |
+| `setup-github-ssh.sh` | GitHub SSH key configuration (interactive) |
 | `update.sh` | Update existing installation (run on server) |
 | `backup.sh` | Database backup script (run on server) |
 | `deploy-from-windows.ps1` | Windows PowerShell deployment (run locally) |
 | `quick-commands.ps1` | Quick management commands (run locally) |
 | `DEPLOYMENT_GUIDE.md` | Complete deployment documentation |
+| `MANUAL_SETUP_GUIDE.md` | Step-by-step manual setup guide |
+| `GITHUB_SSH_SETUP.md` | GitHub SSH configuration guide |
 
 ## 🚀 Quick Start (Recommended)
 
@@ -32,7 +36,19 @@ This will:
 
 ⏱️ **Time: ~15 minutes**
 
-### Option 2: Manual Deployment
+### Option 2: Setup GitHub SSH First (Recommended)
+
+For easier Git operations, setup SSH access to GitHub:
+
+```powershell
+# Upload and run SSH setup script
+scp P:\psr-cloud-v2\deploy\setup-github-ssh.sh root@168.231.121.19:/root/
+ssh root@168.231.121.19 "chmod +x /root/setup-github-ssh.sh && bash /root/setup-github-ssh.sh"
+```
+
+Follow the interactive prompts. See [GITHUB_SSH_SETUP.md](GITHUB_SSH_SETUP.md) for details.
+
+### Option 3: Manual Deployment
 
 **Step 1:** Upload script
 
@@ -326,6 +342,43 @@ nano /etc/nginx/sites-available/psr-v4
 systemctl restart nginx
 pm2 restart all
 ```
+
+---
+
+## 🔑 GitHub SSH Access
+
+### Quick Setup
+
+```powershell
+# From Windows
+scp P:\psr-cloud-v2\deploy\setup-github-ssh.sh root@168.231.121.19:/root/
+ssh root@168.231.121.19 "bash /root/setup-github-ssh.sh"
+```
+
+### Manual Setup
+
+On server:
+
+```bash
+# Generate SSH key
+ssh-keygen -t ed25519 -C "your-email@gmail.com"
+
+# Display public key
+cat ~/.ssh/id_ed25519.pub
+```
+
+Copy the output and add to GitHub:
+- Go to: https://github.com/settings/keys
+- Click "New SSH key"
+- Paste key and save
+
+Test connection:
+
+```bash
+ssh -T git@github.com
+```
+
+See [GITHUB_SSH_SETUP.md](GITHUB_SSH_SETUP.md) for detailed instructions.
 
 ---
 

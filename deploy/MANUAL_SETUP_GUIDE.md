@@ -215,18 +215,149 @@ systemctl restart mysql
 
 ---
 
-## PART 3: APPLICATION DEPLOYMENT
+## PART 3: GITHUB SSH SETUP (OPTIONAL)
+
+### Why Setup SSH?
+
+SSH keys allow secure, password-free access to GitHub for:
+- Cloning private repositories
+- Pushing code changes
+- Pulling updates without entering credentials
+
+### 1. Generate SSH Key on Server
+
+Connect to your server:
+
+```bash
+ssh root@168.231.121.19
+```
+
+Generate SSH key:
+
+```bash
+# Generate SSH key (press Enter for all prompts)
+ssh-keygen -t ed25519 -C "info.pydart@gmail.com"
+
+# Or use RSA if ed25519 not supported
+# ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
+```
+
+**Press Enter** for all prompts to accept defaults:
+- File location: `/root/.ssh/id_ed25519`
+- Passphrase: Leave empty (just press Enter twice)
+
+### 2. Display Your SSH Public Key
+
+```bash
+# Display public key
+cat ~/.ssh/id_ed25519.pub
+
+# Or copy to clipboard (if you have xclip)
+# apt install xclip -y
+# cat ~/.ssh/id_ed25519.pub | xclip -selection clipboard
+```
+
+**Copy the entire output** - it will look like:
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGt... your-email@example.com
+```
+
+### 3. Add SSH Key to GitHub
+
+1. Go to **GitHub.com** and login
+2. Click your profile picture → **Settings**
+3. Click **SSH and GPG keys** (left sidebar)
+4. Click **New SSH key** button
+5. Fill in:
+   - **Title**: `PSR VPS Server - 168.231.121.19`
+   - **Key**: Paste the public key you copied
+6. Click **Add SSH key**
+7. Confirm with your GitHub password
+
+### 4. Test SSH Connection
+
+On your server:
+
+```bash
+# Test GitHub connection
+ssh -T git@github.com
+```
+
+**Expected output:**
+```
+Hi YourUsername! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+If you see this message, SSH is working! ✅
+
+### 5. Configure Git
+
+Set your Git identity:
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your-email@example.com"
+
+# Verify configuration
+git config --list
+```
+
+### 6. Clone Using SSH
+
+Now you can clone using SSH URL:
+
+```bash
+cd /var/www/psr-v4
+
+# Clone with SSH (recommended)
+git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git .
+```
+
+### Troubleshooting SSH
+
+**Problem: Permission denied (publickey)**
+
+```bash
+# Check SSH agent
+eval "$(ssh-agent -s)"
+
+# Add SSH key to agent
+ssh-add ~/.ssh/id_ed25519
+
+# Test again
+ssh -T git@github.com
+```
+
+**Problem: Wrong SSH key**
+
+```bash
+# List SSH keys
+ls -la ~/.ssh/
+
+# Make sure id_ed25519.pub exists
+# If not, generate again with ssh-keygen
+```
+
+**Problem: Repository not accessible**
+
+- Verify you added the SSH key to the correct GitHub account
+- Check if you have access to the repository
+- Try cloning with HTTPS first to test access
+
+---
+
+## PART 4: APPLICATION DEPLOYMENT
 
 ### 1. Clone Repository
 
 ```bash
 cd /var/www/psr-v4
 
-# Option A: HTTPS (requires GitHub credentials)
-git clone https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git .
+# Option A: SSH (recommended if you configured SSH above)
+git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git .
 
-# Option B: SSH (if SSH key configured)
-# git clone git@github.com:Pydart-Intelli-Corp/psr-cloud-v2.git .
+# Option B: HTTPS (requires GitHub credentials each time)
+# git clone https://github.com/Pydart-Intelli-Corp/psr-cloud-v2.git .
 ```
 
 ### 2. Install Application Dependencies
@@ -351,7 +482,7 @@ mysql -u psr_admin -p psr_v4_main -e "SHOW TABLES;"
 
 ---
 
-## PART 4: NGINX CONFIGURATION
+## PART 5: NGINX CONFIGURATION
 
 ### 1. Create Nginx Site Configuration
 
@@ -416,7 +547,7 @@ systemctl restart nginx
 
 ---
 
-## PART 5: START APPLICATION
+## PART 6: START APPLICATION
 
 ### 1. Start with PM2
 
@@ -452,7 +583,7 @@ curl http://168.231.121.19
 
 ---
 
-## PART 6: VERIFY DEPLOYMENT
+## PART 7: VERIFY DEPLOYMENT
 
 ### 1. Open in Browser
 
